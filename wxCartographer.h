@@ -15,11 +15,12 @@
 
 
 /* Все инклуды только отсюда! */
-#include <my_http.h>
-#include <my_inet.h> /* boost::asio */
-#include <my_thread.h> /* boost::thread, boost::mutex... */
+#include <my_inet.h> /* Инклуды и namespace для boost::asio */
+#include <my_http.h> /* http-протокол */
+#include <my_thread.h> /* Инклуды и namespace для boost::thread, boost::mutex... */
 #include <my_employer.h> /* "Работодатель" - контроль работы потоков */
 #include <my_mru.h> /* MRU-лист */
+#include <my_fs.h> /* boost::filesystem -> fs */
 
 #include <cstddef> /* std::size_t */
 #include <string>
@@ -29,6 +30,9 @@
 
 #include <wx/window.h>
 #include <wx/bitmap.h> 
+#include <wx/graphics.h> /* wxGraphicsContext */
+
+#define wxCart_ONLYCACHE 1
 
 class wxCartographer : my::employer
 {
@@ -96,14 +100,18 @@ public:
 	/* Содержимое тайла */
 	class tile
 	{
+	public:
+		typedef shared_ptr<tile> ptr;
+
 	private:
 		wxBitmap bitmap_;
 	
 	public:
-		typedef shared_ptr<tile> ptr;
-
 		tile(const std::wstring &filename)
-			: bitmap_(filename) {}
+		{
+			if (fs::exists(filename))
+				bitmap_.LoadFile(filename, wxBITMAP_TYPE_ANY);
+		}
 
 		inline bool loaded()
 			{ return bitmap_.IsOk(); }
@@ -118,21 +126,27 @@ private:
 	typedef my::mru::list<tile_id, tile::ptr> tiles_cache;
 	typedef my::mru::list<tile_id, int> tiles_queue;
 
-	wxWindow *window_; /* Окно для прорисовки */
+	unsigned long flags_; /* Параметры */
+	std::wstring cache_path_; /* Путь к кэшу */
 	asio::io_service io_service_; /* Служба, обрабатывающая запросы к серверу */
 	asio::ip::tcp::endpoint server_endpoint_; /* Сервер */
 	maps_list maps_; /* Список карт, имеющихся на сервере */
 	maps_id_list maps_id_; /* Соответствие номера карты и его строкового идентификатора */
-	tiles_cache cache_; /* Кэш тайлов ждущие своей загрузки */
+	tiles_cache cache_; /* Кэш тайлов */
 	shared_mutex cache_mutex_; /* Мьютекс для кэша */
-	tiles_queue queue_; /* Очередь загрузки тайлов */
-	mutex queue_mutex_; /* Мьютекс для очереди */
-	my::worker::ptr loader_; /* Указатель на загрузчик тайлов */
+	tiles_queue file_queue_; /* Очередь загрузки тайлов с диска */
+	my::worker::ptr file_loader_; /* "Работник" для "файловой" очереди */
+	tiles_queue server_queue_; /* Очередь загрузки тайлов с сервера */
+	my::worker::ptr server_loader_; /* "Работник" для "серверной" очереди */
+
+	wxWindow *window_; /* Окно для прорисовки */
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
 	mutex paint_mutex_;
+	wxDouble z_;
 
-	void loader_proc(my::worker::ptr this_worker);
+	void file_loader_proc(my::worker::ptr this_worker);
+	void server_loader_proc(my::worker::ptr this_worker);
 	//void io_thread_proc();
 
 	bool check_buffer();
@@ -143,10 +157,26 @@ private:
 		return ++id;
 	}
 
+	void add_to_cache(const tile_id &id, tile::ptr ptr);
+	void add_to_file_queue(const tile_id &id);
+	void add_to_server_queue(const tile_id &id);
+
 	/* Загрузка данных с сервера */
 	void get(my::http::reply &reply, const std::wstring &request);
-	unsigned int load_file(const std::wstring &file,
-		const std::wstring &file_local);
+	unsigned int load_and_save(const std::wstring &request,
+		const std::wstring &local_filename);
+	/* Загрузка "простого" файла и загрузка xml-файла принципиально отличаются! */
+	unsigned int load_and_save_xml(const std::wstring &request,
+		const std::wstring &local_filename);
+
+	/* Пересчёт координат */
+	static inline wxDouble size_for_z(wxDouble z);
+	static inline wxDouble lon_to_x(wxDouble lon, wxDouble z);
+	static inline wxDouble lat_to_y(wxDouble lat, wxDouble z,
+		map::projection_t projection);
+
+	/* Прорисовка карты */
+	void wxCartographer::paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height);
 
 	/* Обработчики событий окна */
 	void OnPaint(wxPaintEvent& event);
@@ -157,7 +187,8 @@ private:
 	void OnMouseWheel(wxMouseEvent& event);
 public:
 	wxCartographer(wxWindow *window, const std::wstring &server,
-		const std::wstring &port, std::size_t cache_size, long flags);
+		const std::wstring &port, std::size_t cache_size,
+		std::wstring cache_path, unsigned long flags);
 	~wxCartographer();
 
 	void Repaint();

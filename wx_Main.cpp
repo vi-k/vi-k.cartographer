@@ -9,6 +9,7 @@
 
 #include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
 
+#include <wx/msw/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>
 #include "wx_Main.h"
 
@@ -89,8 +90,8 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
-	cartographer_.reset(
-		new wxCartographer(Panel1, L"172.16.19.1", L"27543", 1000, 0) );
+	cartographer_.reset( new wxCartographer(Panel1, L"172.16.19.1", L"27543",
+		1000, L"cache", 0/*wxCart_ONLYCACHE*/) );
 }
 
 wx_MainFrame::~wx_MainFrame()
