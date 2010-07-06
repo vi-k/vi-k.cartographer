@@ -143,7 +143,10 @@ private:
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
 	mutex paint_mutex_;
-	wxDouble z_;
+	wxDouble z_; /* Текущий масштаб */
+	int active_map_id_; /* Активная карта */
+	wxDouble lat_; /* Координаты центра экрана: */
+	wxDouble lon_; /* долгота и широта */
 
 	void file_loader_proc(my::worker::ptr this_worker);
 	void server_loader_proc(my::worker::ptr this_worker);
@@ -163,20 +166,36 @@ private:
 
 	/* Загрузка данных с сервера */
 	void get(my::http::reply &reply, const std::wstring &request);
+	/* Загрузка и сохранение файла с сервера */
 	unsigned int load_and_save(const std::wstring &request,
 		const std::wstring &local_filename);
-	/* Загрузка "простого" файла и загрузка xml-файла принципиально отличаются! */
+	/* Сохранение "простого" и xml- файлов отличаются! */
 	unsigned int load_and_save_xml(const std::wstring &request,
 		const std::wstring &local_filename);
 
-	/* Пересчёт координат */
+	
+	/* Координаты, размеры... */
+	
+	/* Размер мира в тайлах для заданного масштаба */
+	static inline int size_for_int_z(int z)
+		{ return 1 << (z - 1); }
+	/* Размер мира в тайлах - для дробного z чуть сложнее, чем для целого */
 	static inline wxDouble size_for_z(wxDouble z);
+	/* Долгота -> x */
 	static inline wxDouble lon_to_x(wxDouble lon, wxDouble z);
-	static inline wxDouble lat_to_y(wxDouble lat, wxDouble z,
+	/* Широта -> y (зависти от типа проекции (spheroid, ellipsoid )) */
+	static inline wxDouble lat_to_y(wxDouble lat, wxDouble z, 
 		map::projection_t projection);
 
+	
 	/* Прорисовка карты */
-	void wxCartographer::paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height);
+
+	void prepare_background(wxBitmap &bitmap, wxDouble width, wxDouble height,
+		int map_id, int z, wxDouble lat, wxDouble lon);
+
+	tile::ptr get_tile(int map_id, int z, int x, int y);
+	void paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height,
+		int map_id, wxDouble lat, wxDouble lon, wxDouble z);
 
 	/* Обработчики событий окна */
 	void OnPaint(wxPaintEvent& event);

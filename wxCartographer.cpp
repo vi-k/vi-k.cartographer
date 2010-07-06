@@ -33,6 +33,8 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	, server_queue_(100)
 	, cache_path_( fs::system_complete(cache_path).string() )
 	, flags_(flags)
+	, z_(1)
+	, active_map_id_(0)
 {
 	try
 	{
@@ -45,7 +47,7 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 			request = L"/maps/maps.xml";
 			file = cache_path_ + L"/maps.xml";
 		
-			/* Загружаем с сервера */
+			/* Загружаем с сервера на диск (кэшируем) */
 			if ( !(flags_ & wxCart_ONLYCACHE) )
 			{
 				/* Резолвим сервер */
@@ -58,6 +60,7 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 				load_and_save_xml(request, file);
 			}
 
+			/* Загружаем с диска */
 			xml::wptree config;
 			my::xml::load(file, config);
 	
@@ -97,6 +100,9 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 				/* Сохраняем описание карты в списке */
 				int id = get_new_map_id(); /* новый идентификатор */
 				maps_[id] = mp;
+
+				if (active_map_id_ == 0)
+					active_map_id_ = id;
 				
 				/* Сохраняем соответствие строкового идентикатора числовому */
 				maps_id_[mp.id] = id;
@@ -149,9 +155,13 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	add_to_file_queue( tile_id(1,2,1,2) );
 	-*/
 
-	int x = lon_to_x(135.07585278, 12);
-	int y = lat_to_y(48.476978, 12, map::ellipsoid);
-	add_to_file_queue( tile_id(1,12,x,y) );
+	z_ = 12.0;
+	lat_ = 48.49481206;
+	lon_ = 135.101012;
+
+	wxDouble y = lat_to_y(lat_, 12, map::ellipsoid);
+	wxDouble x = lon_to_x(lon_, 12);
+	add_to_file_queue( tile_id(1, 12, x, y) );
 }
 
 wxCartographer::~wxCartographer()
@@ -432,8 +442,8 @@ unsigned int wxCartographer::load_and_save_xml(const std::wstring &request,
 
 wxDouble wxCartographer::size_for_z(wxDouble z)
 {
-	/* Размер всей карты в тайлах. Для целого z,
-		вычисляется как 2^(z-1), для дробного - чуть посложнее */
+	/* Размер всей карты в тайлах.
+		Для дробного z - чуть посложнее, чем для целого */
 	int iz = (int)z;
 	return (wxDouble)(1 << (iz - 1)) * (1.0 + z - iz);
 }
@@ -467,43 +477,133 @@ wxDouble wxCartographer::lat_to_y(wxDouble lat, wxDouble z,
 	return res;
 }
 
-void wxCartographer::paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height)
+wxCartographer::tile::ptr wxCartographer::get_tile(int map_id, int z, int x, int y)
+{
+	tile_id id(map_id, z, x, y);
+	tile::ptr ptr;
+
+	{
+		/* Блокируем кэш для чтения */
+		shared_lock<shared_mutex> l(cache_mutex_);
+
+		tiles_cache::iterator iter = cache_.find(id);
+
+		/* Если в кэше тайла нет - добавляем в очередь
+			для загрузки и возвращаем пустой указатель */
+		if (iter == cache_.end())
+			add_to_file_queue(id);
+
+		/* Если в кэше есть - возвращаем тайл */
+		else
+			ptr = iter->value();
+	}
+
+	return ptr;
+}
+
+void wxCartographer::prepare_background(wxBitmap &bitmap, wxDouble width,
+	wxDouble height, int map_id, int z, wxDouble lat, wxDouble lon)
 {
 	/*
-	lon="135 4 33.07"
-	lat="48 28 37.12"
+		Подготовка фона для заданного z:
+			width, height - размеры окна
+			map_id - номер карты
+			z - масштаб
+			lat, lon - географические координаты центра карты
 	*/
 
-#if 0
+	wxCartographer::map map = maps_[map_id];
+
+	/* Координаты центра карты (в тайлах) */
+	wxDouble y = lat_to_y(lat, (wxDouble)z, map.projection);
+	wxDouble x = lon_to_x(lon, (wxDouble)z);
+	
+	/* "Центральный" тайл */
+	int tile_y = (int)y;
+	int tile_x = (int)x;
+
+	/* Экранные координаты верхнего левого угла "центрального" тайла */
+	wxDouble win_y = height / 2.0 - (y - tile_y) * 256.0;
+	wxDouble win_x = width / 2.0 - (x - tile_x) * 256.0;
+
+	/* Определяем тайл нижнего правого угла экрана */
+	int last_tile_y = tile_y;
+	int last_tile_x = tile_x;
+
+	while (win_y < height)
+		win_y += 256.0, ++last_tile_y;
+	while (win_x < width)
+		win_x += 256.0, ++last_tile_x;
+
+	/* Определяем тайл верхнего левого угла экрана */
+	int first_tile_y = last_tile_y;
+	int first_tile_x = last_tile_x;
+
+	while (win_y > 0.0)
+		win_y -= 256.0, --first_tile_y;
+	while (win_x > 0.0)
+		win_x -= 256.0, --first_tile_x;
+
+	bitmap.Create(
+		(last_tile_x - first_tile_x + 1) * 256,
+		(last_tile_y - first_tile_y + 1) * 256);
+	
+	//wxMemoryDC dc(bitmap);
+	//scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(dc) );
+	scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(bitmap) );
+
+	for (tile_y = first_tile_y, y = win_y; tile_y <= last_tile_y; ++tile_y, y += 256.0)
+	{
+		for (tile_x = first_tile_x, y = win_x; tile_x <= last_tile_x; ++tile_x, x += 256.0)
+		{
+			tile::ptr tile_ptr = get_tile(map_id, z, tile_x, tile_y);
+			
+			if (tile_ptr)
+				gc->DrawBitmap(tile_ptr->bitmap(), x, y, 256.0, 256.0);
+		}
+	}
+}
+
+void wxCartographer::paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height,
+	int map_id, wxDouble lat, wxDouble lon, wxDouble z)
+{
 	/* Прорисовка карты */
 
+#if 0
 	/* Суть - сначала закидываем тайлы в background-буфер в масштабе 1:1,
 		а затем его проецируем в buffer уже с нужным масштабом */
+	wxCartographer::map map = maps_[map_id];
 
 	/* Рисуем фон дважды для плавного перехода между масштабами */
-	for (int i = 0; i < 2; ++i)
+	for (int i = 0; i < 1; ++i)
 	{
-		int iz = (int)z_;
-		int z; /* Масштаб */
-		wxDouble za = z_ - iz; /* Прозрачность */
-		wxDouble k = 1.0 + za; /* Коэффициент увеличения тайлов */
+		int iz = (int)z;
+		wxDouble za = z - iz; /* Прозрачность, для плавного перехода между масштабами */
+		wxDouble k = 1.0 + za; /* Коэффициент увеличения размера тайлов */
 
 		if (i == 0)
-			z = iz, za = 1.0 - za;
+			za = 1.0 - za;
 		else
-			z = iz + 1, k /= 2.0;
+			++iz, k /= 2.0;
 
-		/* Размер всей карты в тайлах */
-		?int sz = 1 << (z - 1);
+		/* Размер "мира" в тайлах */
+		//int sz = size_for_int_z(iz);
 
 		/* Реальные размеры тайла */
 		wxDouble tile_width = 256.0 * k;
 
-		/* Первый тайл, попавший в зону окна.
-			lat_, lon_ - центр карты в градусах */
-		int begin_x = - (int)ceil(x_ / w);
-		int begin_y = - (int)ceil(y_ / w);
-		
+		/* Тайл в центре карты */
+		wxDouble x = lon_to_x(lon, (wxDouble)iz);
+		wxDouble y = lat_to_y(lat, (wxDouble)iz, map.projection);
+		int tile_x = (int)x;
+		int tile_y = (int)y;
+
+		tile::ptr tile_ptr = get_tile(map_id, z, tile_x, tile_y);
+
+		if (tile_ptr)
+			gc->DrawBitmap(tile_ptr->bitmap(), 0.0, 0.0, tile_width, tile_width);
+	}
+
 	if (begin_x < 0) begin_x = 0;
 	if (begin_y < 0) begin_y = 0;
 
@@ -595,11 +695,14 @@ void wxCartographer::Repaint()
 	gc->SetBrush(*wxBLACK_BRUSH);
 	gc->DrawRectangle(0.0, 0.0, width, height);
 
+	prepare_background(background_, width, height,
+		active_map_id_, z_, lat_, lon_);
+	
+	gc->DrawBitmap(background_, 0.0, 0.0, width, height);
+
 	/* Перерисовываем окно */
-	{
-		wxPaintDC dc(window_);
-		dc.DrawBitmap(buffer_, 0, 0);
-	}
+	scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(window_) );
+	gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
 }
 
 void wxCartographer::OnPaint(wxPaintEvent& event)
@@ -637,4 +740,11 @@ void wxCartographer::OnMouseMove(wxMouseEvent& event)
 
 void wxCartographer::OnMouseWheel(wxMouseEvent& event)
 {
+	int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
+	
+	if (z < 1) z = 1;
+	if (z > 18) z = 18;
+	
+	z_ = (wxDouble)z;
+	Repaint();
 }
