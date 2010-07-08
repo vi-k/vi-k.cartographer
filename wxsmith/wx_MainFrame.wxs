@@ -10,18 +10,24 @@
 			<cols>1</cols>
 			<rows>2</rows>
 			<growablecols>0</growablecols>
-			<growablerows>0</growablerows>
+			<growablerows>1</growablerows>
 			<object class="sizeritem">
-				<object class="wxPanel" name="ID_PANEL2" variable="Panel1" member="yes">
-					<size>616,331</size>
+				<object class="wxPanel" name="ID_PANEL1" variable="Panel2" member="yes">
+					<size>616,61</size>
+					<object class="wxComboBox" name="ID_COMBOBOX1" variable="ComboBox1" member="yes">
+						<pos>8,8</pos>
+						<size>208,24</size>
+						<style>wxCB_DROPDOWN</style>
+						<handler function="OnComboBox1Select" entry="EVT_COMBOBOX" />
+					</object>
 				</object>
 				<flag>wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
 				<border>5</border>
 				<option>1</option>
 			</object>
 			<object class="sizeritem">
-				<object class="wxPanel" name="ID_PANEL1" variable="Panel2" member="yes">
-					<size>616,61</size>
+				<object class="wxPanel" name="ID_PANEL2" variable="Panel1" member="yes">
+					<size>616,331</size>
 				</object>
 				<flag>wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
 				<border>5</border>

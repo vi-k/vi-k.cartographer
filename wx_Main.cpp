@@ -28,8 +28,9 @@ using namespace std;
 #include <wx/filename.h>
 
 //(*IdInit(wx_MainFrame)
-const long wx_MainFrame::ID_PANEL2 = wxNewId();
+const long wx_MainFrame::ID_COMBOBOX1 = wxNewId();
 const long wx_MainFrame::ID_PANEL1 = wxNewId();
+const long wx_MainFrame::ID_PANEL2 = wxNewId();
 const long wx_MainFrame::ID_MENU_QUIT = wxNewId();
 const long wx_MainFrame::ID_MENU_ABOUT = wxNewId();
 const long wx_MainFrame::ID_STATUSBAR1 = wxNewId();
@@ -59,11 +60,12 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	}
 	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
 	FlexGridSizer1->AddGrowableCol(0);
-	FlexGridSizer1->AddGrowableRow(0);
+	FlexGridSizer1->AddGrowableRow(1);
+	Panel2 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
+	ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
+	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
 	FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-	Panel2 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
-	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	SetSizer(FlexGridSizer1);
 	MenuBar1 = new wxMenuBar();
 	Menu1 = new wxMenu();
@@ -83,6 +85,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	SetStatusBar(StatusBar1);
 	FlexGridSizer1->SetSizeHints(this);
 
+	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnComboBox1Select);
 	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnQuit);
 	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnAbout);
 	//*)
@@ -91,15 +94,25 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	//setlocale(LC_ALL, "");
 
 	cartographer_.reset( new wxCartographer(
-		Panel1
-		, L"127.0.0.1" //L"172.16.19.1"
-		, L"27543"
-		, 1000 /* Размер кэша (в тайлах) */
-		, L"cache"
-		, false /* true - только из кэша */
-		, 60 /* Период анимации в мс */
-		, 4 /* Кол-во шагов анимации */
+		Panel1 /* window - на чём будем рисовать */
+		, L"127.0.0.1" //L"172.16.19.1" /* server - адрес сервера */
+		, L"27543" /* port - порт сервера */
+		, 1000 /* cache_size - размер кэша (в тайлах) */
+		, L"cache" /* cache_path - путь к кэшу на диске */
+		, false /* only_cache - работать только с кэшем */
+		, L"Google.Спутник" /* init_map - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		, 1 /* init_z - исходный масштаб (>1) */
+		, 48.48021475 /* init_lat - широта исходной точки */
+		, 135.0719556 /* init_lon - долгота исходной точки */
 		) );
+
+	cartographer_->GetMaps(maps_);
+
+	for( maps_list::iterator iter = maps_.begin();
+		iter != maps_.end(); ++iter )
+	{
+		ComboBox1->Append(iter->name);
+	}
 }
 
 wx_MainFrame::~wx_MainFrame()
@@ -118,3 +131,9 @@ void wx_MainFrame::OnAbout(wxCommandEvent& event)
 	wxMessageBox( L"About...");
 }
 
+
+void wx_MainFrame::OnComboBox1Select(wxCommandEvent& event)
+{
+	std::wstring str = ComboBox1->GetValue();
+	cartographer_->SetActiveMap(str);
+}

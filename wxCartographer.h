@@ -27,6 +27,7 @@
 #include <cstddef> /* std::size_t */
 #include <string>
 #include <map>
+#include <vector>
 
 #include <boost/unordered_map.hpp>
 
@@ -34,6 +35,7 @@
 #include <wx/bitmap.h> 
 #include <wx/dcgraph.h> /* wxGCDC */
 #include <wx/graphics.h> /* wxGraphicsContext */
+#include <wx/mstream.h>  /* wxMemoryInputStream */
 
 class wxCartographer : my::employer
 {
@@ -113,11 +115,18 @@ public:
 		wxBitmap bitmap_;
 	
 	public:
+		/* Создание "пустого" тайла - чтобы не загружать повторно */
+		tile()
+			: need_for_load_(false)
+			, level_(999) {}
+
+		/* Создание "чистого" тайла для построения */
 		tile(int level)
 			: need_for_load_(true)
 			, level_(level)
 			, bitmap_(256, 256) {}
 
+		/* Загрузка из файла */
 		tile(const std::wstring &filename)
 			: need_for_load_(false)
 		{
@@ -128,6 +137,22 @@ public:
 			}
 			
 			level_ = ok() ? 0 : 999;
+		}
+
+		/* Загрузка из памяти */
+		tile(const void *data, std::size_t size)
+			: need_for_load_(false)
+		{
+			wxImage image;
+			wxMemoryInputStream stream(data, size);
+			
+			if (!image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
+				level_ = 999;
+			else
+			{
+				bitmap_ = wxBitmap(image);
+				level_ = 0;
+			}
 		}
 
 		inline wxBitmap& bitmap()
@@ -157,7 +182,7 @@ public:
 
 private:
 	typedef std::map<int, map> maps_list;
-	typedef boost::unordered_map<std::wstring, int> maps_sid_to_id_list;
+	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
 	typedef my::mru::list<tile::id, int> tiles_queue;
 
@@ -266,7 +291,7 @@ private:
 	*/
 
 	maps_list maps_; /* Список карт (по числовому id) */
-	maps_sid_to_id_list maps_sid_to_id_; /* sid -> id */
+	maps_name_to_id_list maps_name_to_id_; /* name -> id */
 	int active_map_id_; /* Активная карта */
 
 	/* Уникальный идентификатор загруженный карты */
@@ -322,10 +347,13 @@ public:
 	wxCartographer(wxWindow *window, const std::wstring &server,
 		const std::wstring &port, std::size_t cache_size,
 		std::wstring cache_path, bool only_cache,
-		int anim_period, int def_anim_steps);
+		const std::wstring &init_map, int init_z, wxDouble init_lat, wxDouble init_lon,
+		int anim_period = 60, int def_anim_steps = 4);
 	~wxCartographer();
 
-	void Update() {}
+	void Update();
+	bool SetActiveMap(const std::wstring &map_name);
+	void GetMaps(std::vector<map> &maps);
 };
 
 

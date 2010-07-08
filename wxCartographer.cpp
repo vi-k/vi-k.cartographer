@@ -27,7 +27,9 @@ Real atanh(Real n)
 
 wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	const std::wstring &port, std::size_t cache_size,
-	std::wstring cache_path, bool only_cache, int anim_period, int def_anim_steps)
+	std::wstring cache_path, bool only_cache,
+	const std::wstring &init_map, int init_z, wxDouble init_lat, wxDouble init_lon,
+	int anim_period, int def_anim_steps)
 	: window_(window)
 	, cache_(cache_size)
 	, cache_path_( fs::system_complete(cache_path).string() )
@@ -38,9 +40,9 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	, server_queue_(100)
 	, server_loader_debug_counter_(0)
 	, buffer_(100,100)
-	, z_(12)
-	, lat_(48.494797806)
-	, lon_(135.101092444)
+	, z_(init_z)
+	, lat_(init_lat)
+	, lon_(init_lon)
 	, active_map_id_(0)
 	, anim_period_( posix_time::milliseconds(anim_period) )
 	, def_anim_steps_(def_anim_steps)
@@ -112,11 +114,12 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 				int id = get_new_map_id(); /* новый идентификатор */
 				maps_[id] = map;
 
-				if (active_map_id_ == 0)
+				if (active_map_id_ == 0 || map.name == init_map)
 					active_map_id_ = id;
 				
-				/* Сохраняем соответствие строкового идентификатора числовому */
-				maps_sid_to_id_[map.sid] = id;
+				/* Сохраняем соответствие названия
+					карты числовому идентификатору */
+				maps_name_to_id_[map.name] = id;
 
 				p.first++;
 			}
@@ -340,7 +343,7 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 
 void wxCartographer::add_to_file_queue(const tile::id &tile_id)
 {
-	/* Копированием указателя на "работника", гарантируем,
+	/* Копированием указателя на "работника" гарантируем,
 		что он не будет удалён, пока выполняется функция */
 	my::worker::ptr worker = file_loader_;
 	if (worker)
@@ -355,7 +358,7 @@ void wxCartographer::add_to_server_queue(const tile::id &tile_id)
 {
 	if (!only_cache_)
 	{
-		/* Копированием указателя на "работника", гарантируем,
+		/* Копированием указателя на "работника" гарантируем,
 			что он не будет удалён, пока выполняется функция */
 		my::worker::ptr worker = server_loader_;
 		if (worker)
@@ -479,14 +482,26 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 			
 		try
 		{
-			/* Загружаем с сервера ... */
-			load_and_save(request.str(), tile_path.str());
+			/* Загружаем тайл с сервера ... */
+			my::http::reply reply;
+			get(reply, request.str());
 
-			/* ... и сразу с диска */
-			tile::ptr ptr( new tile(tile_path.str()) );
+			tile::ptr ptr;
 
-			/* В любом случае - сохраняем в кэше, чтобы, при отсутствии
-				тайла, не пытаться вновь и вновь его загрузить */
+			if (reply.status_code != 200)
+			{
+				/* Если тайл отсутствует на сервере, создаём "пустой" тайл,
+					чтобы не пытаться загружать повторно */
+				ptr.reset( new tile() );
+			}
+			else
+			{
+				/* При успешной загрузке с сервера, создаём тайл из буфера */
+				ptr.reset( new tile(reply.body.c_str(), reply.body.size()) );
+				/* ... и сохраняем на диске */
+				reply.save(tile_path.str());
+			}
+
 			add_to_cache(tile_id, ptr);
 		}
 		catch (...)
@@ -721,7 +736,7 @@ void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
 		for (wxCoord ty = y; tile_id.y >= first_y; --tile_id.y, ty -= 256)
 		{
 			tile::ptr tile_ptr = get_tile(tile_id);
-			if (tile_ptr)
+			if (tile_ptr && tile_ptr->ok())
 				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
 		}
 	}
@@ -774,10 +789,6 @@ void wxCartographer::repaint()
 	gc.SetBrush(*wxBLACK_BRUSH);
 	gc.DrawRectangle(0, 0, width, height);
 
-	//prepare_background(background_, width, height,
-	//	active_map_id_, z_, lat_, lon_);
-	//gc->DrawBitmap(background_, 0.0, 0.0, width, height);
-	
 	paint_map(gc, width, height, active_map_id_, z_, lat_, lon_);
 
 	#if _DEBUG
@@ -838,6 +849,7 @@ void wxCartographer::OnEraseBackground(wxEraseEvent& event)
 
 void wxCartographer::OnLeftDown(wxMouseEvent& event)
 {
+	window_->SetFocus();
 }
 
 void wxCartographer::OnLeftUp(wxMouseEvent& event)
@@ -857,4 +869,39 @@ void wxCartographer::OnMouseWheel(wxMouseEvent& event)
 	
 	z_ = (wxDouble)z;
 	Update();
+}
+
+void wxCartographer::Update()
+{
+	/* Копированием указателя на "работника" гарантируем,
+		что он не будет удалён, пока выполняется функция */
+	my::worker::ptr worker = animator_;
+	if (worker)
+		wake_up(worker); /* Будим работника, если он спит */
+}
+
+bool wxCartographer::SetActiveMap(const std::wstring &map_name)
+{
+	mutex::scoped_lock l(paint_mutex_);
+
+	int map_num_id = maps_name_to_id_[map_name];
+	
+	if (map_num_id)
+	{
+		active_map_id_ = map_num_id;
+		return true;
+	}
+
+	return false;
+}
+
+void wxCartographer::GetMaps(std::vector<wxCartographer::map> &maps)
+{
+	maps.clear();
+
+	for (maps_list::iterator iter = maps_.begin();
+		iter != maps_.end(); ++iter)
+	{
+		maps.push_back(iter->second);
+	}
 }
