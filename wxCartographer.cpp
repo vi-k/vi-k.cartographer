@@ -7,7 +7,8 @@
 #include <my_xml.h>
 #include <my_fs.h> /* boost::filesystem */
 
-#include <cmath>
+#include <cmath> /* sin, sqrt */
+#include <cwchar> /* swprintf_s */
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -26,15 +27,25 @@ Real atanh(Real n)
 
 wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	const std::wstring &port, std::size_t cache_size,
-	std::wstring cache_path, unsigned long flags)
+	std::wstring cache_path, bool only_cache, int anim_period, int def_anim_steps)
 	: window_(window)
 	, cache_(cache_size)
-	, file_queue_(100)
-	, server_queue_(100)
 	, cache_path_( fs::system_complete(cache_path).string() )
-	, flags_(flags)
-	, z_(1)
+	, only_cache_(only_cache)
+	, builder_debug_counter_(0)
+	, file_queue_(100)
+	, file_loader_debug_counter_(0)
+	, server_queue_(100)
+	, server_loader_debug_counter_(0)
+	, buffer_(100,100)
+	, z_(12)
+	, lat_(48.494797806)
+	, lon_(135.101092444)
 	, active_map_id_(0)
+	, anim_period_( posix_time::milliseconds(anim_period) )
+	, def_anim_steps_(def_anim_steps)
+	, anim_speed_(0)
+	, anim_freq_(0)
 {
 	try
 	{
@@ -48,7 +59,7 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 			file = cache_path_ + L"/maps.xml";
 		
 			/* Загружаем с сервера на диск (кэшируем) */
-			if ( !(flags_ & wxCart_ONLYCACHE) )
+			if (!only_cache_)
 			{
 				/* Резолвим сервер */
 				asio::ip::tcp::resolver resolver(io_service_);
@@ -70,42 +81,42 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 
 			while (p.first != p.second)
 			{
-				map mp;
-				mp.id = p.first->second.get<std::wstring>(L"id");
-				mp.name = p.first->second.get<std::wstring>(L"name", L"");
-				mp.is_layer = p.first->second.get<bool>(L"layer", 0);
+				wxCartographer::map map;
+				map.sid = p.first->second.get<std::wstring>(L"id");
+				map.name = p.first->second.get<std::wstring>(L"name", L"");
+				map.is_layer = p.first->second.get<bool>(L"layer", 0);
 			
-				mp.tile_type = p.first->second.get<std::wstring>(L"tile-type");
-				if (mp.tile_type == L"image/jpeg")
-					mp.ext = L"jpg";
-				else if (mp.tile_type == L"image/png")
-					mp.ext = L"png";
+				map.tile_type = p.first->second.get<std::wstring>(L"tile-type");
+				if (map.tile_type == L"image/jpeg")
+					map.ext = L"jpg";
+				else if (map.tile_type == L"image/png")
+					map.ext = L"png";
 				else
 					throw my::exception(L"Неизвестный тип тайла")
-						<< my::param(L"map", mp.id)
-						<< my::param(L"tile-type", mp.tile_type);
+						<< my::param(L"map", map.sid)
+						<< my::param(L"tile-type", map.tile_type);
 
 				std::wstring projection
 					= p.first->second.get<std::wstring>(L"projection");
 
 				if (projection == L"spheroid") /* Google */
-					mp.projection = map::spheroid;
+					map.projection = wxCartographer::map::spheroid;
 				else if (projection == L"ellipsoid") /* Yandex */
-					mp.projection = map::ellipsoid;
+					map.projection = wxCartographer::map::ellipsoid;
 				else
 					throw my::exception(L"Неизвестный тип проекции")
-						<< my::param(L"map", mp.id)
+						<< my::param(L"map", map.sid)
 						<< my::param(L"projection", projection);
 
 				/* Сохраняем описание карты в списке */
 				int id = get_new_map_id(); /* новый идентификатор */
-				maps_[id] = mp;
+				maps_[id] = map;
 
 				if (active_map_id_ == 0)
 					active_map_id_ = id;
 				
-				/* Сохраняем соответствие строкового идентикатора числовому */
-				maps_id_[mp.id] = id;
+				/* Сохраняем соответствие строкового идентификатора числовому */
+				maps_sid_to_id_[map.sid] = id;
 
 				p.first++;
 			}
@@ -118,19 +129,33 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 				<< my::exception(e);
 		} /* Загружаем с сервера список доступных карт */
 
-		
-		/* Запускаем "файловый" загрузчик тайлов */
+		/* Запускаем файловый загрузчик тайлов */
 		file_loader_ = new_worker("file_loader"); /* Название - только для отладки */
 		boost::thread( boost::bind(
 			&wxCartographer::file_loader_proc, this, file_loader_) );
 
-		/* Запускаем "серверный" загрузчик тайлов */
-		if ( !(flags_ & wxCart_ONLYCACHE))
+		/* Запускаем серверный загрузчик тайлов */
+		if (!only_cache_)
 		{
 			server_loader_ = new_worker("server_loader"); /* Название - только для отладки */
 			boost::thread( boost::bind(
 				&wxCartographer::server_loader_proc, this, server_loader_) );
 		}
+
+		/* Запускаем анимацию */
+
+		/* Чтобы при расчёте средних скорости и частоты анимации данные
+			не скакали слишком быстро, будем хранить 10 последних расчётов
+			и вычислять общее среднее */
+		for (int i = 0; i < 10; i++)
+		{
+			anim_speed_sw_.push();
+			anim_freq_sw_.push();
+		}
+		animator_ = new_worker("animator");
+		boost::thread( boost::bind(
+			&wxCartographer::anim_thread_proc, this, animator_) );
+
 	}
 	catch(std::exception &e)
 	{
@@ -147,21 +172,7 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	window_->Bind(wxEVT_MOTION, &wxCartographer::OnMouseMove, this);
 	window_->Bind(wxEVT_MOUSEWHEEL, &wxCartographer::OnMouseWheel, this);
 
-	/*-
-	add_to_file_queue( tile_id(1,2,0,0) );
-	add_to_file_queue( tile_id(1,2,0,1) );
-	add_to_file_queue( tile_id(1,2,1,0) );
-	add_to_file_queue( tile_id(1,2,1,1) );
-	add_to_file_queue( tile_id(1,2,1,2) );
-	-*/
-
-	z_ = 12.0;
-	lat_ = 48.49481206;
-	lon_ = 135.101012;
-
-	wxDouble y = lat_to_y(lat_, 12, map::ellipsoid);
-	wxDouble x = lon_to_x(lon_, 12);
-	add_to_file_queue( tile_id(1, 12, x, y) );
+	//get_tile( tile::id(1, 12, 1792, 709) );
 }
 
 wxCartographer::~wxCartographer()
@@ -175,20 +186,20 @@ wxCartographer::~wxCartographer()
 	/* Освобождаем ("увольняем") всех "работников" */
 	dismiss(file_loader_);
 	dismiss(server_loader_);
+	dismiss(animator_);
 
     /* Ждём завершения */
 	
-	#ifdef _DEBUG /* Для отладки - вдруг кто зависнет */
+	
+	#ifdef _DEBUG
+	/* Отладка - поиск зависших */
 	{
-		posix_time::ptime start = my::time::utc_now();
+		posix_time::ptime start_finish = my::time::utc_now();
 		while (!check_for_finish())
 		{
-			if (my::time::utc_now() - start >= posix_time::seconds(5))
-			{
-				std::vector<std::string> v;
-				/* Брекпоинт на следующую строчку */
-				workers_state(v);
-			}
+			std::vector<std::string> v;
+			workers_state(v);
+			assert( my::time::utc_now() - start_finish < posix_time::seconds(2) );
 		}
 	}
     #endif
@@ -196,19 +207,138 @@ wxCartographer::~wxCartographer()
 	wait_for_finish();
 }
 
-void wxCartographer::add_to_cache(const tile_id &id, tile::ptr ptr)
+void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
 	{
 		unique_lock<shared_mutex> l(cache_mutex_);
-		cache_[id] = ptr;
+
+		/* Ищем тайл в кэше */
+		tile::ptr old = cache_[tile_id];
+
+		/* Если отсутствует, то просто добавляем */
+		if (!old)
+			cache_[tile_id] = ptr;
+
+		/* Если новый файл "лучше" старого - меняем содержимое */
+		else if (ptr->level() < old->level())
+		{
+			/* Если старый тайл не нуждался в загрузке,
+				сохраняем этот флаг и у нового */
+			if (!old->need_for_load())
+				ptr->reset_need_for_load();
+
+			cache_[tile_id] = ptr;
+		}
+		/* Если "хуже" - оставляем старый, но если новый
+			не нуждается в загрузке, тогда и старый тоже */
+		else
+		{
+			if (!ptr->need_for_load())
+				old->reset_need_for_load();
+		}
 	}
 
 	/* Оповещаем об изменении кэша */
-	//if (on_update_)
-	//	on_update_();
+	Update();
 }
 
-void wxCartographer::add_to_file_queue(const tile_id &id)
+bool wxCartographer::need_for_load(tile::ptr ptr)
+{
+	return !ptr || ptr->need_for_load();
+}
+
+bool wxCartographer::need_for_build(tile::ptr ptr)
+{
+	return !ptr || ptr->need_for_build();
+}
+
+bool wxCartographer::check_tile_id(const tile::id &tile_id)
+{
+	int sz = size_for_int_z(tile_id.z);
+
+	return tile_id.z >= 1
+		&& tile_id.x >= 0 && tile_id.x < sz
+		&& tile_id.y >= 0 && tile_id.y < sz;
+}
+
+wxCartographer::tile::ptr wxCartographer::find_tile(const tile::id &tile_id)
+{
+	/* Блокируем кэш для чтения */
+	shared_lock<shared_mutex> l(cache_mutex_);
+
+	tiles_cache::iterator iter = cache_.find(tile_id);
+
+	return iter == cache_.end() ? tile::ptr() : iter->value();
+}
+
+wxCartographer::tile::ptr wxCartographer::build_tile(const tile::id &tile_id)
+{
+	/*
+		Строим тайл на основании его "предков" (тайлов меньшего масштаба)
+		
+		Причина:
+			При отсутствии тайла необходимо отобразить увеличенную часть
+			его "предка". Это логично! Но операция StretchBlit дорогая,
+			поэтому принято решение не рисовать каждый раз напрямую, а создавать
+			с помощью неё новый тайл и сохранять его в кэше. Но, при этом,
+			не препятствовать загрузчикам загрузить настоящий тайл
+	*/
+
+	if ( !check_tile_id(tile_id))
+		return tile::ptr();
+
+	/* Ищем, что уже имеем в кэше */
+	tile::ptr tile_ptr = find_tile(tile_id);
+
+	/* Добавляем в очередь на загрузку - однозначно,
+		лучше загруженный тайл, чем построенный */
+	if ( need_for_load(tile_ptr) )
+		add_to_file_queue(tile_id);
+
+	/* Если тайл не нуждается в построении, пропускаем */
+	if ( !need_for_build(tile_ptr) )
+		return tile_ptr;
+
+	++builder_debug_counter_;
+
+	/* Строим предка */
+	tile::ptr parent_ptr = build_tile( tile::id(
+		tile_id.map_id, tile_id.z - 1,
+		tile_id.x >> 1, tile_id.y >> 1) );
+
+	/* Если не удалось построить предка или наш тайл уже построен от него
+		- возвращаемся с тем, что есть */
+	if (!parent_ptr || tile_ptr && tile_ptr->level() -1 == parent_ptr->level())
+		return tile_ptr;
+
+	/* Строим тайл */
+	tile_ptr.reset( new tile(parent_ptr->level() + 1) );
+
+	wxMemoryDC tile_dc( tile_ptr->bitmap() );
+	wxMemoryDC parent_dc( parent_ptr->bitmap() );
+
+	tile_dc.StretchBlit( 0, 0, 256, 256, &parent_dc,
+		(tile_id.x & 1) * 128, (tile_id.y & 1) * 128, 128, 128 );
+
+	/* Рамка вокруг построенного тайла */
+	/*-
+	tile_dc.SetPen(*wxWHITE_PEN);
+	tile_dc.SetBrush(*wxTRANSPARENT_BRUSH);
+	tile_dc.DrawRectangle(0, 0, 256, 256);
+	-*/
+
+	add_to_cache(tile_id, tile_ptr);
+
+	return tile_ptr;
+}
+
+wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
+{
+	/* Строим и загружаем тайл */
+	return build_tile(tile_id);
+}
+
+void wxCartographer::add_to_file_queue(const tile::id &tile_id)
 {
 	/* Копированием указателя на "работника", гарантируем,
 		что он не будет удалён, пока выполняется функция */
@@ -216,14 +346,14 @@ void wxCartographer::add_to_file_queue(const tile_id &id)
 	if (worker)
 	{
 		unique_lock<mutex> lock = worker->create_lock();
-		file_queue_[id] = 0; /* Не важно значение, важно само присутствие */
+		file_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 		wake_up(worker, lock); /* Будим работника, если он спит */
 	}
 }
 
-void wxCartographer::add_to_server_queue(const tile_id &id)
+void wxCartographer::add_to_server_queue(const tile::id &tile_id)
 {
-	if ( !(flags_ & wxCart_ONLYCACHE) )
+	if (!only_cache_)
 	{
 		/* Копированием указателя на "работника", гарантируем,
 			что он не будет удалён, пока выполняется функция */
@@ -231,7 +361,7 @@ void wxCartographer::add_to_server_queue(const tile_id &id)
 		if (worker)
 		{
 			unique_lock<mutex> lock = worker->create_lock();
-			server_queue_[id] = 0; /* Не важно значение, важно само присутствие */
+			server_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 			wake_up(worker, lock); /* Будим работника, если он спит */
 		}
 	}
@@ -242,7 +372,9 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
-		tile_id id;
+		tile::id tile_id;
+
+		++file_loader_debug_counter_;
 
 		/* Берём идентификатор первого тайла из очереди */
 		{
@@ -258,41 +390,37 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 				continue;
 			}
 
-			id = iter->key();
+			tile_id = iter->key();
 			file_queue_.erase(iter);
 
 			/* Для дальнейших действий блокировка нам не нужна */ 
 		}
 
-		/* Если тайл из очереди уже есть в кэше, пропускаем */
-		{
-			/* Блокируем кэш для чтения */
-			shared_lock<shared_mutex> l(cache_mutex_);
-			if (cache_.find(id) != cache_.end())
-				continue;
-		}
+		/* Если тайл уже загружен, пропускаем */
+		if ( !need_for_load( find_tile(tile_id) ) )
+			continue;
 
 		/* Загружаем тайл с диска */
 		std::wstringstream tile_path;
 
-		map &mp = maps_[id.map_id];
+		wxCartographer::map &map = maps_[tile_id.map_id];
 
 		tile_path << cache_path_
-			<< L"/" << mp.id
-			<< L"/z" << id.z
-			<< L'/' << (id.x >> 10)
-			<< L"/x" << id.x
-			<< L'/' << (id.y >> 10)
-			<< L"/y" << id.y << L'.' << mp.ext;
+			<< L"/" << map.sid
+			<< L"/z" << tile_id.z
+			<< L'/' << (tile_id.x >> 10)
+			<< L"/x" << tile_id.x
+			<< L'/' << (tile_id.y >> 10)
+			<< L"/y" << tile_id.y << L'.' << map.ext;
 
 		tile::ptr ptr( new tile(tile_path.str()) );
 
-		if (ptr->loaded())
+		if (ptr->ok())
 		    /* При успехе операции - сохраняем тайл в кэше */
-			add_to_cache(id, ptr);
+			add_to_cache(tile_id, ptr);
 		else
-			/* Если с диска загрузить не удалось - загружаем с сервера */
-			add_to_server_queue(id);
+			/* Иначе - загружаем с сервера */
+			add_to_server_queue(tile_id);
 
 	} /* while (!finish()) */
 }
@@ -302,7 +430,9 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
-		tile_id id;
+		tile::id tile_id;
+
+		++server_loader_debug_counter_;
 
 		/* Берём идентификатор первого тайла из очереди */
 		{
@@ -318,51 +448,46 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 				continue;
 			}
 
-			id = iter->key();
+			tile_id = iter->key();
 			server_queue_.erase(iter);
 
 			/* Для дальнейших действий блокировка нам не нужна */ 
 		}
 
-		/* Если тайл из очереди уже есть в кэше, пропускаем */
-		{
-			/* Блокируем кэш для чтения */
-			shared_lock<shared_mutex> l(cache_mutex_);
-			if (cache_.find(id) != cache_.end())
-				continue;
-		}
+		/* Если тайл уже загружен, пропускаем */
+		if ( !need_for_load( find_tile(tile_id) ) )
+			continue;
 
 		/* Загружаем тайл с сервера */
 		std::wstringstream tile_path; /* Путь к локальному файлу  */
 
-		map &mp = maps_[id.map_id];
+		wxCartographer::map &map = maps_[tile_id.map_id];
 
 		tile_path << cache_path_
-			<< L"/" << mp.id
-			<< L"/z" << id.z
-			<< L'/' << (id.x >> 10)
-			<< L"/x" << id.x
-			<< L'/' << (id.y >> 10)
-			<< L"/y" << id.y << L'.' << mp.ext;
+			<< L"/" << map.sid
+			<< L"/z" << tile_id.z
+			<< L'/' << (tile_id.x >> 10)
+			<< L"/x" << tile_id.x
+			<< L'/' << (tile_id.y >> 10)
+			<< L"/y" << tile_id.y << L'.' << map.ext;
 
 		std::wstringstream request;
-		request << L"/maps/gettile?map=" << mp.id
-			<< L"&z=" << id.z
-			<< L"&x=" << id.x
-			<< L"&y=" << id.y;
+		request << L"/maps/gettile?map=" << map.sid
+			<< L"&z=" << tile_id.z
+			<< L"&x=" << tile_id.x
+			<< L"&y=" << tile_id.y;
 			
 		try
 		{
 			/* Загружаем с сервера ... */
-			if ( load_and_save(request.str(), tile_path.str()) == 200 /*HTTP_OK*/)
-			{
-				/* ... и сразу с диска */
-				tile::ptr ptr( new tile(tile_path.str()) );
+			load_and_save(request.str(), tile_path.str());
 
-				/* При успехе операции - сохраняем в кэше */
-				if (ptr->loaded())
-					add_to_cache(id, ptr);
-			}
+			/* ... и сразу с диска */
+			tile::ptr ptr( new tile(tile_path.str()) );
+
+			/* В любом случае - сохраняем в кэше, чтобы, при отсутствии
+				тайла, не пытаться вновь и вновь его загрузить */
+			add_to_cache(tile_id, ptr);
 		}
 		catch (...)
 		{
@@ -371,6 +496,60 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 		}
 
 	} /* while (!finish()) */
+}
+
+void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
+{
+	asio::io_service io_service;
+	asio::deadline_timer timer(io_service, my::time::utc_now());
+	
+	while (!finish())
+	{
+		anim_speed_sw_.start();
+
+#if 0
+		/* Мигание для "мигающих" объектов */
+		flash_alpha_ += (flash_new_alpha_ - flash_alpha_) / flash_step_;
+		if (--flash_step_ == 0)
+		{
+			flash_step_ = def_anim_steps_;
+			/* При выходе из паузы, меняем направление мигания */
+			if ((flash_pause_ = !flash_pause_) == false)
+				flash_new_alpha_ = (flash_new_alpha_ == 0 ? 1 : 0);
+		}
+#endif
+
+		repaint();
+
+		anim_speed_sw_.finish();
+		anim_freq_sw_.finish();
+
+		if (anim_speed_sw_.total().total_milliseconds() >= 300)
+		{
+			anim_speed_sw_.push();
+			anim_speed_sw_.pop_back();
+
+			anim_freq_sw_.push();
+			anim_freq_sw_.pop_back();
+
+			anim_speed_ = my::time::div(
+				anim_speed_sw_.full_avg(), posix_time::milliseconds(1) );
+			anim_freq_ = my::time::div(
+				anim_freq_sw_.full_avg(), posix_time::milliseconds(1) );
+		}
+
+		anim_freq_sw_.start();
+
+		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
+		boost::posix_time::ptime now = my::time::utc_now();
+
+		/* Теоретически время следующей прорисовки должно быть относительным
+			от времени предыдущей, но на практике могут возникнуть торможения,
+			и, тогда, программа будет пытаться запустить прорисовку в прошлом.
+			В этом случае следующий запуск делаем относительно текущего времени */ 
+		timer.expires_at( now > time ? now : time );
+		timer.wait();
+	}
 }
 
 bool wxCartographer::check_buffer()
@@ -477,32 +656,8 @@ wxDouble wxCartographer::lat_to_y(wxDouble lat, wxDouble z,
 	return res;
 }
 
-wxCartographer::tile::ptr wxCartographer::get_tile(int map_id, int z, int x, int y)
-{
-	tile_id id(map_id, z, x, y);
-	tile::ptr ptr;
-
-	{
-		/* Блокируем кэш для чтения */
-		shared_lock<shared_mutex> l(cache_mutex_);
-
-		tiles_cache::iterator iter = cache_.find(id);
-
-		/* Если в кэше тайла нет - добавляем в очередь
-			для загрузки и возвращаем пустой указатель */
-		if (iter == cache_.end())
-			add_to_file_queue(id);
-
-		/* Если в кэше есть - возвращаем тайл */
-		else
-			ptr = iter->value();
-	}
-
-	return ptr;
-}
-
-void wxCartographer::prepare_background(wxBitmap &bitmap, wxDouble width,
-	wxDouble height, int map_id, int z, wxDouble lat, wxDouble lon)
+void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
+	int map_id, int z, wxDouble lat, wxDouble lon)
 {
 	/*
 		Подготовка фона для заданного z:
@@ -514,191 +669,150 @@ void wxCartographer::prepare_background(wxBitmap &bitmap, wxDouble width,
 
 	wxCartographer::map map = maps_[map_id];
 
-	/* Координаты центра карты (в тайлах) */
-	wxDouble y = lat_to_y(lat, (wxDouble)z, map.projection);
-	wxDouble x = lon_to_x(lon, (wxDouble)z);
-	
-	/* "Центральный" тайл */
-	int tile_y = (int)y;
-	int tile_x = (int)x;
+	/* "Тайловые" координаты центра экрана */
+	wxDouble scr_x = lon_to_x(lon, z);
+	wxDouble scr_y = lat_to_y(lat, z, map.projection);
 
-	/* Экранные координаты верхнего левого угла "центрального" тайла */
-	wxDouble win_y = height / 2.0 - (y - tile_y) * 256.0;
-	wxDouble win_x = width / 2.0 - (x - tile_x) * 256.0;
+	/* Тайл в центре экрана */
+	tile::id central_tile(map_id, z, (int)scr_x, (int)scr_y);
 
-	/* Определяем тайл нижнего правого угла экрана */
-	int last_tile_y = tile_y;
-	int last_tile_x = tile_x;
+	/* И сразу его в очередь на загрузку - глядишь,
+		к моменту отрисовки он уже и загрузится */
+	get_tile(central_tile);
 
-	while (win_y < height)
-		win_y += 256.0, ++last_tile_y;
-	while (win_x < width)
-		win_x += 256.0, ++last_tile_x;
+	wxCoord x;
+	wxCoord y;
 
 	/* Определяем тайл верхнего левого угла экрана */
-	int first_tile_y = last_tile_y;
-	int first_tile_x = last_tile_x;
+	x = (wxCoord)(width / 2.0 - (scr_x - central_tile.x) * 256.0 + 0.5);
+	y = (wxCoord)(height / 2.0 - (scr_y - central_tile.y) * 256.0 + 0.5);
 
-	while (win_y > 0.0)
-		win_y -= 256.0, --first_tile_y;
-	while (win_x > 0.0)
-		win_x -= 256.0, --first_tile_x;
+	int first_x = central_tile.x;
+	int first_y = central_tile.y;
 
-	bitmap.Create(
-		(last_tile_x - first_tile_x + 1) * 256,
-		(last_tile_y - first_tile_y + 1) * 256);
+	while (x > 0)
+		x -= 256, --first_x;
+	while (y > 0)
+		y -= 256, --first_y;
+
+	/* Определяем тайл нижнего правого угла экрана */
+	x += 256; /* x,y - координаты нижнего правого угла тайла */
+	y += 256;
+	int last_x = first_x;
+	int last_y = first_y;
+
+	while (x < width)
+		x += 256, ++last_x;
+	while (y < height)
+		y += 256, ++last_y;
+
 	
-	//wxMemoryDC dc(bitmap);
-	//scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(dc) );
-	scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(bitmap) );
+	x -= 256; /* x,y - координаты верхнего левого угла правого нижнего тайла */
+	y -= 256;
 
-	for (tile_y = first_tile_y, y = win_y; tile_y <= last_tile_y; ++tile_y, y += 256.0)
+
+	/* Рисуем */
+	tile::id tile_id(map_id, z, last_x, 0);
+
+	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
 	{
-		for (tile_x = first_tile_x, y = win_x; tile_x <= last_tile_x; ++tile_x, x += 256.0)
+		tile_id.y = last_y;
+
+		for (wxCoord ty = y; tile_id.y >= first_y; --tile_id.y, ty -= 256)
 		{
-			tile::ptr tile_ptr = get_tile(map_id, z, tile_x, tile_y);
-			
+			tile::ptr tile_ptr = get_tile(tile_id);
 			if (tile_ptr)
-				gc->DrawBitmap(tile_ptr->bitmap(), x, y, 256.0, 256.0);
+				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
 		}
+	}
+
+	/* Перестраиваем очередь тайлов. К этому моменту все необходимые тайлы
+		уже в очереди благодаря get_tile(). Но если её так и оставить,
+		то файлы будут загружаться с правого нижнего угла,
+		а нам хотелось бы, чтоб с центра */
+	my::worker::ptr worker = file_loader_;
+	if (worker)
+	{
+		unique_lock<mutex> lock = worker->create_lock();
+		file_queue_.sort( boost::bind(&wxCartographer::sort_by_dist,
+			central_tile, _1, _2) );
 	}
 }
 
-void wxCartographer::paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height,
-	int map_id, wxDouble lat, wxDouble lon, wxDouble z)
+bool wxCartographer::sort_by_dist(const tile::id &tile_id,
+	const tiles_queue::item_type &first, const tiles_queue::item_type &second)
 {
-	/* Прорисовка карты */
+	const tile::id &first_id = first.key();
+	const tile::id &second_id = second.key();
 
-#if 0
-	/* Суть - сначала закидываем тайлы в background-буфер в масштабе 1:1,
-		а затем его проецируем в buffer уже с нужным масштабом */
-	wxCartographer::map map = maps_[map_id];
-
-	/* Рисуем фон дважды для плавного перехода между масштабами */
-	for (int i = 0; i < 1; ++i)
+	if (first_id.map_id == tile_id.map_id && second_id.map_id == tile_id.map_id
+		&& first_id.z == tile_id.z && second_id.z == tile_id.z)
 	{
-		int iz = (int)z;
-		wxDouble za = z - iz; /* Прозрачность, для плавного перехода между масштабами */
-		wxDouble k = 1.0 + za; /* Коэффициент увеличения размера тайлов */
-
-		if (i == 0)
-			za = 1.0 - za;
-		else
-			++iz, k /= 2.0;
-
-		/* Размер "мира" в тайлах */
-		//int sz = size_for_int_z(iz);
-
-		/* Реальные размеры тайла */
-		wxDouble tile_width = 256.0 * k;
-
-		/* Тайл в центре карты */
-		wxDouble x = lon_to_x(lon, (wxDouble)iz);
-		wxDouble y = lat_to_y(lat, (wxDouble)iz, map.projection);
-		int tile_x = (int)x;
-		int tile_y = (int)y;
-
-		tile::ptr tile_ptr = get_tile(map_id, z, tile_x, tile_y);
-
-		if (tile_ptr)
-			gc->DrawBitmap(tile_ptr->bitmap(), 0.0, 0.0, tile_width, tile_width);
+		int dx1 = first_id.x - tile_id.x;
+		int dy1 = first_id.y - tile_id.y;
+		int dx2 = second_id.x - tile_id.x;
+		int dy2 = second_id.y - tile_id.y;
+		return std::sqrt( (double)(dx1*dx1 + dy1*dy1) )
+			< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
 	}
 
-	if (begin_x < 0) begin_x = 0;
-	if (begin_y < 0) begin_y = 0;
-
-	/* Кол-во тайлов, попавших в окно */
-	int count_x;
-	int count_y;
-	{
-		/* Размеры окна за вычетом первого тайла */
-		float W = bounds.Width - ( x_ + w * (begin_x + 1) );
-		float H = bounds.Height - ( y_ + w * (begin_y + 1) );
-
-		/* Округляем в большую сторону, т.е. включаем в окно тайлы,
-			частично попавшие в окно. Не забываем и про первый тайл,
-			который исключили */
-		count_x = (int)ceil(W / w) + 1;
-		count_y = (int)ceil(H / w) + 1;
-
-		/* По x - карта бесконечна, по y - ограничена */
-		if (begin_x + count_x > sz)
-			count_x = sz - begin_x;
-		if (begin_y + count_y > sz)
-			count_y = sz - begin_y;
-	}
-
-	int bmp_w = count_x * 256;
-	int bmp_h = count_y * 256;
-
-	/* Если что-то изменилось, перерисовываем */
-	size_t hash = 0;
-	boost::hash_combine(hash, boost::hash_value(x_));
-	boost::hash_combine(hash, boost::hash_value(y_));
-	boost::hash_combine(hash, boost::hash_value(w));
-	boost::hash_combine(hash, boost::hash_value(bmp_w));
-	boost::hash_combine(hash, boost::hash_value(bmp_h));
-	boost::hash_combine(hash, boost::hash_value(server_.active_map_id()));
-
-	if (hash != background_hash_)
-	{
-		background_hash_ = hash;
-
-		/* Если буфер маловат, увеличиваем */
-		if (!bitmap_ || (int)bitmap_->GetWidth() < bmp_w
-			|| (int)bitmap_->GetHeight() < bmp_h)
-		{
-			/* Параметры буфера такие же как у экрана ((HWND)0) */
-			Gdiplus::Graphics screen((HWND)0, FALSE);
-			bitmap_.reset( new Gdiplus::Bitmap(bmp_w, bmp_h, &screen) );
-		}
-
-		Gdiplus::Graphics bmp_canvas( bitmap_.get() );
-
-		/* Очищаем буфер */
-		{
-			Gdiplus::SolidBrush brush( Gdiplus::Color(0, 0, 0, 0) );
-			bmp_canvas.SetCompositingMode(Gdiplus::CompositingModeSourceCopy);
-			bmp_canvas.FillRectangle(&brush, 0, 0, bmp_w, bmp_h);
-			bmp_canvas.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
-		}
-
-		for (int ix = 0; ix < count_x; ix++)
-		{
-			for (int iy = 0; iy < count_y; iy++)
-			{
-				int x = ix + begin_x;
-				int y = iy + begin_y;
-				server_.paint_tile(&bmp_canvas, ix * 256, iy * 256, z, x, y);
-			}
-		}
-	}
-	
-	Gdiplus::RectF rect( x_ + begin_x * w, y_ + begin_y * w,
-		bmp_w * k, bmp_h * k );
-	canvas->DrawImage( bitmap_.get(), rect,
-		0.0f, 0.0f, (float)bmp_w, (float)bmp_h,
-		Gdiplus::UnitPixel, NULL, NULL, NULL );
-#endif
+	return false;
 }
 
-void wxCartographer::Repaint()
+void wxCartographer::repaint()
 {
-	wxMemoryDC dc(buffer_);
-	scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(dc) );
+	mutex::scoped_lock l(paint_mutex_);
 
 	check_buffer();
-	wxDouble width = (wxDouble)buffer_.GetWidth();
-	wxDouble height = (wxDouble)buffer_.GetHeight();
+	wxCoord width = buffer_.GetWidth();
+	wxCoord height = buffer_.GetHeight();
+
+	wxMemoryDC dc(buffer_);
+	wxGCDC gc(dc);
 
 	/* Очищаем */
-	gc->SetBrush(*wxBLACK_BRUSH);
-	gc->DrawRectangle(0.0, 0.0, width, height);
+	gc.SetBrush(*wxBLACK_BRUSH);
+	gc.DrawRectangle(0, 0, width, height);
 
-	prepare_background(background_, width, height,
-		active_map_id_, z_, lat_, lon_);
+	//prepare_background(background_, width, height,
+	//	active_map_id_, z_, lat_, lon_);
+	//gc->DrawBitmap(background_, 0.0, 0.0, width, height);
 	
-	gc->DrawBitmap(background_, 0.0, 0.0, width, height);
+	paint_map(gc, width, height, active_map_id_, z_, lat_, lon_);
+
+	#if _DEBUG
+	{
+		gc.SetPen(*wxWHITE_PEN);
+		gc.DrawLine(0, height/2, width, height/2);
+		gc.DrawLine(width/2, 0, width/2, height);
+
+		gc.SetTextForeground(*wxWHITE);
+		gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
+			wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
+
+		wxCoord x = 8;
+		wxCoord y = 8;
+		wchar_t buf[200];
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
+		gc.DrawText(buf, x, y), y += 12;
+	}
+	#endif
 
 	/* Перерисовываем окно */
 	scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(window_) );
@@ -712,11 +826,7 @@ void wxCartographer::OnPaint(wxPaintEvent& event)
 	/* Создание wxPaintDC в обработчике wxPaintEvent обязательно,
 		даже если мы не будем им пользоваться! */
 	wxPaintDC dc(window_);
-
-	if (!check_buffer())
-		Repaint();
-	else
-		dc.DrawBitmap(buffer_, 0, 0);
+	dc.DrawBitmap(buffer_, 0, 0);
 
 	event.Skip(false);
 }
@@ -743,8 +853,8 @@ void wxCartographer::OnMouseWheel(wxMouseEvent& event)
 	int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
 	
 	if (z < 1) z = 1;
-	if (z > 18) z = 18;
+	if (z > 30) z = 30;
 	
 	z_ = (wxDouble)z;
-	Repaint();
+	Update();
 }

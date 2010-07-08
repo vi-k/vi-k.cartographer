@@ -10,7 +10,7 @@
 			<cols>1</cols>
 			<rows>2</rows>
 			<growablecols>0</growablecols>
-			<growablerows>1</growablerows>
+			<growablerows>0</growablerows>
 			<object class="sizeritem">
 				<object class="wxPanel" name="ID_PANEL2" variable="Panel1" member="yes">
 					<size>616,331</size>

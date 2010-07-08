@@ -59,7 +59,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	}
 	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
 	FlexGridSizer1->AddGrowableCol(0);
-	FlexGridSizer1->AddGrowableRow(1);
+	FlexGridSizer1->AddGrowableRow(0);
 	Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
 	FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	Panel2 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
@@ -90,8 +90,16 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
-	cartographer_.reset( new wxCartographer(Panel1, L"172.16.19.1", L"27543",
-		1000, L"cache", 0/*wxCart_ONLYCACHE*/) );
+	cartographer_.reset( new wxCartographer(
+		Panel1
+		, L"127.0.0.1" //L"172.16.19.1"
+		, L"27543"
+		, 1000 /* Размер кэша (в тайлах) */
+		, L"cache"
+		, false /* true - только из кэша */
+		, 60 /* Период анимации в мс */
+		, 4 /* Кол-во шагов анимации */
+		) );
 }
 
 wx_MainFrame::~wx_MainFrame()

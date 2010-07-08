@@ -15,12 +15,14 @@
 
 
 /* Все инклуды только отсюда! */
-#include <my_inet.h> /* Инклуды и namespace для boost::asio */
+#include <my_inet.h> /* boost::asio */
 #include <my_http.h> /* http-протокол */
-#include <my_thread.h> /* Инклуды и namespace для boost::thread, boost::mutex... */
+#include <my_thread.h> /* boost::thread, boost::mutex... */
 #include <my_employer.h> /* "Работодатель" - контроль работы потоков */
 #include <my_mru.h> /* MRU-лист */
-#include <my_fs.h> /* boost::filesystem -> fs */
+#include <my_fs.h> /* boost::filesystem */
+#include <my_time.h> /* boost::posix_time */
+#include <my_stopwatch.h> /* Секундомер */
 
 #include <cstddef> /* std::size_t */
 #include <string>
@@ -30,18 +32,18 @@
 
 #include <wx/window.h>
 #include <wx/bitmap.h> 
+#include <wx/dcgraph.h> /* wxGCDC */
 #include <wx/graphics.h> /* wxGraphicsContext */
-
-#define wxCart_ONLYCACHE 1
 
 class wxCartographer : my::employer
 {
 public:
 	
+	/* Карта */
 	struct map
 	{
 		enum projection_t {spheroid /*Google*/, ellipsoid /*Yandex*/};
-		std::wstring id;
+		std::wstring sid;
 		std::wstring name;
 		bool is_layer;
 		std::wstring tile_type;
@@ -49,131 +51,252 @@ public:
 		projection_t projection;
 	};
 
-	/* Идентификатор тайла */
-	struct tile_id
-	{
-		int map_id;
-		int z;
-		int x;
-		int y;
-
-		tile_id()
-			: map_id(0), z(0), x(0), y(0) {}
-
-		tile_id(int map_id, int z, int x, int y)
-			: map_id(map_id), z(z), x(x), y(y) {}
-
-		tile_id(const tile_id &other)
-			: map_id(other.map_id)
-			, z(other.z)
-			, x(other.x)
-			, y(other.y) {}
-
-		inline bool operator!() const
-		{
-			return map_id == 0
-				&& z == 0
-				&& x == 0
-				&& y == 0;
-		}
-
-		inline bool operator==(const tile_id &other) const
-		{
-			return map_id == other.map_id
-				&& z == other.z
-				&& x == other.x
-				&& y == other.y;
-		}
-
-		friend std::size_t hash_value(const tile_id &t)
-		{
-			std::size_t seed = 0;
-			boost::hash_combine(seed, t.map_id);
-			boost::hash_combine(seed, t.z);
-			boost::hash_combine(seed, t.x);
-			boost::hash_combine(seed, t.y);
-
-			return seed;
-		}
-	};
-
-	/* Содержимое тайла */
+	/* Тайл */
 	class tile
 	{
 	public:
 		typedef shared_ptr<tile> ptr;
 
+		/* Идентификатор тайла */
+		struct id
+		{
+			int map_id;
+			int z;
+			int x;
+			int y;
+
+			id()
+				: map_id(0), z(0), x(0), y(0) {}
+
+			id(int map_id, int z, int x, int y)
+				: map_id(map_id), z(z), x(x), y(y) {}
+
+			id(const id &other)
+				: map_id(other.map_id)
+				, z(other.z)
+				, x(other.x)
+				, y(other.y) {}
+
+			inline bool operator!() const
+			{
+				return map_id == 0
+					&& z == 0
+					&& x == 0
+					&& y == 0;
+			}
+
+			inline bool operator==(const id &other) const
+			{
+				return map_id == other.map_id
+					&& z == other.z
+					&& x == other.x
+					&& y == other.y;
+			}
+
+			friend std::size_t hash_value(const id &t)
+			{
+				std::size_t seed = 0;
+				boost::hash_combine(seed, t.map_id);
+				boost::hash_combine(seed, t.z);
+				boost::hash_combine(seed, t.x);
+				boost::hash_combine(seed, t.y);
+
+				return seed;
+			}
+		};
+
 	private:
+		bool need_for_load_; /* Тайл нуждается в загрузке */
+		int level_; /* Расстояние до предка, отображённого на тайле
+			(при ручном построении тайла), при 0 - на тайле отображён сам тайл
+			(т.е. тайл был успешно загружен) */
 		wxBitmap bitmap_;
 	
 	public:
+		tile(int level)
+			: need_for_load_(true)
+			, level_(level)
+			, bitmap_(256, 256) {}
+
 		tile(const std::wstring &filename)
+			: need_for_load_(false)
 		{
 			if (fs::exists(filename))
+			{
 				bitmap_.LoadFile(filename, wxBITMAP_TYPE_ANY);
+				assert( ok() );
+			}
+			
+			level_ = ok() ? 0 : 999;
 		}
-
-		inline bool loaded()
-			{ return bitmap_.IsOk(); }
 
 		inline wxBitmap& bitmap()
 			{ return bitmap_; }
+
+		inline bool ok()
+			{ return bitmap_.IsOk(); }
+
+		inline bool need_for_load()
+			{ return need_for_load_; }
+
+		inline void reset_need_for_load()
+			{ need_for_load_ = false; }
+
+		inline int level()
+			{ return level_; }
+
+		inline void set_level(int level)
+			{ level_ = level; }
+
+		inline bool need_for_build()
+			{ return level_ > 1; }
+
+		inline bool loaded()
+			{ return level_ == 0; }
 	};
 
 private:
 	typedef std::map<int, map> maps_list;
-	typedef boost::unordered_map<std::wstring, int> maps_id_list;
-	typedef my::mru::list<tile_id, tile::ptr> tiles_cache;
-	typedef my::mru::list<tile_id, int> tiles_queue;
+	typedef boost::unordered_map<std::wstring, int> maps_sid_to_id_list;
+	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
+	typedef my::mru::list<tile::id, int> tiles_queue;
 
-	unsigned long flags_; /* Параметры */
-	std::wstring cache_path_; /* Путь к кэшу */
+
+	/*
+		Работа с сервером
+	*/
+
 	asio::io_service io_service_; /* Служба, обрабатывающая запросы к серверу */
-	asio::ip::tcp::endpoint server_endpoint_; /* Сервер */
-	maps_list maps_; /* Список карт, имеющихся на сервере */
-	maps_id_list maps_id_; /* Соответствие номера карты и его строкового идентификатора */
-	tiles_cache cache_; /* Кэш тайлов */
-	shared_mutex cache_mutex_; /* Мьютекс для кэша */
-	tiles_queue file_queue_; /* Очередь загрузки тайлов с диска */
-	my::worker::ptr file_loader_; /* "Работник" для "файловой" очереди */
-	tiles_queue server_queue_; /* Очередь загрузки тайлов с сервера */
-	my::worker::ptr server_loader_; /* "Работник" для "серверной" очереди */
-
-	wxWindow *window_; /* Окно для прорисовки */
-	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
-	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
-	mutex paint_mutex_;
-	wxDouble z_; /* Текущий масштаб */
-	int active_map_id_; /* Активная карта */
-	wxDouble lat_; /* Координаты центра экрана: */
-	wxDouble lon_; /* долгота и широта */
-
-	void file_loader_proc(my::worker::ptr this_worker);
-	void server_loader_proc(my::worker::ptr this_worker);
-	//void io_thread_proc();
-
-	bool check_buffer();
-
-	static int get_new_map_id()
-	{
-		static int id = 0;
-		return ++id;
-	}
-
-	void add_to_cache(const tile_id &id, tile::ptr ptr);
-	void add_to_file_queue(const tile_id &id);
-	void add_to_server_queue(const tile_id &id);
+	asio::ip::tcp::endpoint server_endpoint_; /* Адрес сервера */
 
 	/* Загрузка данных с сервера */
 	void get(my::http::reply &reply, const std::wstring &request);
 	/* Загрузка и сохранение файла с сервера */
 	unsigned int load_and_save(const std::wstring &request,
 		const std::wstring &local_filename);
-	/* Сохранение "простого" и xml- файлов отличаются! */
+	/* Загрузка и сохранение xml-файла (есть небольшие отличия от сохранения
+		простых фалов) с сервера */
 	unsigned int load_and_save_xml(const std::wstring &request,
 		const std::wstring &local_filename);
 
+
+	/*
+		Кэш тайлов
+	*/
+
+	std::wstring cache_path_; /* Путь к кэшу */
+	bool only_cache_; /* Использовать только кэш */
+	tiles_cache cache_; /* Кэш */
+	shared_mutex cache_mutex_; /* Мьютекс для кэша */
 	
+	/* Добавление загруженного тайла в кэш */
+	void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
+	
+	/* Проверка - нуждается ли тайл в загрузке */
+	inline bool need_for_load(tile::ptr ptr);
+	
+	/* Проверка - нуждается ли тайл в построении */
+	inline bool need_for_build(tile::ptr ptr);
+	
+	/* Проверка корректности координат тайла */
+	inline bool check_tile_id(const tile::id &tile_id);
+
+	/* Поиск тайла в кэше (только поиск!) */
+	inline tile::ptr find_tile(const tile::id &tile_id);
+
+	/* Построение тайлов на основании тайлов-предков (тайлов меньшего масштаба) */
+	tile::ptr build_tile(const tile::id &tile_id);
+	int builder_debug_counter_;
+
+	/* Поиск тайла в кэше. При необходимости - построение и загрузка */
+	inline tile::ptr get_tile(const tile::id &tile_id);
+
+
+	/*
+		Загрузка тайлов с диска (файловая очередь)
+	*/
+
+	tiles_queue file_queue_; /* Очередь */
+	my::worker::ptr file_loader_; /* "Работник" (для wake_up и синхронизации) */
+	int file_loader_debug_counter_;
+
+	/* Добавление тайла */
+	void add_to_file_queue(const tile::id &tile_id);
+
+	/* Функция потока */
+	void file_loader_proc(my::worker::ptr this_worker);
+
+	/* Сортировка тайлов по расстоянию от заданного тайла (чтобы загрузка
+		тайлов начиналась от центра экрана, а не от дальнего угла)*/
+	static bool sort_by_dist(const tile::id &tile_id,
+		const tiles_queue::item_type &first, const tiles_queue::item_type &second);
+
+
+	/*
+		Загрузка тайлов с сервера (серверная очередь)
+	*/
+
+	tiles_queue server_queue_; /* Очередь */
+	my::worker::ptr server_loader_; /* "Работник" (для wake_up и синхронизации) */
+	int server_loader_debug_counter_;
+
+	/* Функция потока */
+	void server_loader_proc(my::worker::ptr this_worker);
+
+	/* Добавление в очередь */
+	void add_to_server_queue(const tile::id &tile_id);
+
+
+	/*
+		Анимация
+	*/
+	my::worker::ptr animator_; /* "Работник" для анимации */
+	posix_time::time_duration anim_period_; /* Период анимации */
+	int def_anim_steps_; /* Кол-во шагов анимации */
+	my::stopwatch anim_speed_sw_;
+	double anim_speed_;
+	my::stopwatch anim_freq_sw_;
+	double anim_freq_;
+
+	void anim_thread_proc(my::worker::ptr this_worker);
+
+
+	/*
+		Список карт, имеющихся на сервере
+	*/
+
+	maps_list maps_; /* Список карт (по числовому id) */
+	maps_sid_to_id_list maps_sid_to_id_; /* sid -> id */
+	int active_map_id_; /* Активная карта */
+
+	/* Уникальный идентификатор загруженный карты */
+	static int get_new_map_id()
+	{
+		static int id = 0;
+		return ++id;
+	}
+
+
+	/*
+		Отображение карты
+	*/
+	wxWindow *window_; /* Окно для прорисовки */
+	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
+	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
+	mutex paint_mutex_;
+	wxDouble z_; /* Текущий масштаб */
+	wxDouble lat_; /* Координаты центра экрана: */
+	wxDouble lon_; /* долгота и широта */
+	
+	/* Нарисовать карту */
+	void paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
+		int map_id, int z, wxDouble lat, wxDouble lon);
+
+	void repaint();
+
+
+	bool check_buffer();
+
 	/* Координаты, размеры... */
 	
 	/* Размер мира в тайлах для заданного масштаба */
@@ -188,15 +311,6 @@ private:
 		map::projection_t projection);
 
 	
-	/* Прорисовка карты */
-
-	void prepare_background(wxBitmap &bitmap, wxDouble width, wxDouble height,
-		int map_id, int z, wxDouble lat, wxDouble lon);
-
-	tile::ptr get_tile(int map_id, int z, int x, int y);
-	void paint_map(wxGraphicsContext *gc, wxDouble width, wxDouble height,
-		int map_id, wxDouble lat, wxDouble lon, wxDouble z);
-
 	/* Обработчики событий окна */
 	void OnPaint(wxPaintEvent& event);
 	void OnEraseBackground(wxEraseEvent& event);
@@ -207,10 +321,11 @@ private:
 public:
 	wxCartographer(wxWindow *window, const std::wstring &server,
 		const std::wstring &port, std::size_t cache_size,
-		std::wstring cache_path, unsigned long flags);
+		std::wstring cache_path, bool only_cache,
+		int anim_period, int def_anim_steps);
 	~wxCartographer();
 
-	void Repaint();
+	void Update() {}
 };
 
 
