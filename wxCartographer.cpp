@@ -35,10 +35,11 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	, cache_path_( fs::system_complete(cache_path).string() )
 	, only_cache_(only_cache)
 	, builder_debug_counter_(0)
-	, file_queue_(100)
+	, draw_tile_debug_dounter_(0)
 	, file_loader_debug_counter_(0)
-	, server_queue_(100)
 	, server_loader_debug_counter_(0)
+	, file_queue_(100)
+	, server_queue_(100)
 	, buffer_(100,100)
 	, z_(init_z)
 	, lat_(init_lat)
@@ -729,6 +730,7 @@ void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
 	/* Рисуем */
 	tile::id tile_id(map_id, z, last_x, 0);
 
+	draw_tile_debug_dounter_ = 0;
 	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
 	{
 		tile_id.y = last_y;
@@ -737,41 +739,81 @@ void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
 		{
 			tile::ptr tile_ptr = get_tile(tile_id);
 			if (tile_ptr && tile_ptr->ok())
+			{
+				++draw_tile_debug_dounter_;
 				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
+			}
 		}
 	}
 
-	/* Перестраиваем очередь тайлов. К этому моменту все необходимые тайлы
-		уже в очереди благодаря get_tile(). Но если её так и оставить,
-		то файлы будут загружаться с правого нижнего угла,
-		а нам хотелось бы, чтоб с центра */
-	my::worker::ptr worker = file_loader_;
+	/* Перестраиваем очереди загрузки тайлов.
+		К этому моменту все необходимые тайлы уже в файловой очереди
+		благодаря get_tile(). Но если её так и оставить, то файлы будут
+		загружаться с правого нижнего угла, а нам хотелось бы, чтоб с центра */
+	sort_queue(file_queue_, central_tile, file_loader_);
+
+	/* Серверную очередь тоже кооректируем */
+	sort_queue(server_queue_, central_tile, server_loader_);
+}
+
+void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
+{
+	tile::id central_tile; /* Тайл в центре экрана */
+
+	/* Копируем все нужные параметры, обеспечив блокировку */
+	{
+		shared_lock<shared_mutex> l(params_mutex_);
+		central_tile.map_id = active_map_id_;
+		central_tile.z = (int)(z_ + 0.5);
+		central_tile.x = (wxCoord)lon_to_x(lon_, (wxDouble)central_tile.z);
+		central_tile.y = (wxCoord)lat_to_y(lat_, (wxDouble)central_tile.z,
+			maps_[central_tile.map_id].projection);
+	}
+
+	sort_queue(queue, central_tile, worker);
+}
+
+void wxCartographer::sort_queue(tiles_queue &queue,
+	const tile::id &tile, my::worker::ptr worker)
+{
 	if (worker)
 	{
 		unique_lock<mutex> lock = worker->create_lock();
-		file_queue_.sort( boost::bind(&wxCartographer::sort_by_dist,
-			central_tile, _1, _2) );
+		queue.sort( boost::bind(
+			&wxCartographer::sort_by_dist, tile, _1, _2) );
 	}
 }
 
-bool wxCartographer::sort_by_dist(const tile::id &tile_id,
-	const tiles_queue::item_type &first, const tiles_queue::item_type &second)
+bool wxCartographer::sort_by_dist( tile::id tile,
+	const tiles_queue::item_type &first,
+	const tiles_queue::item_type &second )
 {
-	const tile::id &first_id = first.key();
-	const tile::id &second_id = second.key();
+	tile::id first_id = first.key();
+	tile::id second_id = second.key();
 
-	if (first_id.map_id == tile_id.map_id && second_id.map_id == tile_id.map_id
-		&& first_id.z == tile_id.z && second_id.z == tile_id.z)
-	{
-		int dx1 = first_id.x - tile_id.x;
-		int dy1 = first_id.y - tile_id.y;
-		int dx2 = second_id.x - tile_id.x;
-		int dy2 = second_id.y - tile_id.y;
-		return std::sqrt( (double)(dx1*dx1 + dy1*dy1) )
-			< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
-	}
+	/* Вперёд тайлы для активной карты */
+	if (first_id.map_id != second_id.map_id)
+		return first_id.map_id == tile.map_id;
 
-	return false;
+	/* Вперёд тайлы близкие по масштабу */
+	if (first_id.z != second_id.z)
+		return std::abs(first_id.z - tile.z)
+			< std::abs(second_id.z - tile.z);
+
+	/* Дальше остаются тайлы на одной карте, с одним масштабом */
+
+	/* Для расчёта растояний координаты тайлов должны быть в одном масштабе! */
+	while (tile.z < first_id.z)
+		++tile.z, tile.x <<= 1, tile.y <<= 1;
+	while (tile.z > first_id.z)
+		--tile.z, tile.x >>= 1, tile.y >>= 1;
+
+	int dx1 = first_id.x - tile.x;
+	int dy1 = first_id.y - tile.y;
+	int dx2 = second_id.x - tile.x;
+	int dy2 = second_id.y - tile.y;
+	return std::sqrt( (double)(dx1*dx1 + dy1*dy1) )
+		< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
 }
 
 void wxCartographer::repaint()
@@ -789,8 +831,23 @@ void wxCartographer::repaint()
 	gc.SetBrush(*wxBLACK_BRUSH);
 	gc.DrawRectangle(0, 0, width, height);
 
-	paint_map(gc, width, height, active_map_id_, z_, lat_, lon_);
+	/* Копируем все нужные параметры */
+	int map_id;
+	wxDouble z;
+	wxDouble lat, lon;
 
+	{
+		shared_lock<shared_mutex> l(params_mutex_);
+		map_id = active_map_id_;
+		z = z_;
+		lat = lat_;
+		lon = lon_;
+	}
+
+	/* Рисуем */
+	paint_map(gc, width, height, map_id, z, lat, lon);
+
+	/* Отладочная информация */
 	#if _DEBUG
 	{
 		gc.SetPen(*wxWHITE_PEN);
@@ -809,6 +866,9 @@ void wxCartographer::repaint()
 		gc.DrawText(buf, x, y), y += 12;
 
 		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
+		gc.DrawText(buf, x, y), y += 12;
+
+		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
 		gc.DrawText(buf, x, y), y += 12;
 
 		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
@@ -862,12 +922,17 @@ void wxCartographer::OnMouseMove(wxMouseEvent& event)
 
 void wxCartographer::OnMouseWheel(wxMouseEvent& event)
 {
-	int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
+	{
+		unique_lock<shared_mutex> l(params_mutex_);
+
+		int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
 	
-	if (z < 1) z = 1;
-	if (z > 30) z = 30;
+		if (z < 1) z = 1;
+		if (z > 30) z = 30;
 	
-	z_ = (wxDouble)z;
+		z_ = (wxDouble)z;
+	}
+
 	Update();
 }
 
@@ -880,21 +945,6 @@ void wxCartographer::Update()
 		wake_up(worker); /* Будим работника, если он спит */
 }
 
-bool wxCartographer::SetActiveMap(const std::wstring &map_name)
-{
-	mutex::scoped_lock l(paint_mutex_);
-
-	int map_num_id = maps_name_to_id_[map_name];
-	
-	if (map_num_id)
-	{
-		active_map_id_ = map_num_id;
-		return true;
-	}
-
-	return false;
-}
-
 void wxCartographer::GetMaps(std::vector<wxCartographer::map> &maps)
 {
 	maps.clear();
@@ -904,4 +954,24 @@ void wxCartographer::GetMaps(std::vector<wxCartographer::map> &maps)
 	{
 		maps.push_back(iter->second);
 	}
+}
+
+wxCartographer::map wxCartographer::GetActiveMap()
+{
+	shared_lock<shared_mutex> l(params_mutex_);
+	return maps_[active_map_id_];
+}
+
+bool wxCartographer::SetActiveMap(const std::wstring &map_name)
+{
+	int map_num_id = maps_name_to_id_[map_name];
+	
+	if (map_num_id)
+	{
+		unique_lock<shared_mutex> l(params_mutex_);
+		active_map_id_ = map_num_id;
+		return true;
+	}
+
+	return false;
 }

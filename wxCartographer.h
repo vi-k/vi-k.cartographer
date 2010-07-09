@@ -238,43 +238,42 @@ private:
 
 
 	/*
-		Загрузка тайлов с диска (файловая очередь)
+		Загрузка тайлов
 	*/
 
-	tiles_queue file_queue_; /* Очередь */
-	my::worker::ptr file_loader_; /* "Работник" (для wake_up и синхронизации) */
+	tiles_queue file_queue_; /* Очередь загрузки с дискового кэша (файловая очередь) */
+	my::worker::ptr file_loader_; /* "Работник" файловой очереди (синхронизация) */
 	int file_loader_debug_counter_;
 
-	/* Добавление тайла */
-	void add_to_file_queue(const tile::id &tile_id);
-
-	/* Функция потока */
-	void file_loader_proc(my::worker::ptr this_worker);
-
-	/* Сортировка тайлов по расстоянию от заданного тайла (чтобы загрузка
-		тайлов начиналась от центра экрана, а не от дальнего угла)*/
-	static bool sort_by_dist(const tile::id &tile_id,
-		const tiles_queue::item_type &first, const tiles_queue::item_type &second);
-
-
-	/*
-		Загрузка тайлов с сервера (серверная очередь)
-	*/
-
-	tiles_queue server_queue_; /* Очередь */
-	my::worker::ptr server_loader_; /* "Работник" (для wake_up и синхронизации) */
+	tiles_queue server_queue_; /* Очередь загрузки с сервера (серверная очередь) */
+	my::worker::ptr server_loader_; /* "Работник" серверной очереди (синхронизация) */
 	int server_loader_debug_counter_;
 
-	/* Функция потока */
+	/* Добавление тайла в очередь */
+	void add_to_file_queue(const tile::id &tile_id);
+	void add_to_server_queue(const tile::id &tile_id);
+
+	/* Функции потоков */
+	void file_loader_proc(my::worker::ptr this_worker);
 	void server_loader_proc(my::worker::ptr this_worker);
 
-	/* Добавление в очередь */
-	void add_to_server_queue(const tile::id &tile_id);
+	/* Сортировка тайлов по расстоянию от текущего центра экрана */
+	void sort_queue(tiles_queue &queue, my::worker::ptr worker);
+
+	/* Сортировка тайлов по расстоянию от заданного тайла */
+	static void sort_queue(tiles_queue &queue, const tile::id &tile,
+		my::worker::ptr worker);
+	
+	/* Функция сортировки */
+	static bool sort_by_dist( tile::id tile,
+		const tiles_queue::item_type &first,
+		const tiles_queue::item_type &second );
 
 
 	/*
 		Анимация
 	*/
+
 	my::worker::ptr animator_; /* "Работник" для анимации */
 	posix_time::time_duration anim_period_; /* Период анимации */
 	int def_anim_steps_; /* Кол-во шагов анимации */
@@ -292,7 +291,6 @@ private:
 
 	maps_list maps_; /* Список карт (по числовому id) */
 	maps_name_to_id_list maps_name_to_id_; /* name -> id */
-	int active_map_id_; /* Активная карта */
 
 	/* Уникальный идентификатор загруженный карты */
 	static int get_new_map_id()
@@ -305,10 +303,14 @@ private:
 	/*
 		Отображение карты
 	*/
+
 	wxWindow *window_; /* Окно для прорисовки */
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
+	int draw_tile_debug_dounter_;
 	mutex paint_mutex_;
+	shared_mutex params_mutex_;
+	int active_map_id_; /* Активная карта */
 	wxDouble z_; /* Текущий масштаб */
 	wxDouble lat_; /* Координаты центра экрана: */
 	wxDouble lon_; /* долгота и широта */
@@ -352,8 +354,9 @@ public:
 	~wxCartographer();
 
 	void Update();
-	bool SetActiveMap(const std::wstring &map_name);
 	void GetMaps(std::vector<map> &maps);
+	wxCartographer::map GetActiveMap();
+	bool SetActiveMap(const std::wstring &map_name);
 };
 
 

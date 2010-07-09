@@ -17,7 +17,7 @@
 					<object class="wxComboBox" name="ID_COMBOBOX1" variable="ComboBox1" member="yes">
 						<pos>8,8</pos>
 						<size>208,24</size>
-						<style>wxCB_DROPDOWN</style>
+						<style>wxCB_READONLY|wxCB_DROPDOWN</style>
 						<handler function="OnComboBox1Select" entry="EVT_COMBOBOX" />
 					</object>
 				</object>
