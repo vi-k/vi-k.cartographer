@@ -322,11 +322,14 @@ private:
 	wxDouble lon_; /* долгота и широта */
 	
 	/* Нарисовать карту */
-	void paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
+	void paint_map(wxDC &gc, wxCoord width, wxCoord height,
 		int map_id, int z, wxDouble lat, wxDouble lon);
 	
-	void paint_debug_info(wxGraphicsContext *gc,
-		wxCoord width, wxCoord height);
+	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
+	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
+	
+	template<class DC>
+	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
 	void repaint();
 

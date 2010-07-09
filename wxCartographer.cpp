@@ -736,47 +736,69 @@ bool wxCartographer::sort_by_dist( tile::id tile,
 		< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
 }
 
-void wxCartographer::paint_debug_info(wxGraphicsContext *gc,
+void wxCartographer::paint_debug_info(wxDC &gc,
 	wxCoord width, wxCoord height)
 {
 	/* Отладочная информация */
-	gc->SetPen(*wxWHITE_PEN);
-	gc->StrokeLine(0, height / 2, width, height / 2);
-	gc->StrokeLine(width / 2, 0, width / 2, height);
+	gc.SetPen(*wxWHITE_PEN);
+	gc.DrawLine(0, height/2, width, height/2);
+	gc.DrawLine(width/2, 0, width/2, height);
 
-	gc->SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
+	gc.SetTextForeground(*wxWHITE);
+	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
+		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
+
+	paint_debug_info_int(gc, width, height);
+}
+
+void wxCartographer::paint_debug_info(wxGraphicsContext &gc,
+	wxCoord width, wxCoord height)
+{
+	/* Отладочная информация */
+	gc.SetPen(*wxWHITE_PEN);
+	gc.StrokeLine(0, height/2, width, height/2);
+	gc.StrokeLine(width/2, 0, width/2, height);
+
+	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
 		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL), *wxWHITE);
+	
+	paint_debug_info_int(gc, width, height);
+}
 
+template<class DC>
+void wxCartographer::paint_debug_info_int(DC &gc,
+	wxCoord width, wxCoord height)
+{
 	wxCoord x = 8;
 	wxCoord y = 8;
 	wchar_t buf[200];
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"animator: %d", animator_debug_counter_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 
 	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
-	gc->DrawText(buf, x, y), y += 12;
+	gc.DrawText(buf, x, y), y += 12;
 }
 
-void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
+void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 	int map_id, int z, wxDouble lat, wxDouble lon)
 {
 	/*
@@ -876,24 +898,36 @@ void wxCartographer::repaint()
 	wxCoord width, height;
 	window_->GetClientSize(&width, &height);
 
+	//static wxAlphaPixelData *pdata;
+	//static char *data = 0;
+
 	if (!buffer_.IsOk()
 		|| buffer_.GetWidth() != width || buffer_.GetHeight() != height)
 	{
-		/* Вот такая хитрая комбинация в сранении с
+		/* Вот такая хитрая комбинация в сравнении с
 			buffer_.Create(width, height) ускоряет вывод:
 			1) на чёрном экране (DrawRectangle) в 5 раз;
 			2) на заполненном экране (DrawBitmap) в 2 раза. */
 		wxImage image(width, height, false);
 		image.InitAlpha();
 		buffer_ = wxBitmap(image);
+		
+		//buffer_.Create(width, height);
+
+		//delete[] data;
+		//data = new char[width*height*4];
+		//buffer_ = wxBitmap(data, width, height, 32);
+		
+		//delete pdata;
+		//pdata = new wxAlphaPixelData(buffer_);
 	}
 
 	wxMemoryDC dc(buffer_);
 	wxGCDC gc(dc);
-
+	
 	/* Очищаем */
-	//gc.SetBrush(*wxBLACK_BRUSH);
-	//gc.DrawRectangle(0, 0, width, height);
+	gc.SetBrush(*wxBLACK_BRUSH);
+	gc.DrawRectangle(0, 0, width, height);
 
 	/* Копируем все нужные параметры */
 	int map_id;
@@ -912,12 +946,27 @@ void wxCartographer::repaint()
 	paint_map(gc, width, height, map_id, z, lat, lon);
 
 	#ifdef _DEBUG
-	paint_debug_info(gc.GetGraphicsContext(), width, height);
+	paint_debug_info(gc, width, height);
 	#endif
+
+	/*-
+	{
+		wxImage image = buffer_.ConvertToImage();
+		void *data = image.GetAlpha();
+		memset(data, 128, width * height);
+		buffer_ = wxBitmap(image);
+	}
+	-*/
 
 	/* Перерисовываем окно */
 	scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(window_) );
+	//gc_win->SetBrush(*wxBLACK_BRUSH);
+	//gc_win->DrawRectangle(0.0, 0.0, width, height);
 	gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
+
+	#if 0
+	paint_debug_info(*gc_win.get(), width, height);
+	#endif
 }
 
 void wxCartographer::OnPaint(wxPaintEvent& event)
