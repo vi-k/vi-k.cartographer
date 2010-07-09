@@ -101,7 +101,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 		, L"cache" /* cache_path - путь к кэшу на диске */
 		, false /* only_cache - работать только с кэшем */
 		, L"Google.Спутник" /* init_map - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 1 /* init_z - исходный масштаб (>1) */
+		, 12 /* init_z - исходный масштаб (>1) */
 		, 48.48021475 /* init_lat - широта исходной точки */
 		, 135.0719556 /* init_lon - долгота исходной точки */
 		) );

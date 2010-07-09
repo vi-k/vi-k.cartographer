@@ -18,6 +18,7 @@
 
 #include <wx/dcclient.h> /* wxPaintDC */
 #include <wx/dcmemory.h> /* wxMemoryDC */
+#include <wx/rawbmp.h> /* wxNativePixelData */
 
 template<typename Real>
 Real atanh(Real n)
@@ -35,6 +36,7 @@ wxCartographer::wxCartographer(wxWindow *window, const std::wstring &server,
 	, cache_path_( fs::system_complete(cache_path).string() )
 	, only_cache_(only_cache)
 	, builder_debug_counter_(0)
+	, animator_debug_counter_(0)
 	, draw_tile_debug_dounter_(0)
 	, file_loader_debug_counter_(0)
 	, server_loader_debug_counter_(0)
@@ -521,6 +523,8 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 	
 	while (!finish())
 	{
+		++animator_debug_counter_;
+
 		anim_speed_sw_.start();
 
 #if 0
@@ -540,7 +544,7 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 		anim_speed_sw_.finish();
 		anim_freq_sw_.finish();
 
-		if (anim_speed_sw_.total().total_milliseconds() >= 300)
+		if (anim_freq_sw_.total().total_milliseconds() >= 500)
 		{
 			anim_speed_sw_.push();
 			anim_speed_sw_.pop_back();
@@ -672,90 +676,6 @@ wxDouble wxCartographer::lat_to_y(wxDouble lat, wxDouble z,
 	return res;
 }
 
-void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
-	int map_id, int z, wxDouble lat, wxDouble lon)
-{
-	/*
-		Подготовка фона для заданного z:
-			width, height - размеры окна
-			map_id - номер карты
-			z - масштаб
-			lat, lon - географические координаты центра карты
-	*/
-
-	wxCartographer::map map = maps_[map_id];
-
-	/* "Тайловые" координаты центра экрана */
-	wxDouble scr_x = lon_to_x(lon, z);
-	wxDouble scr_y = lat_to_y(lat, z, map.projection);
-
-	/* Тайл в центре экрана */
-	tile::id central_tile(map_id, z, (int)scr_x, (int)scr_y);
-
-	/* И сразу его в очередь на загрузку - глядишь,
-		к моменту отрисовки он уже и загрузится */
-	get_tile(central_tile);
-
-	wxCoord x;
-	wxCoord y;
-
-	/* Определяем тайл верхнего левого угла экрана */
-	x = (wxCoord)(width / 2.0 - (scr_x - central_tile.x) * 256.0 + 0.5);
-	y = (wxCoord)(height / 2.0 - (scr_y - central_tile.y) * 256.0 + 0.5);
-
-	int first_x = central_tile.x;
-	int first_y = central_tile.y;
-
-	while (x > 0)
-		x -= 256, --first_x;
-	while (y > 0)
-		y -= 256, --first_y;
-
-	/* Определяем тайл нижнего правого угла экрана */
-	x += 256; /* x,y - координаты нижнего правого угла тайла */
-	y += 256;
-	int last_x = first_x;
-	int last_y = first_y;
-
-	while (x < width)
-		x += 256, ++last_x;
-	while (y < height)
-		y += 256, ++last_y;
-
-	
-	x -= 256; /* x,y - координаты верхнего левого угла правого нижнего тайла */
-	y -= 256;
-
-
-	/* Рисуем */
-	tile::id tile_id(map_id, z, last_x, 0);
-
-	draw_tile_debug_dounter_ = 0;
-	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
-	{
-		tile_id.y = last_y;
-
-		for (wxCoord ty = y; tile_id.y >= first_y; --tile_id.y, ty -= 256)
-		{
-			tile::ptr tile_ptr = get_tile(tile_id);
-			if (tile_ptr && tile_ptr->ok())
-			{
-				++draw_tile_debug_dounter_;
-				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
-			}
-		}
-	}
-
-	/* Перестраиваем очереди загрузки тайлов.
-		К этому моменту все необходимые тайлы уже в файловой очереди
-		благодаря get_tile(). Но если её так и оставить, то файлы будут
-		загружаться с правого нижнего угла, а нам хотелось бы, чтоб с центра */
-	sort_queue(file_queue_, central_tile, file_loader_);
-
-	/* Серверную очередь тоже кооректируем */
-	sort_queue(server_queue_, central_tile, server_loader_);
-}
-
 void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 {
 	tile::id central_tile; /* Тайл в центре экрана */
@@ -816,20 +736,164 @@ bool wxCartographer::sort_by_dist( tile::id tile,
 		< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
 }
 
+void wxCartographer::paint_debug_info(wxGraphicsContext *gc,
+	wxCoord width, wxCoord height)
+{
+	/* Отладочная информация */
+	gc->SetPen(*wxWHITE_PEN);
+	gc->StrokeLine(0, height / 2, width, height / 2);
+	gc->StrokeLine(width / 2, 0, width / 2, height);
+
+	gc->SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
+		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL), *wxWHITE);
+
+	wxCoord x = 8;
+	wxCoord y = 8;
+	wchar_t buf[200];
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"animator: %d", animator_debug_counter_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
+	gc->DrawText(buf, x, y), y += 12;
+
+	swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
+	gc->DrawText(buf, x, y), y += 12;
+}
+
+void wxCartographer::paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
+	int map_id, int z, wxDouble lat, wxDouble lon)
+{
+	/*
+		Подготовка фона для заданного z:
+			width, height - размеры окна
+			map_id - номер карты
+			z - масштаб
+			lat, lon - географические координаты центра карты
+	*/
+
+	wxCartographer::map map = maps_[map_id];
+
+	/* "Тайловые" координаты центра экрана */
+	wxDouble scr_x = lon_to_x(lon, z);
+	wxDouble scr_y = lat_to_y(lat, z, map.projection);
+
+	/* Тайл в центре экрана */
+	tile::id central_tile(map_id, z, (int)scr_x, (int)scr_y);
+
+	/* И сразу его в очередь на загрузку - глядишь,
+		к моменту отрисовки он уже и загрузится */
+	get_tile(central_tile);
+
+	wxCoord x;
+	wxCoord y;
+
+	/* Определяем тайл верхнего левого угла экрана */
+	x = (wxCoord)(width / 2.0 - (scr_x - central_tile.x) * 256.0 + 0.5);
+	y = (wxCoord)(height / 2.0 - (scr_y - central_tile.y) * 256.0 + 0.5);
+
+	int first_x = central_tile.x;
+	int first_y = central_tile.y;
+
+	while (x > 0)
+		x -= 256, --first_x;
+	while (y > 0)
+		y -= 256, --first_y;
+
+	/* Определяем тайл нижнего правого угла экрана */
+	x += 256; /* x,y - координаты нижнего правого угла тайла */
+	y += 256;
+	int last_x = first_x;
+	int last_y = first_y;
+
+	while (x < width)
+		x += 256, ++last_x;
+	while (y < height)
+		y += 256, ++last_y;
+
+	
+	x -= 256; /* x,y - координаты верхнего левого угла правого нижнего тайла */
+	y -= 256;
+
+
+	/* Рисуем */
+	tile::id tile_id(map_id, z, last_x, 0);
+
+	draw_tile_debug_dounter_ = 0;
+
+	gc.SetPen(*wxBLACK_PEN);
+	gc.SetBrush(*wxBLACK_BRUSH);
+
+	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
+	{
+		tile_id.y = last_y;
+
+		for (wxCoord ty = y; tile_id.y >= first_y; --tile_id.y, ty -= 256)
+		{
+			tile::ptr tile_ptr = get_tile(tile_id);
+			if (tile_ptr && tile_ptr->ok())
+			{
+				++draw_tile_debug_dounter_;
+				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
+			}
+			else
+			{
+				/* Чёрный тайл */
+				gc.DrawRectangle(tx, ty, 256, 256);
+			}
+		}
+	}
+
+	/* Перестраиваем очереди загрузки тайлов.
+		К этому моменту все необходимые тайлы уже в файловой очереди
+		благодаря get_tile(). Но если её так и оставить, то файлы будут
+		загружаться с правого нижнего угла, а нам хотелось бы, чтоб с центра */
+	sort_queue(file_queue_, central_tile, file_loader_);
+
+	/* Серверную очередь тоже кооректируем */
+	sort_queue(server_queue_, central_tile, server_loader_);
+}
+
 void wxCartographer::repaint()
 {
 	mutex::scoped_lock l(paint_mutex_);
 
-	check_buffer();
-	wxCoord width = buffer_.GetWidth();
-	wxCoord height = buffer_.GetHeight();
+	wxCoord width, height;
+	window_->GetClientSize(&width, &height);
+
+	if (!buffer_.IsOk()
+		|| buffer_.GetWidth() != width || buffer_.GetHeight() != height)
+	{
+		/* Вот такая хитрая комбинация в сранении с
+			buffer_.Create(width, height) ускоряет вывод:
+			1) на чёрном экране (DrawRectangle) в 5 раз;
+			2) на заполненном экране (DrawBitmap) в 2 раза. */
+		wxImage image(width, height, false);
+		image.InitAlpha();
+		buffer_ = wxBitmap(image);
+	}
 
 	wxMemoryDC dc(buffer_);
 	wxGCDC gc(dc);
 
 	/* Очищаем */
-	gc.SetBrush(*wxBLACK_BRUSH);
-	gc.DrawRectangle(0, 0, width, height);
+	//gc.SetBrush(*wxBLACK_BRUSH);
+	//gc.DrawRectangle(0, 0, width, height);
 
 	/* Копируем все нужные параметры */
 	int map_id;
@@ -847,42 +911,8 @@ void wxCartographer::repaint()
 	/* Рисуем */
 	paint_map(gc, width, height, map_id, z, lat, lon);
 
-	/* Отладочная информация */
-	#if _DEBUG
-	{
-		gc.SetPen(*wxWHITE_PEN);
-		gc.DrawLine(0, height/2, width, height/2);
-		gc.DrawLine(width/2, 0, width/2, height);
-
-		gc.SetTextForeground(*wxWHITE);
-		gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
-			wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
-
-		wxCoord x = 8;
-		wxCoord y = 8;
-		wchar_t buf[200];
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
-		gc.DrawText(buf, x, y), y += 12;
-
-		swprintf_s(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
-		gc.DrawText(buf, x, y), y += 12;
-	}
+	#ifdef _DEBUG
+	paint_debug_info(gc.GetGraphicsContext(), width, height);
 	#endif
 
 	/* Перерисовываем окно */

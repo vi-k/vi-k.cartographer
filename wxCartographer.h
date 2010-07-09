@@ -132,8 +132,10 @@ public:
 		{
 			if (fs::exists(filename))
 			{
-				bitmap_.LoadFile(filename, wxBITMAP_TYPE_ANY);
-				assert( ok() );
+				//bitmap_.LoadFile(filename, wxBITMAP_TYPE_ANY);
+				wxImage image(filename);
+				image.InitAlpha();
+				bitmap_ = wxBitmap(image);
 			}
 			
 			level_ = ok() ? 0 : 999;
@@ -147,9 +149,12 @@ public:
 			wxMemoryInputStream stream(data, size);
 			
 			if (!image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
+			{
 				level_ = 999;
+			}
 			else
 			{
+				image.InitAlpha();
 				bitmap_ = wxBitmap(image);
 				level_ = 0;
 			}
@@ -281,6 +286,7 @@ private:
 	double anim_speed_;
 	my::stopwatch anim_freq_sw_;
 	double anim_freq_;
+	int animator_debug_counter_;
 
 	void anim_thread_proc(my::worker::ptr this_worker);
 
@@ -318,6 +324,9 @@ private:
 	/* Нарисовать карту */
 	void paint_map(wxGCDC &gc, wxCoord width, wxCoord height,
 		int map_id, int z, wxDouble lat, wxDouble lon);
+	
+	void paint_debug_info(wxGraphicsContext *gc,
+		wxCoord width, wxCoord height);
 
 	void repaint();
 
