@@ -134,8 +134,11 @@ public:
 			{
 				//bitmap_.LoadFile(filename, wxBITMAP_TYPE_ANY);
 				wxImage image(filename);
-				image.InitAlpha();
-				bitmap_ = wxBitmap(image);
+				if (image.IsOk())
+				{
+					image.InitAlpha();
+					bitmap_ = wxBitmap(image);
+				}
 			}
 			
 			level_ = ok() ? 0 : 999;

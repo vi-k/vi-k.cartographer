@@ -65,7 +65,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib rpcrt4.lib wxmsw29ud_richtext.lib wxmsw29ud_xrc.lib wxmsw29ud_aui.lib wxmsw29ud_media.lib wxbase29ud_net.lib wxmsw29ud_gl.lib wxmsw29ud_qa.lib wxbase29ud_xml.lib wxmsw29ud_adv.lib wxmsw29ud_html.lib wxmsw29ud_core.lib wxbase29ud.lib wxpngd.lib wxjpegd.lib wxtiffd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib mylibd.lib"
+				AdditionalDependencies="msimg32.lib comctl32.lib rpcrt4.lib wxmsw29ud_richtext.lib wxmsw29ud_xrc.lib wxmsw29ud_aui.lib wxmsw29ud_media.lib wxbase29ud_net.lib wxmsw29ud_gl.lib wxmsw29ud_qa.lib wxbase29ud_xml.lib wxmsw29ud_adv.lib wxmsw29ud_html.lib wxmsw29ud_core.lib wxbase29ud.lib wxpngd.lib wxjpegd.lib wxtiffd.lib wxzlibd.lib wxregexud.lib wxexpatd.lib mylibd.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;D:\Program Files\boost_1_43_0\stage\lib&quot;;&quot;D:\Program Files\wxWidgets-2.9.0\lib\vc_lib&quot;;&quot;D:\My\C++\mylib&quot;"
 				IgnoreAllDefaultLibraries="false"
@@ -144,7 +144,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib rpcrt4.lib gdiplus.lib wsock32.lib wxmsw29u_core.lib wxbase29u.lib wxpng.lib wxzlib.lib wxtiff.lib wxjpeg.lib WS2_32.Lib mylib.lib"
+				AdditionalDependencies="msimg32.lib comctl32.lib rpcrt4.lib gdiplus.lib wsock32.lib wxmsw29u_core.lib wxbase29u.lib wxpng.lib wxzlib.lib wxtiff.lib wxjpeg.lib WS2_32.Lib mylib.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;D:\Program Files\boost_1_43_0\stage\lib&quot;;&quot;D:\Program Files\wxWidgets-2.9.0\lib\vc_lib&quot;;&quot;D:\My\C++\mylib&quot;"
 				GenerateDebugInformation="true"

@@ -1,5 +1,20 @@
 ﻿#include "wxCartographer.h"
 
+/* windows */
+#include <minmax.h> /* Нужен для gdiplus.h */
+#include <windows.h>
+#undef GDIPVER 
+#define GDIPVER 0x0110
+#include <gdiplus.h>
+#include <windowsx.h>
+
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
+
 #include <my_exception.h>
 #include <my_ptr.h>
 #include <my_utf8.h>
@@ -905,7 +920,7 @@ void wxCartographer::repaint()
 		|| buffer_.GetWidth() != width || buffer_.GetHeight() != height)
 	{
 		/* Вот такая хитрая комбинация в сравнении с
-			buffer_.Create(width, height) ускоряет вывод:
+			buffer_.Create(width, height); ускоряет вывод:
 			1) на чёрном экране (DrawRectangle) в 5 раз;
 			2) на заполненном экране (DrawBitmap) в 2 раза. */
 		wxImage image(width, height, false);
@@ -945,6 +960,11 @@ void wxCartographer::repaint()
 	/* Рисуем */
 	paint_map(gc, width, height, map_id, z, lat, lon);
 
+	Gdiplus::Graphics *gr_buf = (Gdiplus::Graphics*)gc.GetGraphicsContext()->GetNativeContext();
+	Gdiplus::Color color(128, 255, 0, 0);
+	Gdiplus::Pen pen(color, 10);
+	gr_buf->DrawLine(&pen, 0, 0, 200, 200);
+
 	#ifdef _DEBUG
 	paint_debug_info(gc, width, height);
 	#endif
@@ -960,9 +980,19 @@ void wxCartographer::repaint()
 
 	/* Перерисовываем окно */
 	scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(window_) );
-	//gc_win->SetBrush(*wxBLACK_BRUSH);
-	//gc_win->DrawRectangle(0.0, 0.0, width, height);
-	gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
+	gc_win->SetBrush(*wxBLACK_BRUSH);
+	gc_win->DrawRectangle(0.0, 0.0, width, height);
+
+	//gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
+	Gdiplus::Graphics *gr_win = (Gdiplus::Graphics*)gc_win->GetNativeContext();
+	HDC hdc_win = gr_win->GetHDC();
+	HDC hdc_buf = gr_buf->GetHDC();
+
+	BLENDFUNCTION bf = {AC_SRC_OVER, 0, 128, AC_SRC_ALPHA};
+	AlphaBlend(hdc_win, 0, 0, width, height, hdc_buf, 0, 0, width, height, bf);
+
+	gr_win->ReleaseHDC(hdc_win);
+	gr_buf->ReleaseHDC(hdc_buf);
 
 	#if 0
 	paint_debug_info(*gc_win.get(), width, height);
