@@ -8,7 +8,7 @@
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
 
-#include <wx/msw/setup.h> /* Обязательно самым первым среди wxWidgets! */
+#include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
 
 

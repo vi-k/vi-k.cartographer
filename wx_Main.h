@@ -36,6 +36,9 @@ class wx_MainFrame: public wxFrame
 
 		boost::scoped_ptr<wxCartographer> cartographer_;
 		maps_list maps_;
+		wxBitmap bitmap_;
+
+		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
 
 		//(*Handlers(wx_MainFrame)
 		void OnQuit(wxCommandEvent& event);

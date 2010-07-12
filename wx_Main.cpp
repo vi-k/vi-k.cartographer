@@ -93,6 +93,9 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
+
+	bitmap_.LoadFile(L"test.png", wxBITMAP_TYPE_ANY);
+
 	cartographer_.reset( new wxCartographer(
 		Panel1 /* window - на чём будем рисовать */
 		, L"127.0.0.1" //L"172.16.19.1" /* server - адрес сервера */
@@ -104,6 +107,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 		, 12 /* init_z - исходный масштаб (>1) */
 		, 48.48021475 /* init_lat - широта исходной точки */
 		, 135.0719556 /* init_lon - долгота исходной точки */
+		, boost::bind(&wx_MainFrame::OnMapPaint, this, _1, _2, _3)
 		) );
 
 	cartographer_->GetMaps(maps_);
@@ -119,6 +123,15 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 
 wx_MainFrame::~wx_MainFrame()
 {
+	/* Обработчик OnPaintProc картографера будет вызваться до тех пор,
+		пока картографер не будет уничтожен. И, соответственно, всё что
+		в нём используется не может быть уничтожено до уничтожения
+		картографера. Отсюда вывод: либо сделать соответствующий порядок
+		в описании класса, чтобы нужные нам битмапы инициализировались
+		до инициализации картографера, либо вручную уничтожить картографер
+		до возникновения проблем с битмапами */
+	cartographer_.reset();
+
 	//(*Destroy(wx_MainFrame)
 	//*)
 }
@@ -138,4 +151,12 @@ void wx_MainFrame::OnComboBox1Select(wxCommandEvent& event)
 {
 	std::wstring str = ComboBox1->GetValue();
 	cartographer_->SetActiveMap(str);
+}
+
+void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
+{
+	wxCoord x = cartographer_->LonToX(135.04954039);
+	wxCoord y = cartographer_->LatToY(48.47259794);
+
+	gc.DrawBitmap(bitmap_, x - bitmap_.GetWidth() / 2, y - bitmap_.GetHeight());
 }

@@ -10,7 +10,7 @@
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
 #include <wx/msw/winundef.h>
-#include <wx/msw/setup.h> /* Обязательно самым первым среди wxWidgets! */
+#include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
 
 
@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <boost/unordered_map.hpp>
+#include <boost/function.hpp>
 
 #include <wx/window.h>
 #include <wx/bitmap.h> 
@@ -40,7 +41,8 @@
 class wxCartographer : my::employer
 {
 public:
-	
+	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
+
 	/* Карта */
 	struct map
 	{
@@ -277,6 +279,9 @@ private:
 		const tiles_queue::item_type &first,
 		const tiles_queue::item_type &second );
 
+	/* Проверка на наличие тайла в очереди */
+	bool tile_in_queue(const tiles_queue &queue,
+		my::worker::ptr worker, const tile::id &tile_id);
 
 	/*
 		Анимация
@@ -318,7 +323,7 @@ private:
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
 	int draw_tile_debug_dounter_;
 	mutex paint_mutex_;
-	shared_mutex params_mutex_;
+	recursive_mutex params_mutex_;
 	int active_map_id_; /* Активная карта */
 	wxDouble z_; /* Текущий масштаб */
 	wxDouble lat_; /* Координаты центра экрана: */
@@ -339,39 +344,70 @@ private:
 
 	bool check_buffer();
 
-	/* Координаты, размеры... */
 	
-	/* Размер мира в тайлах для заданного масштаба */
+	/*
+		Преобразование координат
+	*/
+	
+	/* Размер "мира" в тайлах, для заданного масштаба */
 	static inline int size_for_int_z(int z)
 		{ return 1 << (z - 1); }
+	
 	/* Размер мира в тайлах - для дробного z чуть сложнее, чем для целого */
 	static inline wxDouble size_for_z(wxDouble z);
-	/* Долгота -> x */
-	static inline wxDouble lon_to_x(wxDouble lon, wxDouble z);
-	/* Широта -> y (зависти от типа проекции (spheroid, ellipsoid )) */
-	static inline wxDouble lat_to_y(wxDouble lat, wxDouble z, 
+	
+	/* Градусы -> тайловые координаты */
+	static inline wxDouble lon_to_tile_x(wxDouble lon, wxDouble z);
+	static inline wxDouble lat_to_tile_y(wxDouble lat, wxDouble z, 
 		map::projection_t projection);
 
+	/* Градусы -> экранные координаты */
+	static inline wxDouble lon_to_scr_x(wxDouble lon, wxDouble z,
+		wxDouble centre_lon, wxDouble scr_width);
+	static inline wxDouble lat_to_scr_y(wxDouble lat, wxDouble z,
+		map::projection_t projection, wxDouble centre_lat, wxDouble scr_height);
 	
-	/* Обработчики событий окна */
-	void OnPaint(wxPaintEvent& event);
-	void OnEraseBackground(wxEraseEvent& event);
-	void OnLeftDown(wxMouseEvent& event);
-	void OnLeftUp(wxMouseEvent& event);
-	void OnMouseMove(wxMouseEvent& event);
-	void OnMouseWheel(wxMouseEvent& event);
+	/* Тайловые координаты -> градусы */
+	static inline wxDouble tile_x_to_lon(wxDouble x, wxDouble z);
+	static inline wxDouble tile_y_to_lat(wxDouble y, wxDouble z, 
+		map::projection_t projection);
+
+	/* Экранные координаты -> градусы */
+	static inline wxDouble scr_x_to_lon(wxDouble x, wxDouble z,
+		wxDouble centre_lon, wxDouble scr_width);
+	static inline wxDouble scr_y_to_lat(wxDouble y, wxDouble z, 
+		map::projection_t projection, wxDouble centre_lat, wxDouble scr_height);
+
+	/*
+		Обработчики событий окна
+	*/
+	OnPaintProc_t on_paint_;
+	wxCoord mouse_x_, mouse_y_;
+	wxDouble mouse_lat_, mouse_lon_;
+
+	void on_paint(wxPaintEvent& event);
+	void on_erase_background(wxEraseEvent& event);
+	void on_left_down(wxMouseEvent& event);
+	void on_left_up(wxMouseEvent& event);
+	void on_mouse_move(wxMouseEvent& event);
+	void on_mouse_wheel(wxMouseEvent& event);
+
 public:
-	wxCartographer(wxWindow *window, const std::wstring &server,
-		const std::wstring &port, std::size_t cache_size,
-		std::wstring cache_path, bool only_cache,
-		const std::wstring &init_map, int init_z, wxDouble init_lat, wxDouble init_lon,
-		int anim_period = 60, int def_anim_steps = 4);
+	wxCartographer(wxWindow *Window, const std::wstring &ServerAddr,
+		const std::wstring &ServerPort, std::size_t CacheSize,
+		std::wstring CachePath, bool OnlyCache,
+		const std::wstring &InitMap, int InitZ, wxDouble InitLat, wxDouble InitLon,
+		OnPaintProc_t OnPaintProc,
+		int AnimPeriod = 60, int DefAnimSteps = 4);
 	~wxCartographer();
 
 	void Update();
-	void GetMaps(std::vector<map> &maps);
+	void GetMaps(std::vector<map> &Maps);
 	wxCartographer::map GetActiveMap();
-	bool SetActiveMap(const std::wstring &map_name);
+	bool SetActiveMap(const std::wstring &MapName);
+
+	wxCoord LatToY(wxDouble Lat);
+	wxCoord LonToX(wxDouble Lon);
 };
 
 
