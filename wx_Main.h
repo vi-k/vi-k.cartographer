@@ -12,14 +12,11 @@
 
 #include "wxCartographer.h"
 
-#include <boost/smart_ptr.hpp>
-
-//#include <wx/msw/winundef.h>
-
 //(*Headers(wx_MainFrame)
 #include <wx/sizer.h>
 #include <wx/menu.h>
 #include <wx/panel.h>
+#include <wx/choice.h>
 #include <wx/frame.h>
 #include <wx/combobox.h>
 #include <wx/statusbr.h>
@@ -34,20 +31,27 @@ class wx_MainFrame: public wxFrame
 	private:
 		typedef std::vector<wxCartographer::map> maps_list;
 
-		boost::scoped_ptr<wxCartographer> cartographer_;
+		wxCartographer *cartographer_;
 		maps_list maps_;
 		wxBitmap bitmap_;
 
 		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
+		
+		static wxCoord DrawTextInBox( wxGCDC &gc,
+			const wxString &str, wxCoord x, wxCoord y,
+			const wxFont &font, const wxColour &color,
+			const wxPen &back_pen, const wxBrush &back_brush );
 
 		//(*Handlers(wx_MainFrame)
 		void OnQuit(wxCommandEvent& event);
 		void OnAbout(wxCommandEvent& event);
 		void OnComboBox1Select(wxCommandEvent& event);
+		void OnChoice1Select(wxCommandEvent& event);
 		//*)
 
 		//(*Identifiers(wx_MainFrame)
 		static const long ID_COMBOBOX1;
+		static const long ID_CHOICE1;
 		static const long ID_PANEL1;
 		static const long ID_PANEL2;
 		static const long ID_MENU_QUIT;
@@ -61,6 +65,7 @@ class wx_MainFrame: public wxFrame
 		wxComboBox* ComboBox1;
 		wxPanel* Panel2;
 		wxFlexGridSizer* FlexGridSizer1;
+		wxChoice* Choice1;
 		//*)
 
 		DECLARE_EVENT_TABLE()

@@ -29,6 +29,7 @@ using namespace std;
 
 //(*IdInit(wx_MainFrame)
 const long wx_MainFrame::ID_COMBOBOX1 = wxNewId();
+const long wx_MainFrame::ID_CHOICE1 = wxNewId();
 const long wx_MainFrame::ID_PANEL1 = wxNewId();
 const long wx_MainFrame::ID_PANEL2 = wxNewId();
 const long wx_MainFrame::ID_MENU_QUIT = wxNewId();
@@ -42,6 +43,7 @@ BEGIN_EVENT_TABLE(wx_MainFrame,wxFrame)
 END_EVENT_TABLE()
 
 wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
+	: cartographer_(0)
 {
 	//(*Initialize(wx_MainFrame)
 	wxMenuItem* MenuItem2;
@@ -63,6 +65,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	FlexGridSizer1->AddGrowableRow(1);
 	Panel2 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
 	ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
+	Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
 	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
 	FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -86,6 +89,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	FlexGridSizer1->SetSizeHints(this);
 
 	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnComboBox1Select);
+	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnChoice1Select);
 	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnQuit);
 	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnAbout);
 	//*)
@@ -96,19 +100,19 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 
 	bitmap_.LoadFile(L"test.png", wxBITMAP_TYPE_ANY);
 
-	cartographer_.reset( new wxCartographer(
-		Panel1 /* window - на чём будем рисовать */
-		, L"127.0.0.1" //L"172.16.19.1" /* server - адрес сервера */
-		, L"27543" /* port - порт сервера */
-		, 1000 /* cache_size - размер кэша (в тайлах) */
-		, L"cache" /* cache_path - путь к кэшу на диске */
-		, false /* only_cache - работать только с кэшем */
-		, L"Google.Спутник" /* init_map - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 12 /* init_z - исходный масштаб (>1) */
-		, 48.48021475 /* init_lat - широта исходной точки */
-		, 135.0719556 /* init_lon - долгота исходной точки */
-		, boost::bind(&wx_MainFrame::OnMapPaint, this, _1, _2, _3)
-		) );
+	cartographer_ = new wxCartographer(
+		Panel1 /* Window - на чём будем рисовать */
+		, L"172.16.19.1" // L"127.0.0.1" /* ServerAddr - адрес сервера */
+		, L"27543" /* ServerPort - порт сервера */
+		, 1000 /* CacheSize - размер кэша (в тайлах) */
+		, L"cache" /* CachePath - путь к кэшу на диске */
+		, false /* OnlyCache - работать только с кэшем */
+		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		, 12 /* InitZ - исходный масштаб (>1) */
+		, 48.48021475 /* InitLat - широта исходной точки */
+		, 135.0719556 /* InitLon - долгота исходной точки */
+		, boost::bind(&wx_MainFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
+		);
 
 	cartographer_->GetMaps(maps_);
 
@@ -119,18 +123,20 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	}
 
 	ComboBox1->SetValue( cartographer_->GetActiveMap().name );
+
+	Choice1->Append(L"Хабаровск");
+	Choice1->Append(L"Владивосток");
+	Choice1->Append(L"Магадан");
+	Choice1->Append(L"Якутск");
+	Choice1->Append(L"Южно-Сахалинск");
+	Choice1->Append(L"Петропавлоск-Камчатский");
 }
 
 wx_MainFrame::~wx_MainFrame()
 {
-	/* Обработчик OnPaintProc картографера будет вызваться до тех пор,
-		пока картографер не будет уничтожен. И, соответственно, всё что
-		в нём используется не может быть уничтожено до уничтожения
-		картографера. Отсюда вывод: либо сделать соответствующий порядок
-		в описании класса, чтобы нужные нам битмапы инициализировались
-		до инициализации картографера, либо вручную уничтожить картографер
-		до возникновения проблем с битмапами */
-	cartographer_.reset();
+	/* Удаление/остановка картографера обязательно должно быть выполнено
+		до удаления всех объектов, использующихся в обработчике OnMapPaint */
+	delete cartographer_;
 
 	//(*Destroy(wx_MainFrame)
 	//*)
@@ -153,10 +159,91 @@ void wx_MainFrame::OnComboBox1Select(wxCommandEvent& event)
 	cartographer_->SetActiveMap(str);
 }
 
+wxCoord wx_MainFrame::DrawTextInBox(wxGCDC &gc,
+	const wxString &str, wxCoord x, wxCoord y,
+	const wxFont &font, const wxColour &color,
+	const wxPen &pen, const wxBrush &brush)
+{
+	gc.SetFont(font);
+	gc.SetTextForeground(color);
+	gc.SetPen(pen);
+	gc.SetBrush(brush);
+
+	wxCoord w, h;
+	gc.GetTextExtent(str, &w, &h);
+
+	/* Центрируем */
+	x -= w / 2.0;
+	++y;
+
+	gc.DrawRoundedRectangle(x - 4, y - 1, w + 8, h + 2, -0.2);
+	gc.DrawText(str, x, y);
+
+	return h;
+}
+
 void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
 	wxCoord x = cartographer_->LonToX(135.04954039);
 	wxCoord y = cartographer_->LatToY(48.47259794);
 
-	gc.DrawBitmap(bitmap_, x - bitmap_.GetWidth() / 2, y - bitmap_.GetHeight());
+	int z = cartographer_->GetZ();
+
+	wxDouble bmp_w = bitmap_.GetWidth();
+	wxDouble bmp_h = bitmap_.GetHeight();
+
+	if (z < 6)
+	{
+		bmp_w = bmp_w / 6 * z;
+		bmp_h = bmp_h / 6 * z;
+	}
+	
+	wxDouble bmp_x = x - bmp_w / 2;
+	wxDouble bmp_y = y - bmp_h;
+
+	//gc.DrawBitmap(bitmap_, bmp_x, bmp_y);
+
+	gc.GetGraphicsContext()->DrawBitmap(bitmap_,
+		bmp_x, bmp_y, bmp_w, bmp_h);
+	
+	wxString str;
+	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
+
+	int font_sz = (z == 1 ? 5 : z <=3 ? 6 : z <= 5 ? 7 : 8);
+
+	DrawTextInBox(gc, str, x, y,
+		wxFont(font_sz, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL),
+		wxColour(0, 0, 0),
+		wxPen( wxColor(0, 0, 0), 1 ),
+		wxBrush( wxColor(255, 255, 0, 192) ));
+}
+
+void wx_MainFrame::OnChoice1Select(wxCommandEvent& event)
+{
+	switch (Choice1->GetCurrentSelection())
+	{
+		case 0: /* Хабаровск */
+			cartographer_->MoveTo(12, 48.48021475, 135.0719556);
+			break;
+
+		case 1: /* Владивосток */
+			cartographer_->MoveTo(13, FROM_DEG(43,7,17.95), FROM_DEG(131,55,34.4));
+			break;
+
+		case 2: /* Магадан */
+			cartographer_->MoveTo(12, FROM_DEG(59,33,41.79), FROM_DEG(150,50,19.87));
+			break;
+
+		case 3: /* Якутск */
+			cartographer_->MoveTo(10, FROM_DEG(62,4,30.33), FROM_DEG(129,45,24.39));
+			break;
+
+		case 4: /* Южно-Сахалинск */
+			cartographer_->MoveTo(12, FROM_DEG(46,57,34.28), FROM_DEG(142,44,18.58));
+			break;
+
+		case 5: /* Петропавлоск-Камчатский */
+			cartographer_->MoveTo(13, FROM_DEG(53,4,11.14), FROM_DEG(158,37,9.24));
+			break;
+	}
 }

@@ -283,6 +283,7 @@ private:
 	bool tile_in_queue(const tiles_queue &queue,
 		my::worker::ptr worker, const tile::id &tile_id);
 
+
 	/*
 		Анимация
 	*/
@@ -326,12 +327,15 @@ private:
 	recursive_mutex params_mutex_;
 	int active_map_id_; /* Активная карта */
 	wxDouble z_; /* Текущий масштаб */
-	wxDouble lat_; /* Координаты центра экрана: */
-	wxDouble lon_; /* долгота и широта */
+	wxDouble fix_kx_; /* Координаты точки экрана (от 0.0 до 1.0), */
+	wxDouble fix_ky_; /* остающейся фиксированной при изменении масштаба */
+	wxDouble fix_lat_; /* Географические координаты этой точки */
+	wxDouble fix_lon_;
 	
 	/* Нарисовать карту */
 	void paint_map(wxDC &gc, wxCoord width, wxCoord height,
-		int map_id, int z, wxDouble lat, wxDouble lon);
+		int map_id, int z, wxDouble fix_lat, wxDouble fix_lon,
+	wxDouble fix_src_x, wxDouble fix_src_y);
 	
 	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
 	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
@@ -341,10 +345,23 @@ private:
 
 	void repaint();
 
+	/* Размеры рабочей области */
+	inline wxCoord widthi()
+		{ return buffer_.GetWidth(); }
+	inline wxCoord heighti()
+		{ return buffer_.GetHeight(); }
+	inline wxDouble widthd()
+		{ return (wxDouble)buffer_.GetWidth(); }
+	inline wxDouble heightd()
+		{ return (wxDouble)buffer_.GetHeight(); }
 
-	bool check_buffer();
+	/* Назначить новую fix-точку */
+	void set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y);
 
+	/* Передвинуть fix-точку в новые координаты */
+	void move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y);
 	
+
 	/*
 		Преобразование координат
 	*/
@@ -353,7 +370,7 @@ private:
 	static inline int size_for_int_z(int z)
 		{ return 1 << (z - 1); }
 	
-	/* Размер мира в тайлах - для дробного z чуть сложнее, чем для целого */
+	/* Размер мира в тайлах - для дробного z дробный результат */
 	static inline wxDouble size_for_z(wxDouble z);
 	
 	/* Градусы -> тайловые координаты */
@@ -363,9 +380,9 @@ private:
 
 	/* Градусы -> экранные координаты */
 	static inline wxDouble lon_to_scr_x(wxDouble lon, wxDouble z,
-		wxDouble centre_lon, wxDouble scr_width);
+		wxDouble fix_lon, wxDouble fix_scr_x);
 	static inline wxDouble lat_to_scr_y(wxDouble lat, wxDouble z,
-		map::projection_t projection, wxDouble centre_lat, wxDouble scr_height);
+		map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y);
 	
 	/* Тайловые координаты -> градусы */
 	static inline wxDouble tile_x_to_lon(wxDouble x, wxDouble z);
@@ -374,21 +391,22 @@ private:
 
 	/* Экранные координаты -> градусы */
 	static inline wxDouble scr_x_to_lon(wxDouble x, wxDouble z,
-		wxDouble centre_lon, wxDouble scr_width);
+		wxDouble fix_lon, wxDouble fix_scr_x);
 	static inline wxDouble scr_y_to_lat(wxDouble y, wxDouble z, 
-		map::projection_t projection, wxDouble centre_lat, wxDouble scr_height);
+		map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y);
+
 
 	/*
 		Обработчики событий окна
 	*/
+
 	OnPaintProc_t on_paint_;
-	wxCoord mouse_x_, mouse_y_;
-	wxDouble mouse_lat_, mouse_lon_;
 
 	void on_paint(wxPaintEvent& event);
 	void on_erase_background(wxEraseEvent& event);
 	void on_left_down(wxMouseEvent& event);
 	void on_left_up(wxMouseEvent& event);
+	void on_capture_lost(wxMouseCaptureLostEvent& event);
 	void on_mouse_move(wxMouseEvent& event);
 	void on_mouse_wheel(wxMouseEvent& event);
 
@@ -401,6 +419,8 @@ public:
 		int AnimPeriod = 60, int DefAnimSteps = 4);
 	~wxCartographer();
 
+	void Stop();
+
 	void Update();
 	void GetMaps(std::vector<map> &Maps);
 	wxCartographer::map GetActiveMap();
@@ -408,7 +428,30 @@ public:
 
 	wxCoord LatToY(wxDouble Lat);
 	wxCoord LonToX(wxDouble Lon);
+
+	int GetZ();
+	void SetZ(int z);
+
+	wxDouble GetLat();
+	wxDouble GetLon();
+	void MoveTo(int z, wxDouble lat, wxDouble lon);
+
+	static inline wxDouble DegreesToCoord(double deg, double min, double sec)
+	{
+		return deg + min / 60.0 + sec / 3600.0;
+	}
+
+	static inline void CoordToDegrees(wxDouble coord, int &deg, int &min, double &sec)
+	{
+		deg = (int)coord;
+		double m = (coord - deg) * 60.0;
+		min = (int)m;
+		sec = (m - min) * 60.0;
+	}
 };
+
+#define FROM_DEG(d,m,s) wxCartographer::DegreesToCoord(d,m,s)
+#define TO_DEG(c,d,m,s) wxCartographer::CoordToDegrees(c,d,m,s)
 
 
 #endif
