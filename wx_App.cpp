@@ -6,14 +6,15 @@
  * Copyright: vi.k ()
  * License:
  **************************************************************/
-
-#include "stdafx.h"
-#include "wx_App.h"
-#include "handle_exception.h"
+#include "wxCartographer.h"
+//#include "stdafx.h"
+#if 0
+//#include "wx_App.h"
+//#include "handle_exception.h"
 
 //(*AppHeaders
-#include "wx_Main.h"
-#include <wx/image.h>
+//#include "wx_Main.h"
+//#include <wx/image.h>
 //*)
 
 #include <exception>
@@ -87,3 +88,4 @@ void wx_App::OnFatalException()
 		handle_exception(0, L"in App::OnFatalException", L"Критическая ошибка");
 	}
 }
+#endif

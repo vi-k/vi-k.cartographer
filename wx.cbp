@@ -13,10 +13,12 @@
 				<Option compiler="msvc8" />
 				<Option projectLinkerOptionsRelation="2" />
 				<Compiler>
+					<Add option="/MDd" />
 					<Add option="/Zi" />
+					<Add option="/wd4503" />
 					<Add option="/D_DEBUG" />
 					<Add option="/D__WXDEBUG__" />
-					<Add option="/MDd" />
+					<Add option="/D_UNICODE" />
 					<Add directory="$(#wx)\lib\vc_lib\mswud" />
 				</Compiler>
 				<ResourceCompiler>
@@ -60,11 +62,12 @@
 				<Option compiler="msvc8" />
 				<Option projectLinkerOptionsRelation="2" />
 				<Compiler>
-					<Add option="/Ox" />
-					<Add option="/DNDEBUG" />
 					<Add option="/MD" />
 					<Add option="/O2" />
+					<Add option="/Ox" />
 					<Add option="/Ob1" />
+					<Add option="/DNDEBUG" />
+					<Add option="/D_UNICODE" />
 					<Add directory="$(#wx)\lib\vc_lib\mswu" />
 				</Compiler>
 				<ResourceCompiler>
@@ -101,22 +104,23 @@
 			</Target>
 		</Build>
 		<Compiler>
+			<Add option="/TP" />
+			<Add option="/Gd" />
+			<Add option="/GF" />
+			<Add option="/W3" />
+			<Add option="/Zc:wchar_t" />
+			<Add option="/EHsc" />
 			<Add option="/DWIN32" />
 			<Add option="/D__WIN32__" />
 			<Add option="/D__WXMSW__" />
 			<Add option="/DwxUSE_UNICODE" />
 			<Add option="/D_WINDOWS" />
-			<Add option="/TP" />
-			<Add option="/Gd" />
-			<Add option="/GF" />
-			<Add option="/EHsc" />
 			<Add option="/D_CRT_SECURE_DEPRECATE" />
 			<Add option="/D_CRT_NONSTDC_NO_DEPRECATE" />
-			<Add option="/Zc:wchar_t" />
 			<Add option="/D_VC80_UPGRADE=0x0600" />
-			<Add option="/W3" />
 			<Add directory="$(#wx)\include" />
 			<Add directory="$(#wx)\contrib\include" />
+			<Add directory="..\mylib" />
 		</Compiler>
 		<ResourceCompiler>
 			<Add directory="$(#wx)\include" />
@@ -139,10 +143,15 @@
 			<Add library="comctl32.lib" />
 			<Add library="wsock32.lib" />
 			<Add library="odbc32.lib" />
+			<Add directory="..\mylib" />
 		</Linker>
+		<Unit filename="handle_exception.cpp" />
+		<Unit filename="handle_exception.h" />
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>
+		<Unit filename="wxCartographer.cpp" />
+		<Unit filename="wxCartographer.h" />
 		<Unit filename="wx_App.cpp" />
 		<Unit filename="wx_App.h" />
 		<Unit filename="wx_Main.cpp" />
@@ -157,6 +166,7 @@
 					<wxFrame wxs="wxsmith/wx_MainFrame.wxs" src="wx_Main.cpp" hdr="wx_Main.h" name="wx_MainFrame" language="CPP" />
 				</resources>
 			</wxsmith>
+			<envvars />
 		</Extensions>
 	</Project>
 </CodeBlocks_project_file>
