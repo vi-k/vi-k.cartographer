@@ -9,8 +9,7 @@
 
 #include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
 
-#include <wx/msw/setup.h> /* Обязательно самым первым среди wxWidgets! */
-#include <wx/msgdlg.h>
+#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include "cartographerMain.h"
 
 #include <string>
@@ -29,7 +28,6 @@
 //(*IdInit(cartographerFrame)
 const long cartographerFrame::ID_COMBOBOX1 = wxNewId();
 const long cartographerFrame::ID_CHOICE1 = wxNewId();
-const long cartographerFrame::ID_PANEL1 = wxNewId();
 const long cartographerFrame::ID_PANEL2 = wxNewId();
 const long cartographerFrame::ID_MENU_QUIT = wxNewId();
 const long cartographerFrame::ID_MENU_ABOUT = wxNewId();
@@ -62,12 +60,28 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
 	FlexGridSizer1->AddGrowableCol(0);
 	FlexGridSizer1->AddGrowableRow(1);
-	Panel2 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
+	Panel2 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
 	ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
 	Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
 	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-	Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
-	FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+
+	//Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
+	cartographer_ = new wxCartographer(
+		L"172.16.19.1" // L"127.0.0.1" /* ServerAddr - адрес сервера */
+		, L"27543" /* ServerPort - порт сервера */
+		, 1000 /* CacheSize - размер кэша (в тайлах) */
+		, L"cache" /* CachePath - путь к кэшу на диске */
+		, false /* OnlyCache - работать только с кэшем */
+		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		, 2 /* InitZ - исходный масштаб (>1) */
+		, 48.48021475 /* InitLat - широта исходной точки */
+		, 135.0719556 /* InitLon - долгота исходной точки */
+		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
+		, this, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
+		, 0 /* 0 - нет анимации */
+  	);
+
+	FlexGridSizer1->Add( cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	SetSizer(FlexGridSizer1);
 	MenuBar1 = new wxMenuBar();
 	Menu1 = new wxMenu();
@@ -99,20 +113,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 
 	bitmap_.LoadFile(L"test.png", wxBITMAP_TYPE_ANY);
 
-	cartographer_ = new wxCartographer(
-		Panel1 /* Window - на чём будем рисовать */
-		, L"172.16.19.1" // L"127.0.0.1" /* ServerAddr - адрес сервера */
-		, L"27543" /* ServerPort - порт сервера */
-		, 1000 /* CacheSize - размер кэша (в тайлах) */
-		, L"cache" /* CachePath - путь к кэшу на диске */
-		, false /* OnlyCache - работать только с кэшем */
-		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 12 /* InitZ - исходный масштаб (>1) */
-		, 48.48021475 /* InitLat - широта исходной точки */
-		, 135.0719556 /* InitLon - долгота исходной точки */
-		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
-		);
-
 	cartographer_->GetMaps(maps_);
 
 	for( maps_list::iterator iter = maps_.begin();
@@ -135,7 +135,7 @@ cartographerFrame::~cartographerFrame()
 {
 	/* Удаление/остановка картографера обязательно должно быть выполнено
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
-	delete cartographer_;
+	//delete cartographer_;
 
 	//(*Destroy(cartographerFrame)
 	//*)
@@ -154,7 +154,7 @@ void cartographerFrame::OnAbout(wxCommandEvent& event)
 
 void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 {
-	std::wstring str = ComboBox1->GetValue();
+	std::wstring str = (const wchar_t *)ComboBox1->GetValue().c_str();
 	cartographer_->SetActiveMap(str);
 }
 

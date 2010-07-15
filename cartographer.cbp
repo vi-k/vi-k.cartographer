@@ -131,6 +131,8 @@
 		<Unit filename="cartographerApp.h" />
 		<Unit filename="cartographerMain.cpp" />
 		<Unit filename="cartographerMain.h" />
+		<Unit filename="handle_exception.cpp" />
+		<Unit filename="handle_exception.h" />
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>

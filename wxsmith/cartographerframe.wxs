@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <wxsmith>
-	<object class="wxFrame" name="wx_MainFrame">
+	<object class="wxFrame" name="cartographerFrame">
 		<title>MainFrame</title>
 		<icon stock_id="wxART_TIP" />
 		<size>626,293</size>

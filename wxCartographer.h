@@ -4,15 +4,17 @@
 /* Эта часть не должна изменяться! */
 #include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
 
-#undef _WIN32_WINNT 
+#undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0501
 #define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
+#ifdef _WINDOWS
 #include <wx/msw/winundef.h>
+#endif
+
 #include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
-
 
 /* Все инклуды только отсюда! */
 #include <my_inet.h> /* boost::asio */
@@ -33,12 +35,12 @@
 #include <boost/function.hpp>
 
 #include <wx/window.h>
-#include <wx/bitmap.h> 
+#include <wx/bitmap.h>
 #include <wx/dcgraph.h> /* wxGCDC */
 #include <wx/graphics.h> /* wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 
-class wxCartographer : my::employer
+class wxCartographer : public wxPanel, my::employer
 {
 public:
 	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
@@ -115,7 +117,7 @@ public:
 			(при ручном построении тайла), при 0 - на тайле отображён сам тайл
 			(т.е. тайл был успешно загружен) */
 		wxBitmap bitmap_;
-	
+
 	public:
 		/* Создание "пустого" тайла - чтобы не загружать повторно */
 		tile()
@@ -142,7 +144,7 @@ public:
 					bitmap_ = wxBitmap(image);
 				}
 			}
-			
+
 			level_ = ok() ? 0 : 999;
 		}
 
@@ -152,7 +154,7 @@ public:
 		{
 			wxImage image;
 			wxMemoryInputStream stream(data, size);
-			
+
 			if (!image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
 			{
 				level_ = 999;
@@ -223,16 +225,16 @@ private:
 	bool only_cache_; /* Использовать только кэш */
 	tiles_cache cache_; /* Кэш */
 	shared_mutex cache_mutex_; /* Мьютекс для кэша */
-	
+
 	/* Добавление загруженного тайла в кэш */
 	void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
-	
+
 	/* Проверка - нуждается ли тайл в загрузке */
 	inline bool need_for_load(tile::ptr ptr);
-	
+
 	/* Проверка - нуждается ли тайл в построении */
 	inline bool need_for_build(tile::ptr ptr);
-	
+
 	/* Проверка корректности координат тайла */
 	inline bool check_tile_id(const tile::id &tile_id);
 
@@ -273,7 +275,7 @@ private:
 	/* Сортировка тайлов по расстоянию от заданного тайла */
 	static void sort_queue(tiles_queue &queue, const tile::id &tile,
 		my::worker::ptr worker);
-	
+
 	/* Функция сортировки */
 	static bool sort_by_dist( tile::id tile,
 		const tiles_queue::item_type &first,
@@ -319,7 +321,6 @@ private:
 		Отображение карты
 	*/
 
-	wxWindow *window_; /* Окно для прорисовки */
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
 	int draw_tile_debug_dounter_;
@@ -331,19 +332,20 @@ private:
 	wxDouble fix_ky_; /* остающейся фиксированной при изменении масштаба */
 	wxDouble fix_lat_; /* Географические координаты этой точки */
 	wxDouble fix_lon_;
-	
+	int painter_debug_counter_;
+
 	/* Нарисовать карту */
 	void paint_map(wxDC &gc, wxCoord width, wxCoord height,
 		int map_id, int z, wxDouble fix_lat, wxDouble fix_lon,
 	wxDouble fix_src_x, wxDouble fix_src_y);
-	
+
 	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
 	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
-	
+
 	template<class DC>
 	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
-	void repaint();
+	void repaint(wxDC &dc);
 
 	/* Размеры рабочей области */
 	inline wxCoord widthi()
@@ -360,22 +362,22 @@ private:
 
 	/* Передвинуть fix-точку в новые координаты */
 	void move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y);
-	
+
 
 	/*
 		Преобразование координат
 	*/
-	
+
 	/* Размер "мира" в тайлах, для заданного масштаба */
 	static inline int size_for_int_z(int z)
 		{ return 1 << (z - 1); }
-	
+
 	/* Размер мира в тайлах - для дробного z дробный результат */
 	static inline wxDouble size_for_z(wxDouble z);
-	
+
 	/* Градусы -> тайловые координаты */
 	static inline wxDouble lon_to_tile_x(wxDouble lon, wxDouble z);
-	static inline wxDouble lat_to_tile_y(wxDouble lat, wxDouble z, 
+	static inline wxDouble lat_to_tile_y(wxDouble lat, wxDouble z,
 		map::projection_t projection);
 
 	/* Градусы -> экранные координаты */
@@ -383,16 +385,16 @@ private:
 		wxDouble fix_lon, wxDouble fix_scr_x);
 	static inline wxDouble lat_to_scr_y(wxDouble lat, wxDouble z,
 		map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y);
-	
+
 	/* Тайловые координаты -> градусы */
 	static inline wxDouble tile_x_to_lon(wxDouble x, wxDouble z);
-	static inline wxDouble tile_y_to_lat(wxDouble y, wxDouble z, 
+	static inline wxDouble tile_y_to_lat(wxDouble y, wxDouble z,
 		map::projection_t projection);
 
 	/* Экранные координаты -> градусы */
 	static inline wxDouble scr_x_to_lon(wxDouble x, wxDouble z,
 		wxDouble fix_lon, wxDouble fix_scr_x);
-	static inline wxDouble scr_y_to_lat(wxDouble y, wxDouble z, 
+	static inline wxDouble scr_y_to_lat(wxDouble y, wxDouble z,
 		map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y);
 
 
@@ -404,6 +406,7 @@ private:
 
 	void on_paint(wxPaintEvent& event);
 	void on_erase_background(wxEraseEvent& event);
+	void on_size(wxSizeEvent& event);
 	void on_left_down(wxMouseEvent& event);
 	void on_left_up(wxMouseEvent& event);
 	void on_capture_lost(wxMouseCaptureLostEvent& event);
@@ -411,17 +414,18 @@ private:
 	void on_mouse_wheel(wxMouseEvent& event);
 
 public:
-	wxCartographer(wxWindow *Window, const std::wstring &ServerAddr,
-		const std::wstring &ServerPort, std::size_t CacheSize,
-		std::wstring CachePath, bool OnlyCache,
-		const std::wstring &InitMap, int InitZ, wxDouble InitLat, wxDouble InitLon,
-		OnPaintProc_t OnPaintProc,
-		int AnimPeriod = 60, int DefAnimSteps = 4);
+	wxCartographer( const std::wstring &serverAddr,
+		const std::wstring &serverPort, std::size_t cacheSize,
+		std::wstring cachePath, bool onlyCache,
+		const std::wstring &initMap, int initZ, wxDouble initLat, wxDouble initLon,
+		OnPaintProc_t onPaintProc,
+		wxWindow *parent = NULL, wxWindowID id = wxID_ANY,
+		const wxPoint &pos = wxDefaultPosition, const wxSize &size = wxDefaultSize,
+		int animPeriod = 0, int defAnimSteps = 0 );
 	~wxCartographer();
 
 	void Stop();
 
-	void Update();
 	void GetMaps(std::vector<map> &Maps);
 	wxCartographer::map GetActiveMap();
 	bool SetActiveMap(const std::wstring &MapName);
@@ -448,6 +452,8 @@ public:
 		min = (int)m;
 		sec = (m - min) * 60.0;
 	}
+
+	DECLARE_EVENT_TABLE()
 };
 
 #define FROM_DEG(d,m,s) wxCartographer::DegreesToCoord(d,m,s)
