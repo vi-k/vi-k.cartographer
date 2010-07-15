@@ -2,12 +2,12 @@
 <CodeBlocks_layout_file>
 	<ActiveTarget name="Debug" />
 	<File name="cartographerMain.cpp" open="1" top="0" tabpos="1">
-		<Cursor position="3733" topLine="58" />
+		<Cursor position="2670" topLine="60" />
 	</File>
-	<File name="wxCartographer.cpp" open="1" top="1" tabpos="3">
-		<Cursor position="35794" topLine="1140" />
+	<File name="wxCartographer.cpp" open="1" top="0" tabpos="3">
+		<Cursor position="8760" topLine="447" />
 	</File>
 	<File name="wxCartographer.h" open="1" top="0" tabpos="2">
-		<Cursor position="4918" topLine="114" />
+		<Cursor position="869" topLine="11" />
 	</File>
 </CodeBlocks_layout_file>

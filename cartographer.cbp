@@ -17,6 +17,7 @@
 					<Add option="/Zi" />
 					<Add option="/D_DEBUG" />
 					<Add option="/D__WXDEBUG__" />
+					<Add option="/DMY_LOCK_INSPECTOR" />
 					<Add directory="$(#wx)\lib\vc_lib\mswud" />
 				</Compiler>
 				<ResourceCompiler>

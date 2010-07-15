@@ -67,7 +67,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 
 	//Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
 	cartographer_ = new wxCartographer(
-		L"172.16.19.1" // L"127.0.0.1" /* ServerAddr - адрес сервера */
+		L"127.0.0.1" /* ServerAddr - адрес сервера */
 		, L"27543" /* ServerPort - порт сервера */
 		, 1000 /* CacheSize - размер кэша (в тайлах) */
 		, L"cache" /* CachePath - путь к кэшу на диске */
