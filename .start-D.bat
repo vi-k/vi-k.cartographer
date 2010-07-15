@@ -1,2 +1,2 @@
 @cd work\
-start Debug\cartographer.exe
+start bin\Debug\cartographer.exe

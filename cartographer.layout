@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<ActiveTarget name="Debug" />
+	<File name="cartographerApp.cpp" open="1" top="0" tabpos="4">
+		<Cursor position="758" topLine="1" />
+	</File>
+	<File name="cartographerMain.cpp" open="1" top="1" tabpos="1">
+		<Cursor position="5205" topLine="84" />
+	</File>
+	<File name="cartographerMain.h" open="1" top="0" tabpos="2">
+		<Cursor position="861" topLine="12" />
+	</File>
+	<File name="wxCartographer.cpp" open="1" top="0" tabpos="5">
+		<Cursor position="37488" topLine="1221" />
+	</File>
+	<File name="wxCartographer.h" open="1" top="0" tabpos="3">
+		<Cursor position="741" topLine="0" />
+	</File>
+</CodeBlocks_layout_file>

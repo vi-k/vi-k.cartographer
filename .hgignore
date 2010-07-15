@@ -1,8 +1,7 @@
 syntax: glob
-Debug
-Release
+bin
+obj
 cache
-*.ncb
-*.suo
 *.pdb
-wx.depend
+*.depend
+*.layout

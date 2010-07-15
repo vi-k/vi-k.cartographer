@@ -1,8 +1,8 @@
 ﻿/***************************************************************
- * Name:	  wx_Main.cpp
+ * Name:      cartographerMain.cpp
  * Purpose:   Code for Application Frame
  * Author:    vi.k (vi.k@mail.ru)
- * Created:   2010-03-30
+ * Created:   2010-07-13
  * Copyright: vi.k ()
  * License:
  **************************************************************/
@@ -11,10 +11,9 @@
 
 #include <wx/msw/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>
-#include "wx_Main.h"
+#include "cartographerMain.h"
 
 #include <string>
-using namespace std;
 
 //(*InternalHeaders(wx_MainFrame)
 #include <wx/artprov.h>
@@ -27,25 +26,25 @@ using namespace std;
 
 #include <wx/filename.h>
 
-//(*IdInit(wx_MainFrame)
-const long wx_MainFrame::ID_COMBOBOX1 = wxNewId();
-const long wx_MainFrame::ID_CHOICE1 = wxNewId();
-const long wx_MainFrame::ID_PANEL1 = wxNewId();
-const long wx_MainFrame::ID_PANEL2 = wxNewId();
-const long wx_MainFrame::ID_MENU_QUIT = wxNewId();
-const long wx_MainFrame::ID_MENU_ABOUT = wxNewId();
-const long wx_MainFrame::ID_STATUSBAR1 = wxNewId();
+//(*IdInit(cartographerFrame)
+const long cartographerFrame::ID_COMBOBOX1 = wxNewId();
+const long cartographerFrame::ID_CHOICE1 = wxNewId();
+const long cartographerFrame::ID_PANEL1 = wxNewId();
+const long cartographerFrame::ID_PANEL2 = wxNewId();
+const long cartographerFrame::ID_MENU_QUIT = wxNewId();
+const long cartographerFrame::ID_MENU_ABOUT = wxNewId();
+const long cartographerFrame::ID_STATUSBAR1 = wxNewId();
 //*)
 
-BEGIN_EVENT_TABLE(wx_MainFrame,wxFrame)
-	//(*EventTable(wx_MainFrame)
+BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
+	//(*EventTable(cartographerFrame)
 	//*)
 END_EVENT_TABLE()
 
-wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
+cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 	: cartographer_(0)
 {
-	//(*Initialize(wx_MainFrame)
+	//(*Initialize(cartographerFrame)
 	wxMenuItem* MenuItem2;
 	wxMenuItem* MenuItem1;
 	wxMenu* Menu1;
@@ -88,10 +87,10 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	SetStatusBar(StatusBar1);
 	FlexGridSizer1->SetSizeHints(this);
 
-	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnComboBox1Select);
-	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnChoice1Select);
-	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnQuit);
-	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&wx_MainFrame::OnAbout);
+	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
+	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
+	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
+	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
 	//*)
 
 	/* Очень обязательная вещь! */
@@ -111,7 +110,7 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 		, 12 /* InitZ - исходный масштаб (>1) */
 		, 48.48021475 /* InitLat - широта исходной точки */
 		, 135.0719556 /* InitLon - долгота исходной точки */
-		, boost::bind(&wx_MainFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
+		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
 		);
 
 	cartographer_->GetMaps(maps_);
@@ -132,34 +131,34 @@ wx_MainFrame::wx_MainFrame(wxWindow* parent, wxWindowID id)
 	Choice1->Append(L"Петропавлоск-Камчатский");
 }
 
-wx_MainFrame::~wx_MainFrame()
+cartographerFrame::~cartographerFrame()
 {
 	/* Удаление/остановка картографера обязательно должно быть выполнено
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
 	delete cartographer_;
 
-	//(*Destroy(wx_MainFrame)
+	//(*Destroy(cartographerFrame)
 	//*)
 }
 
-void wx_MainFrame::OnQuit(wxCommandEvent& event)
+void cartographerFrame::OnQuit(wxCommandEvent& event)
 {
 	Close();
 }
 
-void wx_MainFrame::OnAbout(wxCommandEvent& event)
+void cartographerFrame::OnAbout(wxCommandEvent& event)
 {
 	wxMessageBox( L"About...");
 }
 
 
-void wx_MainFrame::OnComboBox1Select(wxCommandEvent& event)
+void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 {
 	std::wstring str = ComboBox1->GetValue();
 	cartographer_->SetActiveMap(str);
 }
 
-wxCoord wx_MainFrame::DrawTextInBox(wxGCDC &gc,
+wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 	const wxString &str, wxCoord x, wxCoord y,
 	const wxFont &font, const wxColour &color,
 	const wxPen &pen, const wxBrush &brush)
@@ -182,7 +181,7 @@ wxCoord wx_MainFrame::DrawTextInBox(wxGCDC &gc,
 	return h;
 }
 
-void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
+void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
 	wxCoord x = cartographer_->LonToX(135.04954039);
 	wxCoord y = cartographer_->LatToY(48.47259794);
@@ -197,7 +196,7 @@ void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		bmp_w = bmp_w / 6 * z;
 		bmp_h = bmp_h / 6 * z;
 	}
-	
+
 	wxDouble bmp_x = x - bmp_w / 2;
 	wxDouble bmp_y = y - bmp_h;
 
@@ -205,7 +204,7 @@ void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 
 	gc.GetGraphicsContext()->DrawBitmap(bitmap_,
 		bmp_x, bmp_y, bmp_w, bmp_h);
-	
+
 	wxString str;
 	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
 
@@ -218,7 +217,7 @@ void wx_MainFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		wxBrush( wxColor(255, 255, 0, 192) ));
 }
 
-void wx_MainFrame::OnChoice1Select(wxCommandEvent& event)
+void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 {
 	switch (Choice1->GetCurrentSelection())
 	{

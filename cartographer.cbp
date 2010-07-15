@@ -2,12 +2,12 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="wx_" />
+		<Option title="cartographer" />
 		<Option pch_mode="2" />
 		<Option compiler="msvc8" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin\Debug\wx_" prefix_auto="1" extension_auto="1" />
+				<Option output="bin\Debug\cartographer" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj\Debug\" />
 				<Option type="0" />
 				<Option compiler="msvc8" />
@@ -15,10 +15,8 @@
 				<Compiler>
 					<Add option="/MDd" />
 					<Add option="/Zi" />
-					<Add option="/wd4503" />
 					<Add option="/D_DEBUG" />
 					<Add option="/D__WXDEBUG__" />
-					<Add option="/D_UNICODE" />
 					<Add directory="$(#wx)\lib\vc_lib\mswud" />
 				</Compiler>
 				<ResourceCompiler>
@@ -30,14 +28,7 @@
 					<Add option="/NODEFAULTLIB:msvcrt.lib" />
 					<Add library="msvcrtd.lib" />
 					<Add library="wxmsw29ud_richtext.lib" />
-					<Add library="wxmsw29ud_xrc.lib" />
-					<Add library="wxmsw29ud_aui.lib" />
-					<Add library="wxmsw29ud_dbgrid.lib" />
-					<Add library="wxbase29ud_odbc.lib" />
-					<Add library="wxmsw29ud_media.lib" />
-					<Add library="wxbase29ud_net.lib" />
 					<Add library="wxmsw29ud_gl.lib" />
-					<Add library="wxmsw29ud_qa.lib" />
 					<Add library="wxbase29ud_xml.lib" />
 					<Add library="wxmsw29ud_adv.lib" />
 					<Add library="wxmsw29ud_html.lib" />
@@ -45,18 +36,17 @@
 					<Add library="wxbase29ud.lib" />
 					<Add library="wxpngd.lib" />
 					<Add library="wxjpegd.lib" />
-					<Add library="wxtiffd.lib" />
 					<Add library="wxzlibd.lib" />
-					<Add library="wxregexud.lib" />
-					<Add library="wxexpatd.lib" />
+					<Add library="wxtiffd.lib" />
+					<Add library="mylibd.lib" />
 					<Add directory="$(#wx)\lib\vc_lib" />
 				</Linker>
 				<ExtraCommands>
-					<Add after='mt.exe /nologo /manifest &quot;bin\Debug\wx_.exe.manifest&quot; /outputresource:&quot;bin\Debug\wx_.exe&quot;;1' />
+					<Add after='mt.exe /nologo /manifest &quot;bin\Debug\cartographer.exe.manifest&quot; /outputresource:&quot;bin\Debug\cartographer.exe&quot;;1' />
 				</ExtraCommands>
 			</Target>
 			<Target title="Release">
-				<Option output="bin\Release\wx_" prefix_auto="1" extension_auto="1" />
+				<Option output="bin\Release\cartographer" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj\Release\" />
 				<Option type="0" />
 				<Option compiler="msvc8" />
@@ -67,7 +57,6 @@
 					<Add option="/Ox" />
 					<Add option="/Ob1" />
 					<Add option="/DNDEBUG" />
-					<Add option="/D_UNICODE" />
 					<Add directory="$(#wx)\lib\vc_lib\mswu" />
 				</Compiler>
 				<ResourceCompiler>
@@ -77,14 +66,7 @@
 					<Add option="/NODEFAULTLIB:libcmt.lib" />
 					<Add library="msvcrt.lib" />
 					<Add library="wxmsw29u_richtext.lib" />
-					<Add library="wxmsw29u_xrc.lib" />
-					<Add library="wxmsw29u_aui.lib" />
-					<Add library="wxmsw29u_dbgrid.lib" />
-					<Add library="wxbase29u_odbc.lib" />
-					<Add library="wxmsw29u_media.lib" />
-					<Add library="wxbase29u_net.lib" />
 					<Add library="wxmsw29u_gl.lib" />
-					<Add library="wxmsw29u_qa.lib" />
 					<Add library="wxbase29u_xml.lib" />
 					<Add library="wxmsw29u_adv.lib" />
 					<Add library="wxmsw29u_html.lib" />
@@ -92,14 +74,13 @@
 					<Add library="wxbase29u.lib" />
 					<Add library="wxpng.lib" />
 					<Add library="wxjpeg.lib" />
-					<Add library="wxtiff.lib" />
 					<Add library="wxzlib.lib" />
-					<Add library="wxregexu.lib" />
-					<Add library="wxexpat.lib" />
+					<Add library="wxtiff.lib" />
+					<Add library="mylib.lib" />
 					<Add directory="$(#wx)\lib\vc_lib" />
 				</Linker>
 				<ExtraCommands>
-					<Add after='mt.exe /nologo /manifest &quot;bin\Release\wx_.exe.manifest&quot; /outputresource:&quot;bin\Release\wx_.exe&quot;;1' />
+					<Add after='mt.exe /nologo /manifest &quot;bin\Release\cartographer.exe.manifest&quot; /outputresource:&quot;bin\Release\cartographer.exe&quot;;1' />
 				</ExtraCommands>
 			</Target>
 		</Build>
@@ -110,6 +91,7 @@
 			<Add option="/W3" />
 			<Add option="/Zc:wchar_t" />
 			<Add option="/EHsc" />
+			<Add option="/wd4503" />
 			<Add option="/DWIN32" />
 			<Add option="/D__WIN32__" />
 			<Add option="/D__WXMSW__" />
@@ -145,28 +127,26 @@
 			<Add library="odbc32.lib" />
 			<Add directory="..\mylib" />
 		</Linker>
-		<Unit filename="handle_exception.cpp" />
-		<Unit filename="handle_exception.h" />
+		<Unit filename="cartographerApp.cpp" />
+		<Unit filename="cartographerApp.h" />
+		<Unit filename="cartographerMain.cpp" />
+		<Unit filename="cartographerMain.h" />
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>
 		<Unit filename="wxCartographer.cpp" />
 		<Unit filename="wxCartographer.h" />
-		<Unit filename="wx_App.cpp" />
-		<Unit filename="wx_App.h" />
-		<Unit filename="wx_Main.cpp" />
-		<Unit filename="wx_Main.h" />
-		<Unit filename="wxsmith\wx_MainFrame.wxs" />
+		<Unit filename="wxsmith\cartographerframe.wxs" />
 		<Extensions>
 			<code_completion />
+			<envvars />
 			<debugger />
 			<wxsmith version="1">
-				<gui name="wxWidgets" src="wx_App.cpp" main="wx_MainFrame" init_handlers="necessary" language="CPP" />
+				<gui name="wxWidgets" src="cartographerApp.cpp" main="cartographerFrame" init_handlers="necessary" language="CPP" />
 				<resources>
-					<wxFrame wxs="wxsmith/wx_MainFrame.wxs" src="wx_Main.cpp" hdr="wx_Main.h" name="wx_MainFrame" language="CPP" />
+					<wxFrame wxs="wxsmith/cartographerframe.wxs" src="cartographerMain.cpp" hdr="cartographerMain.h" name="cartographerFrame" language="CPP" />
 				</resources>
 			</wxsmith>
-			<envvars />
 		</Extensions>
 	</Project>
 </CodeBlocks_project_file>

@@ -11,8 +11,9 @@
 #define WX_MAIN_H
 
 #include "wxCartographer.h"
+#include <wx/dcgraph.h> /* wxGCDC */
 
-//(*Headers(wx_MainFrame)
+//(*Headers(cartographerFrame)
 #include <wx/sizer.h>
 #include <wx/menu.h>
 #include <wx/panel.h>
@@ -22,11 +23,11 @@
 #include <wx/statusbr.h>
 //*)
 
-class wx_MainFrame: public wxFrame
+class cartographerFrame: public wxFrame
 {
 	public:
-		wx_MainFrame(wxWindow* parent, wxWindowID id = -1);
-		virtual ~wx_MainFrame();
+		cartographerFrame(wxWindow* parent, wxWindowID id = -1);
+		virtual ~cartographerFrame();
 
 	private:
 		typedef std::vector<wxCartographer::map> maps_list;
@@ -36,7 +37,7 @@ class wx_MainFrame: public wxFrame
 		wxBitmap bitmap_;
 
 		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
-		
+
 		static wxCoord DrawTextInBox( wxGCDC &gc,
 			const wxString &str, wxCoord x, wxCoord y,
 			const wxFont &font, const wxColour &color,
@@ -71,4 +72,4 @@ class wx_MainFrame: public wxFrame
 		DECLARE_EVENT_TABLE()
 };
 
-#endif // WX_MAIN_H
+#endif // CARTOGRAPHERMAIN_H
