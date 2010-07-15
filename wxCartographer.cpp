@@ -38,6 +38,23 @@
 #include <wx/dcmemory.h> /* wxMemoryDC */
 #include <wx/rawbmp.h> /* wxNativePixelData */
 
+#ifndef NDEBUG
+#include <my_log.h>
+mutex lock_mutex;
+std::wofstream lock_log_stream;
+void on_lock_log(const std::wstring &text)
+{
+	lock_log_stream << boost::this_thread::get_id()
+		<< L": " << text << std::endl << std::flush;
+}
+my::log lock_log(on_lock_log);
+#define LOCK_LOG(text) {\
+	mutex::scoped_lock l(lock_mutex);\
+	lock_log << text << lock_log; }
+#else
+#define LOCK_LOG(text)
+#endif
+
 #define EXCT 0.081819790992 /* эксцентриситет эллипса */
 
 template<typename Real>
@@ -58,7 +75,6 @@ BEGIN_EVENT_TABLE(wxCartographer, wxPanel)
     EVT_MOUSEWHEEL( wxCartographer::on_mouse_wheel)
     //EVT_KEY_DOWN( wxCartographer::OnKeyDown)
 END_EVENT_TABLE()
-
 
 wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	const std::wstring &serverPort, std::size_t cacheSize,
@@ -92,6 +108,18 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	, anim_speed_(0)
 	, anim_freq_(0)
 {
+	#ifndef NDEBUG
+	bool log_exists = fs::exists(L"lock.log");
+	lock_log_stream.open("lock.log", std::ios::app);
+	if (!log_exists)
+		lock_log_stream << L"\xEF\xBB\xBF";
+	else
+		lock_log_stream << std::endl;
+
+	lock_log_stream.imbue( std::locale( lock_log_stream.getloc(),
+		new boost::archive::detail::utf8_codecvt_facet) );
+	#endif
+
 	try
 	{
 		std::wstring request;
@@ -237,7 +265,7 @@ void wxCartographer::Stop()
     /* Ждём завершения */
 
 
-	#ifdef _DEBUG
+	#ifndef NDEBUG
 	/* Отладка - поиск зависших */
 	{
 		posix_time::ptime start_finish = my::time::utc_now();
@@ -256,35 +284,35 @@ void wxCartographer::Stop()
 void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
 	{
+		LOCK_LOG(L"unique cache_mutex - add_to_cache");
 		unique_lock<shared_mutex> l(cache_mutex_);
 
 		/* Ищем тайл в кэше */
 		tile::ptr old = cache_[tile_id];
 
-		/* Если отсутствует, то просто добавляем */
-		if (!old)
-			cache_[tile_id] = ptr;
+		bool need_for_load = ptr->need_for_load();
+		bool need_for_build = ptr->need_for_build();
 
-		/* Если новый файл "лучше" старого - меняем содержимое */
-		else if (ptr->level() < old->level())
+		if (old)
 		{
-			/* Если старый тайл не нуждался в загрузке,
-				сохраняем этот флаг и у нового */
-			if (!old->need_for_load())
+			need_for_load &= old->need_for_load();
+			need_for_build &= old->need_for_build();
+
+			/* Если новый файл "лучше" старого - меняем содержимое */
+			if (ptr->level() > old->level())
+				ptr = old;
+
+			/* Объединяем флаги */
+			if (!need_for_load)
 				ptr->reset_need_for_load();
 
-			cache_[tile_id] = ptr;
+			if (!need_for_build)
+				ptr->reset_need_for_build();
 		}
-		/* Если "хуже" - оставляем старый, но если новый
-			не нуждается в загрузке, тогда и старый тоже */
-		else
-		{
-			if (!ptr->need_for_load())
-				old->reset_need_for_load();
-		}
+
+		cache_[tile_id] = ptr;
 	}
 
-	/* Оповещаем об изменении кэша */
 	Refresh(false);
 }
 
@@ -310,6 +338,7 @@ bool wxCartographer::check_tile_id(const tile::id &tile_id)
 wxCartographer::tile::ptr wxCartographer::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
+	LOCK_LOG(L"shared cache_mutex - find_tile()");
 	shared_lock<shared_mutex> l(cache_mutex_);
 
 	tiles_cache::iterator iter = cache_.find(tile_id);
@@ -322,6 +351,7 @@ bool wxCartographer::tile_in_queue(const tiles_queue &queue,
 {
 	if (worker)
 	{
+		LOCK_LOG(L"unique worker->mutex - tile_in_queue()");
 		unique_lock<mutex> lock = worker->create_lock();
 		tiles_queue::const_iterator iter = queue.find(tile_id);
 		return iter != queue.end();
@@ -371,18 +401,21 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	/* Если наш тайл уже построен от предка */
 	if (tile_ptr && tile_ptr->level() - 1 == parent_ptr->level())
 	{
-		/* Если предок больше не нуждается в загрузке (был загружен
-			или тайл отсутствует на сервере), считаем, что теперь мы построены
-			от него напрямую, а, значит, больше не будем нуждаться в построении */
-		if (!parent_ptr->need_for_load())
-			tile_ptr->set_level(1);
+		/* Если предок уже "готов", то и наш тайл
+			уже перестраиваться не будет, но может быть загружен */
+		if (parent_ptr->ready())
+			tile_ptr->reset_need_for_build();
 
 		return tile_ptr;
 	}
 
 	/* Строим тайл */
-	tile_ptr.reset( new tile(
-		!parent_ptr->need_for_load() ? 1 : parent_ptr->level() + 1) );
+	tile_ptr.reset( new tile(parent_ptr->level() + 1) );
+
+	/* Если предок уже "готов", то и наш тайл
+		уже перестраиваться не будет, но может быть загружен */
+	if (parent_ptr->ready())
+		tile_ptr->reset_need_for_build();
 
 	wxMemoryDC tile_dc( tile_ptr->bitmap() );
 	wxMemoryDC parent_dc( parent_ptr->bitmap() );
@@ -411,6 +444,7 @@ void wxCartographer::add_to_file_queue(const tile::id &tile_id)
 		my::worker::ptr worker = file_loader_;
 		if (worker)
 		{
+			LOCK_LOG(L"unique worker->mutex - add_to_file_queue()");
 			unique_lock<mutex> lock = worker->create_lock();
 			file_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 			wake_up(worker, lock); /* Будим работника, если он спит */
@@ -427,6 +461,7 @@ void wxCartographer::add_to_server_queue(const tile::id &tile_id)
 		my::worker::ptr worker = server_loader_;
 		if (worker)
 		{
+			LOCK_LOG(L"unique worker->mutex - add_to_server_queue()");
 			unique_lock<mutex> lock = worker->create_lock();
 			server_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 			wake_up(worker, lock); /* Будим работника, если он спит */
@@ -446,6 +481,7 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
+			LOCK_LOG(L"unique worker->mutex - file_loader_proc()");
 			unique_lock<mutex> lock = this_worker->create_lock();
 
 			tiles_queue::iterator iter = file_queue_.begin();
@@ -490,6 +526,7 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 
 		/* Удаляем тайл из очереди */
 		{
+			LOCK_LOG(L"unique worker->mutex - file_loader_proc()");
 			unique_lock<mutex> lock = this_worker->create_lock();
 			file_queue_.remove(tile_id);
 		}
@@ -509,6 +546,7 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
+			LOCK_LOG(L"unique worker->mutex - server_loader_proc()");
 			unique_lock<mutex> lock = this_worker->create_lock();
 
 			tiles_queue::iterator iter = server_queue_.begin();
@@ -574,6 +612,7 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 
 			/* Удаляем тайл из очереди */
 			{
+				LOCK_LOG(L"unique worker->mutex - server_loader_proc()");
 				unique_lock<mutex> lock = this_worker->create_lock();
 				server_queue_.remove(tile_id);
 			}
@@ -809,6 +848,7 @@ void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 
 	/* Копируем все нужные параметры, обеспечив блокировку */
 	{
+		LOCK_LOG(L"recursive params_mutex - sort_queue()");
 		recursive_mutex::scoped_lock l(params_mutex_);
 		fix_tile.map_id = active_map_id_;
 		fix_tile.z = (int)(z_ + 0.5);
@@ -825,6 +865,7 @@ void wxCartographer::sort_queue(tiles_queue &queue,
 {
 	if (worker)
 	{
+		LOCK_LOG(L"unique worker->mutex - sort_queue()");
 		unique_lock<mutex> lock = worker->create_lock();
 		queue.sort( boost::bind(
 			&wxCartographer::sort_by_dist, fix_tile, _1, _2) );
@@ -1004,6 +1045,12 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 	gc.SetPen(*wxBLACK_PEN);
 	gc.SetBrush(*wxBLACK_BRUSH);
 
+	#ifndef NDEBUG
+	gc.SetTextForeground(*wxWHITE);
+	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
+		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
+	#endif
+
 	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
 	{
 		tile_id.y = last_y;
@@ -1021,6 +1068,33 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 				/* Чёрный тайл */
 				gc.DrawRectangle(tx, ty, 256, 256);
 			}
+
+			#ifndef NDEBUG
+			wxCoord sx = tx + 2;
+			wxCoord sy = ty + 2;
+			wchar_t buf[200];
+
+			swprintf(buf, sizeof(buf)/sizeof(*buf),
+				L"x=%d, y=%d", tile_id.x, tile_id.y);
+			gc.DrawText(buf, sx, sy), sy += 12;
+
+			if (tile_ptr)
+			{
+				gc.DrawText(tile_ptr->ok() ? L"ok" : L"null", sx, sy), sy += 12;
+
+				if (tile_ptr->need_for_load())
+					gc.DrawText(L"need_for_load", sx, sy), sy += 12;
+
+				gc.DrawText(tile_ptr->loaded() ? L"loaded" : L"builded", sx, sy), sy += 12;
+
+				if (tile_ptr->need_for_build())
+					gc.DrawText(L"need_for_build", sx, sy), sy += 12;
+
+				swprintf(buf, sizeof(buf)/sizeof(*buf), L"level: %d", tile_ptr->level());
+				gc.DrawText(buf, sx, sy), sy += 12;
+			}
+			#endif
+
 		}
 	}
 
@@ -1036,6 +1110,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 
 void wxCartographer::repaint(wxDC &dc_win)
 {
+	LOCK_LOG(L"unique paint_mutex - repaint()");
 	mutex::scoped_lock l(paint_mutex_);
 
 	wxCoord width, height;
@@ -1068,6 +1143,7 @@ void wxCartographer::repaint(wxDC &dc_win)
 		//wxDouble z;
 		//wxDouble lat, lon;
 
+		LOCK_LOG(L"recursive params_mutex - repaint()");
 		recursive_mutex::scoped_lock l(params_mutex_);
 		//map_id = active_map_id_;
 		//z = z_;
@@ -1079,10 +1155,10 @@ void wxCartographer::repaint(wxDC &dc_win)
 		paint_map(gc, width, height, active_map_id_, z_,
 			fix_lat_, fix_lon_, width * fix_kx_, height * fix_ky_);
 
-		if (on_paint_)
-			on_paint_(gc, width, height);
+		//if (on_paint_)
+			//on_paint_(gc, width, height);
 
-		#ifdef _DEBUG
+		#ifndef NDEBUG
 		paint_debug_info(gc, width, height);
 		#endif
 
@@ -1113,6 +1189,7 @@ void wxCartographer::repaint(wxDC &dc_win)
 
 void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 {
+	LOCK_LOG(L"recursive params_mutex - move_fix_to_scr_xy()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 
 	fix_kx_ = scr_x / widthd();
@@ -1121,6 +1198,7 @@ void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 
 void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 {
+	LOCK_LOG(L"recursive params_mutex - set_fix_to_scr_xy()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 
 	fix_lat_ = scr_y_to_lat(scr_y, z_, maps_[active_map_id_].projection,
@@ -1184,6 +1262,7 @@ void wxCartographer::on_mouse_move(wxMouseEvent& event)
 void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 {
 	{
+		LOCK_LOG(L"recursive params_mutex - on_mouse_wheel()");
 		recursive_mutex::scoped_lock l(params_mutex_);
 
 		int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
@@ -1210,6 +1289,7 @@ void wxCartographer::GetMaps(std::vector<wxCartographer::map> &Maps)
 
 wxCartographer::map wxCartographer::GetActiveMap()
 {
+	LOCK_LOG(L"recursive params_mutex - GetActiveMap()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return maps_[active_map_id_];
 }
@@ -1220,6 +1300,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 
 	if (map_num_id)
 	{
+		LOCK_LOG(L"recursive params_mutex - SetActiveMap()");
 		recursive_mutex::scoped_lock l(params_mutex_);
 		active_map_id_ = map_num_id;
 
@@ -1233,6 +1314,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 
 wxCoord wxCartographer::LatToY(wxDouble Lat)
 {
+	LOCK_LOG(L"recursive params_mutex - LatToY()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return (wxCoord)(lat_to_scr_y(Lat, z_, maps_[active_map_id_].projection,
 		fix_lat_, heightd() * fix_ky_) + 0.5);
@@ -1240,6 +1322,7 @@ wxCoord wxCartographer::LatToY(wxDouble Lat)
 
 wxCoord wxCartographer::LonToX(wxDouble Lon)
 {
+	LOCK_LOG(L"recursive params_mutex - LonToX()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return (wxCoord)(lon_to_scr_x(Lon, z_,
 		fix_lon_, widthd() * fix_kx_) + 0.5);
@@ -1247,12 +1330,14 @@ wxCoord wxCartographer::LonToX(wxDouble Lon)
 
 int wxCartographer::GetZ(void)
 {
+	LOCK_LOG(L"recursive params_mutex - GetZ()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return (int)(z_ + 0.5);
 }
 
 void wxCartographer::SetZ(int z)
 {
+	LOCK_LOG(L"recursive params_mutex - SetZ()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	z_ = z;
 	Refresh(false);
@@ -1260,18 +1345,21 @@ void wxCartographer::SetZ(int z)
 
 wxDouble wxCartographer::GetLat()
 {
+	LOCK_LOG(L"recursive params_mutex - GetLat()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return fix_lat_;
 }
 
 wxDouble wxCartographer::GetLon()
 {
+	LOCK_LOG(L"recursive params_mutex - GetLon()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	return fix_lon_;
 }
 
 void wxCartographer::MoveTo(int z, wxDouble lat, wxDouble lon)
 {
+	LOCK_LOG(L"recursive params_mutex - MoveTo()");
 	recursive_mutex::scoped_lock l(params_mutex_);
 	z_ = z;
 	fix_lat_ = lat;

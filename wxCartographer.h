@@ -113,6 +113,7 @@ public:
 
 	private:
 		bool need_for_load_; /* Тайл нуждается в загрузке */
+		bool need_for_build_; /* Тайл нуждается в построении */
 		int level_; /* Расстояние до предка, отображённого на тайле
 			(при ручном построении тайла), при 0 - на тайле отображён сам тайл
 			(т.е. тайл был успешно загружен) */
@@ -120,33 +121,47 @@ public:
 
 		/*
 			Возможные состояния тайла:
-				1. !need_for_load и level == 0 - нормально загруженный тайл.
-				2. !need_for_load и level == 999 - тайл отсутствует,
-					больше нет необходимости пытаться загружать,
-					но требуется построение от "предков".
-				3. !need_for_load и любой другой level - тайл отсутствует
-					на сервере, но уже построен от "предков".
-					level - уровень/расстояние от "предка", не нуждающегося
-					в загрузке.
-				4. need_for_load и любой level - тайл, построенный от "предков",
-					загрузка только ожидается.
+			1. !need_for_load, !need_for_build, level == 0
+				- нормально загруженный тайл (ready() == true).
+			2. !need_for_load, need_for_build, level == 999
+				- тайл отсутствует на сервере, больше нет необходимости
+				пытаться его загружать, но требуется построение от "предков".
+				На экране рисуется чёрным квадратом.
+			3. !need_for_load, need_for_build, level >= 2 - тайл отсутствует
+				на сервере, в загрузке не нуждается, уже построен от "предков"
+				(level - уровень "испорченности" тайла). Если предки будут
+				подгружены, можно перестроить тайл заново.
+			4. !need_for_load, !need_for_build, level >= 1 - тайл отсутствует
+				на сервере, в загрузке не нуждается, уже построен от "предков"
+				(level - уровень "испорченности"). Но предки уже не будут
+				перестраиваться (все тайлы загружены или тайлов на сервере
+				нет), поэтому и этот тайл больше перестраивать не надо
+				(ready() == true).
+			5. need_for_load, need_for_build, level >= 2 - тайл нуждается
+				и в загрузке и в дополнительном построении.
+			6. need_for_load, !need_for_build, level >= 1 - тайл нуждается
+				в загрузке, но в построении уже не нуждается.
 		*/
 
 	public:
-		/* Создание "пустого" тайла - чтобы не загружать повторно */
+		/* Создание "пустого" тайла (№2) - чтобы не загружать повторно */
 		tile()
 			: need_for_load_(false)
+			, need_for_build_(true)
 			, level_(999) {}
 
-		/* Создание "чистого" тайла для построения */
+		/* Создание "чистого" тайла (№5 или №6) для построения */
 		tile(int level)
 			: need_for_load_(true)
+			, need_for_build_(level >= 2)
 			, level_(level)
 			, bitmap_(256, 256) {}
 
-		/* Загрузка из файла */
+		/* Загрузка из файла (№1 или, при ошибке, №2 ) */
 		tile(const std::wstring &filename)
 			: need_for_load_(false)
+			, need_for_build_(true)
+			, level_(999)
 		{
 			if (fs::exists(filename))
 			{
@@ -156,28 +171,34 @@ public:
 				{
 					image.InitAlpha();
 					bitmap_ = wxBitmap(image);
+					if (ok())
+					{
+						level_ = 0;
+						need_for_build_ = false;
+					}
 				}
 			}
 
-			level_ = ok() ? 0 : 999;
 		}
 
-		/* Загрузка из памяти */
+		/* Загрузка из памяти (№1 или, при ошибке, №2) */
 		tile(const void *data, std::size_t size)
 			: need_for_load_(false)
+			, need_for_build_(true)
+			, level_(999)
 		{
 			wxImage image;
 			wxMemoryInputStream stream(data, size);
 
-			if (!image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
-			{
-				level_ = 999;
-			}
-			else
+			if (image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
 			{
 				image.InitAlpha();
 				bitmap_ = wxBitmap(image);
-				level_ = 0;
+				if (ok())
+				{
+					level_ = 0;
+					need_for_build_ = false;
+				}
 			}
 		}
 
@@ -193,17 +214,23 @@ public:
 		inline void reset_need_for_load()
 			{ need_for_load_ = false; }
 
+		inline bool need_for_build()
+			{ return need_for_build_; }
+
+		inline void reset_need_for_build()
+			{ need_for_build_ = false; }
+
 		inline int level()
 			{ return level_; }
 
 		inline void set_level(int level)
 			{ level_ = level; }
 
-		inline bool need_for_build()
-			{ return level_ > 1; }
-
 		inline bool loaded()
 			{ return level_ == 0; }
+
+		inline bool ready()
+			{ return !need_for_load_ && !need_for_build_; }
 	};
 
 private:
