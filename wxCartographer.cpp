@@ -364,13 +364,25 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 		tile_id.map_id, tile_id.z - 1,
 		tile_id.x >> 1, tile_id.y >> 1) );
 
-	/* Если не удалось построить предка или наш тайл уже построен от него
-		- возвращаемся с тем, что есть */
-	if (!parent_ptr || tile_ptr && tile_ptr->level() -1 == parent_ptr->level())
+	/* Если не удалось построить предка, возвращаемся с тем, что есть */
+	if (!parent_ptr)
 		return tile_ptr;
 
+	/* Если наш тайл уже построен от предка */
+	if (tile_ptr && tile_ptr->level() - 1 == parent_ptr->level())
+	{
+		/* Если предок больше не нуждается в загрузке (был загружен
+			или тайл отсутствует на сервере), считаем, что теперь мы построены
+			от него напрямую, а, значит, больше не будем нуждаться в построении */
+		if (!parent_ptr->need_for_load())
+			tile_ptr->set_level(1);
+
+		return tile_ptr;
+	}
+
 	/* Строим тайл */
-	tile_ptr.reset( new tile(parent_ptr->level() + 1) );
+	tile_ptr.reset( new tile(
+		!parent_ptr->need_for_load() ? 1 : parent_ptr->level() + 1) );
 
 	wxMemoryDC tile_dc( tile_ptr->bitmap() );
 	wxMemoryDC parent_dc( parent_ptr->bitmap() );

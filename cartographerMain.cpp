@@ -78,7 +78,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 		, 135.0719556 /* InitLon - долгота исходной точки */
 		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
 		, this, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
-		, 0 /* 0 - нет анимации */
+		, 200 /* 0 - нет анимации */
   	);
 
 	FlexGridSizer1->Add( cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
