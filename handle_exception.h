@@ -1,4 +1,4 @@
-#ifndef EXCEPTIONS_H
+﻿#ifndef EXCEPTIONS_H
 #define EXCEPTIONS_H
 
 #include <string>
@@ -7,6 +7,6 @@
 void handle_exception(
 	std::exception *e,
 	const std::wstring &add_to_log,
-	const std::wstring &window_title);
+	const std::wstring &window_title = std::wstring());
 
 #endif

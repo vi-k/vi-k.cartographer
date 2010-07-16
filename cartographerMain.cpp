@@ -2,7 +2,7 @@
  * Name:      cartographerMain.cpp
  * Purpose:   Code for Application Frame
  * Author:    vi.k (vi.k@mail.ru)
- * Created:   2010-07-13
+ * Created:   2010-07-16
  * Copyright: vi.k ()
  * License:
  **************************************************************/
@@ -11,12 +11,14 @@
 
 #include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include "cartographerMain.h"
+#include <wx/msgdlg.h>
 
 #include <string>
 
-//(*InternalHeaders(wx_MainFrame)
+//(*InternalHeaders(cartographerFrame)
 #include <wx/artprov.h>
 #include <wx/bitmap.h>
+#include <wx/icon.h>
 #include <wx/settings.h>
 #include <wx/intl.h>
 #include <wx/image.h>
@@ -35,35 +37,35 @@ const long cartographerFrame::ID_STATUSBAR1 = wxNewId();
 //*)
 
 BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
-	//(*EventTable(cartographerFrame)
-	//*)
+    //(*EventTable(cartographerFrame)
+    //*)
 END_EVENT_TABLE()
 
-cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
+cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	: cartographer_(0)
 {
-	//(*Initialize(cartographerFrame)
-	wxMenuItem* MenuItem2;
-	wxMenuItem* MenuItem1;
-	wxMenu* Menu1;
-	wxMenuBar* MenuBar1;
-	wxMenu* Menu2;
+    //(*Initialize(cartographerFrame)
+    wxMenuItem* MenuItem2;
+    wxMenuItem* MenuItem1;
+    wxMenu* Menu1;
+    wxMenuBar* MenuBar1;
+    wxMenu* Menu2;
 
-	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
-	SetClientSize(wxSize(626,293));
-	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
-	{
-	wxIcon FrameIcon;
-	FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
-	SetIcon(FrameIcon);
-	}
-	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
-	FlexGridSizer1->AddGrowableCol(0);
-	FlexGridSizer1->AddGrowableRow(1);
-	Panel2 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
-	ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
-	Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
-	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
+    SetClientSize(wxSize(626,293));
+    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+    {
+    wxIcon FrameIcon;
+    FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
+    SetIcon(FrameIcon);
+    }
+    FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
+    FlexGridSizer1->AddGrowableCol(0);
+    FlexGridSizer1->AddGrowableRow(1);
+    Panel2 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
+    ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
+    Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
+    FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 
 	//Panel1 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
 	cartographer_ = new wxCartographer(
@@ -82,30 +84,30 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
   	);
 
 	FlexGridSizer1->Add( cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-	SetSizer(FlexGridSizer1);
-	MenuBar1 = new wxMenuBar();
-	Menu1 = new wxMenu();
-	MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _("Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
-	Menu1->Append(MenuItem1);
-	MenuBar1->Append(Menu1, _("Файл"));
-	Menu2 = new wxMenu();
-	MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _("О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
-	Menu2->Append(MenuItem2);
-	MenuBar1->Append(Menu2, _("Помощь"));
-	SetMenuBar(MenuBar1);
-	StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
-	int __wxStatusBarWidths_1[1] = { -1 };
-	int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
-	StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
-	StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
-	SetStatusBar(StatusBar1);
-	FlexGridSizer1->SetSizeHints(this);
+    SetSizer(FlexGridSizer1);
+    MenuBar1 = new wxMenuBar();
+    Menu1 = new wxMenu();
+    MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _("Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
+    Menu1->Append(MenuItem1);
+    MenuBar1->Append(Menu1, _("Файл"));
+    Menu2 = new wxMenu();
+    MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _("О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
+    Menu2->Append(MenuItem2);
+    MenuBar1->Append(Menu2, _("Помощь"));
+    SetMenuBar(MenuBar1);
+    StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
+    int __wxStatusBarWidths_1[1] = { -1 };
+    int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
+    StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
+    StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
+    SetStatusBar(StatusBar1);
+    FlexGridSizer1->SetSizeHints(this);
 
-	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
-	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
-	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
-	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
-	//*)
+    Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
+    Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
+    Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
+    Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
+    //*)
 
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
@@ -133,24 +135,23 @@ cartographerFrame::cartographerFrame(wxWindow* parent, wxWindowID id)
 
 cartographerFrame::~cartographerFrame()
 {
-	/* Удаление/остановка картографера обязательно должно быть выполнено
+	/* Удаление/остановка картографера обязательно должна быть выполнена
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
-	//delete cartographer_;
+	delete cartographer_;
 
-	//(*Destroy(cartographerFrame)
-	//*)
+    //(*Destroy(cartographerFrame)
+    //*)
 }
 
 void cartographerFrame::OnQuit(wxCommandEvent& event)
 {
-	Close();
+    Close();
 }
 
 void cartographerFrame::OnAbout(wxCommandEvent& event)
 {
 	wxMessageBox( L"About...");
 }
-
 
 void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 {

@@ -1,4 +1,5 @@
 ﻿#include "wxCartographer.h"
+#include "handle_exception.h"
 
 /* windows */
 #ifdef _WINDOWS
@@ -18,15 +19,22 @@
 
 #endif /* _WINDOWS */
 
+#if defined(_MSC_VER)
+#define __swprintf swprintf_s
+#else
+#define __swprintf snwprintf
+#endif
+
 #include <my_exception.h>
 #include <my_ptr.h>
 #include <my_utf8.h>
 #include <my_time.h>
 #include <my_xml.h>
 #include <my_fs.h> /* boost::filesystem */
+#include <my_curline.h>
 
 #include <math.h> /* sin, sqrt */
-#include <wchar.h> /* swprintf_s */
+#include <wchar.h> /* swprintf */
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -38,24 +46,7 @@
 #include <wx/dcmemory.h> /* wxMemoryDC */
 #include <wx/rawbmp.h> /* wxNativePixelData */
 
-my::lock_inspector g_lock_inspector;
-
-#ifndef NDEBUG
-#include <my_log.h>
-mutex lock_mutex;
-std::wofstream lock_log_stream;
-void on_lock_log(const std::wstring &text)
-{
-	lock_log_stream << boost::this_thread::get_id()
-		<< L": " << text << std::endl << std::flush;
-}
-my::log lock_log(on_lock_log);
-#define LOCK_LOG(text) {\
-	my::locker locker MYLOCKER_PARAMS(lock_mutex, 5, CURLINE);\
-	lock_log << text << lock_log; }
-#else
-#define LOCK_LOG(text)
-#endif
+MYLOCKINSPECTOR_INIT()
 
 #define EXCT 0.081819790992 /* эксцентриситет эллипса */
 
@@ -86,42 +77,30 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size,
 	int animPeriod, int defAnimSteps )
 	: wxPanel(parent, id, pos, size, 0)
-	, cache_(cacheSize)
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
+	, cache_(cacheSize)
 	, builder_debug_counter_(0)
-	, painter_debug_counter_(0)
-	, animator_debug_counter_(0)
-	, draw_tile_debug_dounter_(0)
-	, file_loader_debug_counter_(0)
-	, server_loader_debug_counter_(0)
 	, file_queue_(100)
+	, file_loader_debug_counter_(0)
 	, server_queue_(100)
+	, server_loader_debug_counter_(0)
+	, anim_period_( posix_time::milliseconds(animPeriod) )
+	, def_anim_steps_(defAnimSteps)
+	, anim_speed_(0)
+	, anim_freq_(0)
+	, animator_debug_counter_(0)
 	, buffer_(100,100)
+	, draw_tile_debug_dounter_(0)
+	, active_map_id_(0)
 	, z_(initZ)
 	, fix_kx_(0.5)
 	, fix_ky_(0.5)
 	, fix_lat_(initLat)
 	, fix_lon_(initLon)
-	, active_map_id_(0)
+	, painter_debug_counter_(0)
 	, on_paint_(onPaintProc)
-	, anim_period_( posix_time::milliseconds(animPeriod) )
-	, def_anim_steps_(defAnimSteps)
-	, anim_speed_(0)
-	, anim_freq_(0)
 {
-	#ifndef NDEBUG
-	bool log_exists = fs::exists(L"lock.log");
-	lock_log_stream.open("lock.log", std::ios::app);
-	if (!log_exists)
-		lock_log_stream << L"\xEF\xBB\xBF";
-	else
-		lock_log_stream << std::endl;
-
-	lock_log_stream.imbue( std::locale( lock_log_stream.getloc(),
-		new boost::archive::detail::utf8_codecvt_facet) );
-	#endif
-
 	try
 	{
 		std::wstring request;
@@ -206,14 +185,14 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 		} /* Загружаем с сервера список доступных карт */
 
 		/* Запускаем файловый загрузчик тайлов */
-		file_loader_ = new_worker("file_loader"); /* Название - только для отладки */
+		file_loader_ = new_worker(L"file_loader"); /* Название - только для отладки */
 		boost::thread( boost::bind(
 			&wxCartographer::file_loader_proc, this, file_loader_) );
 
 		/* Запускаем серверный загрузчик тайлов */
 		if (!only_cache_)
 		{
-			server_loader_ = new_worker("server_loader"); /* Название - только для отладки */
+			server_loader_ = new_worker(L"server_loader"); /* Название - только для отладки */
 			boost::thread( boost::bind(
 				&wxCartographer::server_loader_proc, this, server_loader_) );
 		}
@@ -229,7 +208,7 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 				anim_speed_sw_.push();
 				anim_freq_sw_.push();
 			}
-			animator_ = new_worker("animator");
+			animator_ = new_worker(L"animator");
 			boost::thread( boost::bind(
 				&wxCartographer::anim_thread_proc, this, animator_) );
 		}
@@ -243,6 +222,8 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	}
 
 	Refresh(false);
+
+	Stop();
 }
 
 wxCartographer::~wxCartographer()
@@ -265,18 +246,15 @@ void wxCartographer::Stop()
 	dismiss(animator_);
 
     /* Ждём завершения */
-
-
 	#ifndef NDEBUG
-	/* Отладка - поиск зависших */
+	try
 	{
-		posix_time::ptime start_finish = my::time::utc_now();
-		while (!check_for_finish())
-		{
-			std::vector<std::string> v;
-			workers_state(v);
-			assert( my::time::utc_now() - start_finish < posix_time::seconds(2) );
-		}
+		debug_wait_for_finish(L"wxCartographer", posix_time::seconds(2));
+	}
+	catch (std::exception &e)
+	{
+		handle_exception(&e, L"in wxCartographer::Stop()");
+		throw;
 	}
     #endif
 
@@ -286,8 +264,7 @@ void wxCartographer::Stop()
 void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
 	{
-		LOCK_LOG(L"unique cache_mutex - add_to_cache");
-		my::not_shared_locker locker MYLOCKER_PARAMS(cache_mutex_, 5, CURLINE);
+		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 
 		/* Ищем тайл в кэше */
 		tile::ptr old = cache_[tile_id];
@@ -340,8 +317,7 @@ bool wxCartographer::check_tile_id(const tile::id &tile_id)
 wxCartographer::tile::ptr wxCartographer::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
-	LOCK_LOG(L"shared cache_mutex - find_tile()");
-	my::shared_locker locker MYLOCKER_PARAMS(cache_mutex_, 5, CURLINE);
+	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 
 	tiles_cache::iterator iter = cache_.find(tile_id);
 
@@ -353,8 +329,7 @@ bool wxCartographer::tile_in_queue(const tiles_queue &queue,
 {
 	if (worker)
 	{
-		LOCK_LOG(L"unique worker->mutex - tile_in_queue()");
-		my::locker locker MYLOCKER_PARAMS(worker->get_mutex(), 5, CURLINE);
+		my::locker locker( MYLOCKERPARAMS(worker->get_mutex(), 5, MYCURLINE) );
 
 		tiles_queue::const_iterator iter = queue.find(tile_id);
 		return iter != queue.end();
@@ -447,8 +422,7 @@ void wxCartographer::add_to_file_queue(const tile::id &tile_id)
 		my::worker::ptr worker = file_loader_;
 		if (worker)
 		{
-			LOCK_LOG(L"unique worker->mutex - add_to_file_queue()");
-			my::locker locker MYLOCKER_PARAMS(worker->get_mutex(), 5, CURLINE);
+			my::locker locker( MYLOCKERPARAMS(worker->get_mutex(), 5, MYCURLINE) );
 
 			file_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 			wake_up(worker, locker); /* Будим работника, если он спит */
@@ -465,8 +439,7 @@ void wxCartographer::add_to_server_queue(const tile::id &tile_id)
 		my::worker::ptr worker = server_loader_;
 		if (worker)
 		{
-			LOCK_LOG(L"unique worker->mutex - add_to_server_queue()");
-			my::locker locker MYLOCKER_PARAMS(worker->get_mutex(), 5, CURLINE);
+			my::locker locker( MYLOCKERPARAMS(worker->get_mutex(), 5, MYCURLINE) );
 
 			server_queue_[tile_id] = 0; /* Не важно значение, важно само присутствие */
 			wake_up(worker, locker); /* Будим работника, если он спит */
@@ -486,8 +459,7 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
-			LOCK_LOG(L"unique worker->mutex - file_loader_proc()");
-			my::locker locker MYLOCKER_PARAMS(this_worker->get_mutex(), 5, CURLINE);
+			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
 
 			tiles_queue::iterator iter = file_queue_.begin();
 
@@ -531,8 +503,7 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 
 		/* Удаляем тайл из очереди */
 		{
-			LOCK_LOG(L"unique worker->mutex - file_loader_proc()");
-			my::locker locker MYLOCKER_PARAMS(this_worker->get_mutex(), 5, CURLINE);
+			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
 
 			file_queue_.remove(tile_id);
 		}
@@ -552,8 +523,7 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
-			LOCK_LOG(L"unique worker->mutex - server_loader_proc()");
-			my::locker locker MYLOCKER_PARAMS(this_worker->get_mutex(), 5, CURLINE);
+			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
 
 			tiles_queue::iterator iter = server_queue_.begin();
 
@@ -618,8 +588,7 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 
 			/* Удаляем тайл из очереди */
 			{
-				LOCK_LOG(L"unique worker->mutex - server_loader_proc()");
-				my::locker locker MYLOCKER_PARAMS(this_worker->get_mutex(), 5, CURLINE);
+				my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
 
 				server_queue_.remove(tile_id);
 			}
@@ -855,8 +824,7 @@ void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 
 	/* Копируем все нужные параметры, обеспечив блокировку */
 	{
-		LOCK_LOG(L"recursive params_mutex - sort_queue()");
-		my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 		fix_tile.map_id = active_map_id_;
 		fix_tile.z = (int)(z_ + 0.5);
@@ -873,8 +841,7 @@ void wxCartographer::sort_queue(tiles_queue &queue,
 {
 	if (worker)
 	{
-		LOCK_LOG(L"unique worker->mutex - sort_queue()");
-		my::locker locker MYLOCKER_PARAMS(worker->get_mutex(), 5, CURLINE);
+		my::locker locker( MYLOCKERPARAMS(worker->get_mutex(), 5, MYCURLINE) );
 
 		queue.sort( boost::bind(
 			&wxCartographer::sort_by_dist, fix_tile, _1, _2) );
@@ -950,42 +917,42 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	wxCoord y = 8;
 	wchar_t buf[200];
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"speed: %0.1f ms", anim_speed_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"freq: %0.1f ms", anim_freq_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"animator: %d", animator_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"animator: %d", animator_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	int d;
 	int m;
 	double s;
 	TO_DEG(fix_lat_, d, m, s);
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"lat: %dº %d\' %0.2f\"", d, m, s);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"lat: %dº %d\' %0.2f\"", d, m, s);
 	gc.DrawText(buf, x, y), y += 12;
 
 	TO_DEG(fix_lon_, d, m, s);
-	swprintf(buf, sizeof(buf)/sizeof(*buf), L"lon: %dº %d\' %0.2f\"", d, m, s);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"lon: %dº %d\' %0.2f\"", d, m, s);
 	gc.DrawText(buf, x, y), y += 12;
 }
 
@@ -1083,7 +1050,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 			wxCoord sy = ty + 2;
 			wchar_t buf[200];
 
-			swprintf(buf, sizeof(buf)/sizeof(*buf),
+			__swprintf(buf, sizeof(buf)/sizeof(*buf),
 				L"x=%d, y=%d", tile_id.x, tile_id.y);
 			gc.DrawText(buf, sx, sy), sy += 12;
 
@@ -1099,7 +1066,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 				if (tile_ptr->need_for_build())
 					gc.DrawText(L"need_for_build", sx, sy), sy += 12;
 
-				swprintf(buf, sizeof(buf)/sizeof(*buf), L"level: %d", tile_ptr->level());
+				__swprintf(buf, sizeof(buf)/sizeof(*buf), L"level: %d", tile_ptr->level());
 				gc.DrawText(buf, sx, sy), sy += 12;
 			}
 			#endif
@@ -1119,8 +1086,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 
 void wxCartographer::repaint(wxDC &dc_win)
 {
-	LOCK_LOG(L"unique paint_mutex - repaint()");
-	my::locker locker MYLOCKER_PARAMS(paint_mutex_, 5, CURLINE);
+	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 
 	wxCoord width, height;
 	GetClientSize(&width, &height);
@@ -1152,8 +1118,7 @@ void wxCartographer::repaint(wxDC &dc_win)
 		//wxDouble z;
 		//wxDouble lat, lon;
 
-		LOCK_LOG(L"recursive params_mutex - repaint()");
-		my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 		//map_id = active_map_id_;
 		//z = z_;
@@ -1199,8 +1164,7 @@ void wxCartographer::repaint(wxDC &dc_win)
 
 void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 {
-	LOCK_LOG(L"recursive params_mutex - move_fix_to_scr_xy()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	fix_kx_ = scr_x / widthd();
 	fix_ky_ = scr_y / heightd();
@@ -1208,8 +1172,7 @@ void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 
 void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 {
-	LOCK_LOG(L"recursive params_mutex - set_fix_to_scr_xy()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	fix_lat_ = scr_y_to_lat(scr_y, z_, maps_[active_map_id_].projection,
 		fix_lat_, heightd() * fix_ky_);
@@ -1272,8 +1235,7 @@ void wxCartographer::on_mouse_move(wxMouseEvent& event)
 void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 {
 	{
-		LOCK_LOG(L"recursive params_mutex - on_mouse_wheel()");
-		my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 		int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
 
@@ -1299,8 +1261,7 @@ void wxCartographer::GetMaps(std::vector<wxCartographer::map> &Maps)
 
 wxCartographer::map wxCartographer::GetActiveMap()
 {
-	LOCK_LOG(L"recursive params_mutex - GetActiveMap()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return maps_[active_map_id_];
 }
@@ -1311,8 +1272,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 
 	if (map_num_id)
 	{
-		LOCK_LOG(L"recursive params_mutex - SetActiveMap()");
-		my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 		active_map_id_ = map_num_id;
 
@@ -1326,8 +1286,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 
 wxCoord wxCartographer::LatToY(wxDouble Lat)
 {
-	LOCK_LOG(L"recursive params_mutex - LatToY()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return (wxCoord)(lat_to_scr_y(Lat, z_, maps_[active_map_id_].projection,
 		fix_lat_, heightd() * fix_ky_) + 0.5);
@@ -1335,8 +1294,7 @@ wxCoord wxCartographer::LatToY(wxDouble Lat)
 
 wxCoord wxCartographer::LonToX(wxDouble Lon)
 {
-	LOCK_LOG(L"recursive params_mutex - LonToX()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return (wxCoord)(lon_to_scr_x(Lon, z_,
 		fix_lon_, widthd() * fix_kx_) + 0.5);
@@ -1344,16 +1302,14 @@ wxCoord wxCartographer::LonToX(wxDouble Lon)
 
 int wxCartographer::GetZ(void)
 {
-	LOCK_LOG(L"recursive params_mutex - GetZ()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return (int)(z_ + 0.5);
 }
 
 void wxCartographer::SetZ(int z)
 {
-	LOCK_LOG(L"recursive params_mutex - SetZ()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	z_ = z;
 	Refresh(false);
@@ -1361,24 +1317,21 @@ void wxCartographer::SetZ(int z)
 
 wxDouble wxCartographer::GetLat()
 {
-	LOCK_LOG(L"recursive params_mutex - GetLat()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return fix_lat_;
 }
 
 wxDouble wxCartographer::GetLon()
 {
-	LOCK_LOG(L"recursive params_mutex - GetLon()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return fix_lon_;
 }
 
 void wxCartographer::MoveTo(int z, wxDouble lat, wxDouble lon)
 {
-	LOCK_LOG(L"recursive params_mutex - MoveTo()");
-	my::recursive_locker locker MYLOCKER_PARAMS(params_mutex_, 5, CURLINE);
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	z_ = z;
 	fix_lat_ = lat;

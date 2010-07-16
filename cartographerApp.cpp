@@ -2,7 +2,7 @@
  * Name:      cartographerApp.cpp
  * Purpose:   Code for Application Class
  * Author:    vi.k (vi.k@mail.ru)
- * Created:   2010-07-13
+ * Created:   2010-07-16
  * Copyright: vi.k ()
  * License:
  **************************************************************/
@@ -16,15 +16,46 @@
 #include <wx/image.h>
 //*)
 
+#include <my_log.h>
+#include <my_fs.h>
+#include <my_utf8.h>
+
+#include <string>
+#include <fstream>
 #include <exception>
+
+std::wofstream main_log_stream;
+void on_main_log(const std::wstring &text)
+{
+	main_log_stream << my::time::to_wstring(
+		my::time::utc_now(), L"[%Y-%m-%d %H:%M:%S]\n")
+		<< text << L"\n\n";
+	main_log_stream.flush();
+}
+my::log main_log(on_main_log);
 
 IMPLEMENT_APP(cartographerApp);
 
 bool cartographerApp::OnInit()
 {
+    #if wxUSE_ON_FATAL_EXCEPTION
     wxHandleFatalExceptions(true);
+    #endif
 
-	//(*AppInitialize
+	/* Открываем лог */
+	bool log_exists = fs::exists("main.log");
+
+	main_log_stream.open("main.log", std::ios::app);
+
+	if (!log_exists)
+		main_log_stream << L"\xEF\xBB\xBF";
+	else
+		main_log_stream << std::endl;
+
+	main_log_stream.imbue( std::locale( main_log_stream.getloc(),
+		new boost::archive::detail::utf8_codecvt_facet) );
+
+    //(*AppInitialize
     bool wxsOK = true;
     wxInitAllImageHandlers();
     if ( wxsOK )

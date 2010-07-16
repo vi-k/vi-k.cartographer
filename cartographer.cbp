@@ -126,7 +126,7 @@
 			<Add library="comctl32.lib" />
 			<Add library="wsock32.lib" />
 			<Add library="odbc32.lib" />
-			<Add directory="..\mylib" />
+			<Add directory="..\mylib\vc_lib" />
 		</Linker>
 		<Unit filename="cartographerApp.cpp" />
 		<Unit filename="cartographerApp.h" />

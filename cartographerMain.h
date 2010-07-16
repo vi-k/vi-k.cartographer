@@ -1,14 +1,14 @@
 ﻿/***************************************************************
- * Name:      wx_Main.h
+ * Name:      cartographerMain.h
  * Purpose:   Defines Application Frame
  * Author:    vi.k (vi.k@mail.ru)
- * Created:   2010-03-30
+ * Created:   2010-07-16
  * Copyright: vi.k ()
  * License:
  **************************************************************/
 
-#ifndef WX_MAIN_H
-#define WX_MAIN_H
+#ifndef CARTOGRAPHERMAIN_H
+#define CARTOGRAPHERMAIN_H
 
 #include "wxCartographer.h"
 #include <wx/dcgraph.h> /* wxGCDC */
@@ -25,11 +25,12 @@
 
 class cartographerFrame: public wxFrame
 {
-	public:
-		cartographerFrame(wxWindow* parent, wxWindowID id = -1);
-		virtual ~cartographerFrame();
+    public:
 
-	private:
+        cartographerFrame(wxWindow* parent,wxWindowID id = -1);
+        virtual ~cartographerFrame();
+
+    private:
 		typedef std::vector<wxCartographer::map> maps_list;
 
 		wxCartographer *cartographer_;
@@ -43,12 +44,12 @@ class cartographerFrame: public wxFrame
 			const wxFont &font, const wxColour &color,
 			const wxPen &back_pen, const wxBrush &back_brush );
 
-		//(*Handlers(wx_MainFrame)
-		void OnQuit(wxCommandEvent& event);
-		void OnAbout(wxCommandEvent& event);
+        //(*Handlers(cartographerFrame)
+        void OnQuit(wxCommandEvent& event);
+        void OnAbout(wxCommandEvent& event);
 		void OnComboBox1Select(wxCommandEvent& event);
 		void OnChoice1Select(wxCommandEvent& event);
-		//*)
+        //*)
 
 		//(*Identifiers(wx_MainFrame)
 		static const long ID_COMBOBOX1;
@@ -56,18 +57,18 @@ class cartographerFrame: public wxFrame
 		static const long ID_PANEL2;
 		static const long ID_MENU_QUIT;
 		static const long ID_MENU_ABOUT;
-		static const long ID_STATUSBAR1;
-		//*)
+        static const long ID_STATUSBAR1;
+        //*)
 
-		//(*Declarations(wx_MainFrame)
-		wxStatusBar* StatusBar1;
-		wxComboBox* ComboBox1;
-		wxPanel* Panel2;
-		wxFlexGridSizer* FlexGridSizer1;
-		wxChoice* Choice1;
-		//*)
+        //(*Declarations(cartographerFrame)
+        wxStatusBar* StatusBar1;
+        wxComboBox* ComboBox1;
+        wxPanel* Panel2;
+        wxFlexGridSizer* FlexGridSizer1;
+        wxChoice* Choice1;
+        //*)
 
-		DECLARE_EVENT_TABLE()
+        DECLARE_EVENT_TABLE()
 };
 
 #endif // CARTOGRAPHERMAIN_H

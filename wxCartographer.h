@@ -9,9 +9,9 @@
 #define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
-#ifdef _WINDOWS
+//#ifdef _WINDOWS
 #include <wx/msw/winundef.h>
-#endif
+//#endif
 
 #include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */

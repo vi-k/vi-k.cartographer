@@ -1,13 +1,17 @@
+п»ї#include "stdafx.h"
+
 #include "handle_exception.h"
 
 #include <my_exception.h>
+#include <my_log.h>
 
 #include <string>
 #include <sstream>
 
-#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
-
 #include <wx/msgdlg.h>
+
+
+extern my::log main_log;
 
 void handle_exception(
 	std::exception *e,
@@ -21,7 +25,7 @@ void handle_exception(
     if (!e)
     {
     	log_title = L"unknown exception";
-    	error = L"Неизвестное исключение";
+    	error = L"РќРµРёР·РІРµСЃС‚РЅРѕРµ РёСЃРєР»СЋС‡РµРЅРёРµ";
     }
     else
     {
@@ -47,7 +51,9 @@ void handle_exception(
 
 	log << L" --\n" << error;
 
-	/*TODO: Запись ошибки в лог */
+	/* Р—Р°РїРёСЃСЊ РѕС€РёР±РєРё РІ Р»РѕРі */
+	main_log << log.str() << main_log;
 
-	wxMessageBox(log.str(), window_title, wxOK | wxICON_ERROR);
+	if (!window_title.empty())
+		wxMessageBox(log.str(), window_title, wxOK | wxICON_ERROR);
 }
