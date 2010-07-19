@@ -1,23 +1,22 @@
 ﻿#include "wxCartographer.h"
+#include "wxCartographer.h"
 #include "handle_exception.h"
 
 /* windows */
-#ifdef _WINDOWS
-#include <minmax.h> /* Нужен для gdiplus.h */
+#if defined(BOOST_WINDOWS)
+
+/* Макросы нужны для gdiplus.h */
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+
 #include <windows.h>
 #undef GDIPVER
 #define GDIPVER 0x0110
 #include <gdiplus.h>
 #include <windowsx.h>
-
-#ifdef max
 #undef max
-#endif
-#ifdef min
 #undef min
-#endif
-
-#endif /* _WINDOWS */
+#endif /* BOOST_WINDOWS */
 
 #if defined(_MSC_VER)
 #define __swprintf swprintf_s
@@ -59,14 +58,13 @@ Real atanh(Real x)
 BEGIN_EVENT_TABLE(wxCartographer, wxPanel)
     EVT_PAINT(wxCartographer::on_paint)
     EVT_ERASE_BACKGROUND(wxCartographer::on_erase_background)
-    EVT_SIZE( wxCartographer::on_size)
-    //EVT_SCROLL( wxCartographer::OnScroll)
-    EVT_LEFT_DOWN( wxCartographer::on_left_down)
-    EVT_LEFT_UP( wxCartographer::on_left_up)
+    EVT_SIZE(wxCartographer::on_size)
+    EVT_LEFT_DOWN(wxCartographer::on_left_down)
+    EVT_LEFT_UP(wxCartographer::on_left_up)
     EVT_MOUSE_CAPTURE_LOST(wxCartographer::on_capture_lost)
-    EVT_MOTION( wxCartographer::on_mouse_move)
-    EVT_MOUSEWHEEL( wxCartographer::on_mouse_wheel)
-    //EVT_KEY_DOWN( wxCartographer::OnKeyDown)
+    EVT_MOTION(wxCartographer::on_mouse_move)
+    EVT_MOUSEWHEEL(wxCartographer::on_mouse_wheel)
+    //EVT_KEY_DOWN(wxCartographer::OnKeyDown)
 END_EVENT_TABLE()
 
 wxCartographer::wxCartographer( const std::wstring &serverAddr,
@@ -75,7 +73,7 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	const std::wstring &initMap, int initZ, wxDouble initLat, wxDouble initLon,
 	OnPaintProc_t onPaintProc,
 	wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size,
-	int animPeriod, int defAnimSteps )
+	int animPeriod, int defAnimSteps)
 	: wxPanel(parent, id, pos, size, 0)
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
@@ -91,7 +89,7 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
 	, buffer_(100,100)
-	, draw_tile_debug_dounter_(0)
+	, draw_tile_debug_counter_(0)
 	, active_map_id_(0)
 	, z_(initZ)
 	, fix_kx_(0.5)
@@ -221,7 +219,7 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 			<< my::exception(e);
 	}
 
-	Refresh(false);
+	Repaint();
 }
 
 wxCartographer::~wxCartographer()
@@ -252,7 +250,7 @@ void wxCartographer::Stop()
 	catch (std::exception &e)
 	{
 		handle_exception(&e, L"in wxCartographer::Stop()");
-		throw;
+		throw e;
 	}
     #endif
 
@@ -290,7 +288,7 @@ void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 		cache_[tile_id] = ptr;
 	}
 
-	Refresh(false);
+	Repaint();
 }
 
 bool wxCartographer::need_for_load(tile::ptr ptr)
@@ -393,16 +391,10 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	if (parent_ptr->ready())
 		tile_ptr->reset_need_for_build();
 
-	wxMemoryDC tile_dc( tile_ptr->bitmap() );
-	wxMemoryDC parent_dc( parent_ptr->bitmap() );
-
-	tile_dc.StretchBlit( 0, 0, 256, 256, &parent_dc,
-		(tile_id.x & 1) * 128, (tile_id.y & 1) * 128, 128, 128 );
-
-	/* Рамка вокруг построенного тайла */
-	tile_dc.SetPen(*wxWHITE_PEN);
-	tile_dc.SetBrush(*wxTRANSPARENT_BRUSH);
-	tile_dc.DrawRectangle(0, 0, 256, 256);
+	wxImage im1 = parent_ptr->bitmap().ConvertToImage();
+	wxImage im2 = im1.GetSubImage(
+		wxRect((tile_id.x & 1) * 128, (tile_id.y & 1) * 128, 128, 128) );
+	tile_ptr->bitmap() = wxBitmap(im2.Scale(256, 256));
 
 	add_to_cache(tile_id, tile_ptr);
 
@@ -473,10 +465,6 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
 
-		/* Если тайл не нуждается  в загрузке, пропускаем */
-		//if ( !need_for_load( find_tile(tile_id) ) )
-		//	continue;
-
 		/* Загружаем тайл с диска */
 		std::wstringstream tile_path;
 
@@ -536,10 +524,6 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
-
-		/* Если тайл уже загружен, пропускаем */
-		//if ( !need_for_load( find_tile(tile_id) ) )
-		//	continue;
 
 		/* Загружаем тайл с сервера */
 		std::wstringstream tile_path; /* Путь к локальному файлу  */
@@ -623,7 +607,7 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 		}
 #endif
 
-		Refresh(false);
+		Repaint();
 
 		anim_speed_sw_.finish();
 		anim_freq_sw_.finish();
@@ -927,7 +911,7 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_dounter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"draw_tile: %d", draw_tile_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
@@ -1014,7 +998,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 	/* Рисуем */
 	tile::id tile_id(map_id, z, last_x, 0);
 
-	draw_tile_debug_dounter_ = 0;
+	draw_tile_debug_counter_ = 0;
 
 	gc.SetPen(*wxBLACK_PEN);
 	gc.SetBrush(*wxBLACK_BRUSH);
@@ -1034,7 +1018,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 			tile::ptr tile_ptr = get_tile(tile_id);
 			if (tile_ptr && tile_ptr->ok())
 			{
-				++draw_tile_debug_dounter_;
+				++draw_tile_debug_counter_;
 				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
 			}
 			else
@@ -1082,7 +1066,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 	sort_queue(server_queue_, fix_tile, server_loader_);
 }
 
-void wxCartographer::repaint(wxDC &dc_win)
+void wxCartographer::repaint(wxDC &dc)
 {
 	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 
@@ -1139,9 +1123,13 @@ void wxCartographer::repaint(wxDC &dc_win)
 	}
 
 	/* Перерисовываем окно */
-	dc_win.DrawBitmap( buffer_, 0, 0);
+	dc.DrawBitmap(buffer_, 0, 0);
 
-	#ifdef _WINDOWS
+	/* Перерисовываем окно */
+	//scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(this) );
+	//gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
+
+	#if defined(BOOST_WINDOWS)
 	#if 0
 	Gdiplus::Graphics *gr_win = (Gdiplus::Graphics*)gc_win->GetNativeContext();
 	HDC hdc_win = gr_win->GetHDC();
@@ -1181,6 +1169,10 @@ void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 
 void wxCartographer::on_paint(wxPaintEvent& event)
 {
+	//mutex::scoped_lock l(paint_mutex_);
+
+	/* Создание wxPaintDC в обработчике wxPaintEvent обязательно,
+		даже если мы не будем им пользоваться! */
 	wxPaintDC dc(this);
 	repaint(dc);
 
@@ -1194,7 +1186,7 @@ void wxCartographer::on_erase_background(wxEraseEvent& event)
 
 void wxCartographer::on_size(wxSizeEvent& event)
 {
-	Refresh(false);
+	Repaint();
 }
 
 void wxCartographer::on_left_down(wxMouseEvent& event)
@@ -1218,7 +1210,7 @@ void wxCartographer::on_left_up(wxMouseEvent& event)
 void wxCartographer::on_capture_lost(wxMouseCaptureLostEvent& event)
 {
 	set_fix_to_scr_xy( widthd() / 2.0, heightd() / 2.0 );
-	Refresh(false);
+	Repaint();
 }
 
 void wxCartographer::on_mouse_move(wxMouseEvent& event)
@@ -1226,7 +1218,7 @@ void wxCartographer::on_mouse_move(wxMouseEvent& event)
 	if (HasCapture())
 	{
 		move_fix_to_scr_xy( (wxDouble)event.GetX(), (wxDouble)event.GetY() );
-		Refresh(false);
+		Repaint();
 	}
 }
 
@@ -1243,7 +1235,19 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 		z_ = (wxDouble)z;
 	}
 
+	Repaint();
+}
+
+void wxCartographer::Repaint()
+{
 	Refresh(false);
+	//repaint();
+
+	/* Копированием указателя на "работника" гарантируем,
+		что он не будет удалён, пока выполняется функция */
+	//my::worker::ptr worker = animator_;
+	//if (worker)
+	//	wake_up(worker); /* Будим работника, если он спит */
 }
 
 void wxCartographer::GetMaps(std::vector<wxCartographer::map> &Maps)
@@ -1274,7 +1278,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 
 		active_map_id_ = map_num_id;
 
-		Refresh(false);
+		Repaint();
 
 		return true;
 	}
@@ -1310,7 +1314,7 @@ void wxCartographer::SetZ(int z)
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	z_ = z;
-	Refresh(false);
+	Repaint();
 }
 
 wxDouble wxCartographer::GetLat()
@@ -1334,5 +1338,5 @@ void wxCartographer::MoveTo(int z, wxDouble lat, wxDouble lon)
 	z_ = z;
 	fix_lat_ = lat;
 	fix_lon_ = lon;
-	Refresh(false);
+	Repaint();
 }

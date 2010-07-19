@@ -3,17 +3,18 @@
 
 /* Эта часть не должна изменяться! */
 #include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
+#include <boost/config.hpp>
 
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0501
 #define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
-//#ifdef _WINDOWS
+#if defined(BOOST_WINDOWS)
 #include <wx/msw/winundef.h>
-//#endif
+#endif
 
-#include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
+#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
 
 /* Все инклуды только отсюда! */
@@ -361,7 +362,7 @@ private:
 
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
 	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
-	int draw_tile_debug_dounter_;
+	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
 	recursive_mutex params_mutex_;
 	int active_map_id_; /* Активная карта */
@@ -459,11 +460,12 @@ public:
 		OnPaintProc_t onPaintProc,
 		wxWindow *parent = NULL, wxWindowID id = wxID_ANY,
 		const wxPoint &pos = wxDefaultPosition, const wxSize &size = wxDefaultSize,
-		int animPeriod = 0, int defAnimSteps = 0 );
+		int animPeriod = 0, int defAnimSteps = 0);
 	~wxCartographer();
 
 	void Stop();
 
+	void Repaint();
 	void GetMaps(std::vector<map> &Maps);
 	wxCartographer::map GetActiveMap();
 	bool SetActiveMap(const std::wstring &MapName);

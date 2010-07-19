@@ -60,7 +60,7 @@ class cartographerFrame: public wxFrame
         static const long ID_STATUSBAR1;
         //*)
 
-        //(*Declarations(cartographerFrame)
+		//(*Declarations(wx_MainFrame)
         wxStatusBar* StatusBar1;
         wxComboBox* ComboBox1;
         wxPanel* Panel2;

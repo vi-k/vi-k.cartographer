@@ -4,19 +4,22 @@
 	<File name="cartographerApp.cpp" open="1" top="0" tabpos="5">
 		<Cursor position="932" topLine="24" />
 	</File>
-	<File name="cartographerApp.h" open="1" top="0" tabpos="6">
+	<File name="cartographerApp.h" open="0" top="0" tabpos="6">
 		<Cursor position="382" topLine="0" />
 	</File>
 	<File name="cartographerMain.cpp" open="1" top="0" tabpos="1">
-		<Cursor position="1307" topLine="26" />
+		<Cursor position="956" topLine="15" />
 	</File>
 	<File name="handle_exception.cpp" open="1" top="0" tabpos="4">
-		<Cursor position="460" topLine="10" />
+		<Cursor position="460" topLine="8" />
 	</File>
-	<File name="wxCartographer.cpp" open="1" top="0" tabpos="3">
-		<Cursor position="32729" topLine="1034" />
+	<File name="handle_exception.h" open="1" top="0" tabpos="6">
+		<Cursor position="0" topLine="0" />
+	</File>
+	<File name="wxCartographer.cpp" open="1" top="1" tabpos="3">
+		<Cursor position="16604" topLine="552" />
 	</File>
 	<File name="wxCartographer.h" open="1" top="0" tabpos="2">
-		<Cursor position="9420" topLine="268" />
+		<Cursor position="13346" topLine="369" />
 	</File>
 </CodeBlocks_layout_file>
