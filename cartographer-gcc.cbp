@@ -85,7 +85,6 @@
 			<Add option="-D__GNUWIN32__" />
 			<Add option="-D__WXMSW__" />
 			<Add option="-DwxUSE_UNICODE" />
-			<Add option="-DBOOST_ALL_DYN_LINK" />
 			<Add directory="$(#wx)\include" />
 			<Add directory="$(#wx)\contrib\include" />
 			<Add directory="..\mylib" />
@@ -108,10 +107,6 @@
 			<Add library="libcomctl32.a" />
 			<Add library="libws2_32.a" />
 			<Add library="libodbc32.a" />
-			<Add library="libgcc.a" />
-			<Add library="libgcc_s.a" />
-			<Add library="libstdc++.a" />
-			<Add library="libsupc++.a" />
 			<Add directory="..\mylib\gcc_lib" />
 		</Linker>
 		<Unit filename="cartographerApp.cpp" />

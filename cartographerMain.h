@@ -51,7 +51,7 @@ class cartographerFrame: public wxFrame
 		void OnChoice1Select(wxCommandEvent& event);
         //*)
 
-		//(*Identifiers(wx_MainFrame)
+		//(*Identifiers(cartographerFrame)
 		static const long ID_COMBOBOX1;
 		static const long ID_CHOICE1;
 		static const long ID_PANEL2;

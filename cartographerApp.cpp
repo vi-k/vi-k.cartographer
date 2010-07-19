@@ -55,6 +55,9 @@ bool cartographerApp::OnInit()
 	main_log_stream.imbue( std::locale( main_log_stream.getloc(),
 		new boost::archive::detail::utf8_codecvt_facet) );
 
+	main_log << L"Start" << main_log;
+
+
     //(*AppInitialize
     bool wxsOK = true;
     wxInitAllImageHandlers();

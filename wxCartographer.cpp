@@ -222,8 +222,6 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	}
 
 	Refresh(false);
-
-	Stop();
 }
 
 wxCartographer::~wxCartographer()
@@ -249,7 +247,7 @@ void wxCartographer::Stop()
 	#ifndef NDEBUG
 	try
 	{
-		debug_wait_for_finish(L"wxCartographer", posix_time::seconds(2));
+		debug_wait_for_finish(L"wxCartographer", posix_time::seconds(5));
 	}
 	catch (std::exception &e)
 	{
