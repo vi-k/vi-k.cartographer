@@ -1,4 +1,6 @@
-﻿#include "wxCartographer.h"
+﻿//#define WXCART_PAINT_IN_THREAD 0
+
+#include "wxCartographer.h"
 #include "wxCartographer.h"
 #include "handle_exception.h"
 
@@ -16,13 +18,16 @@
 #include <windowsx.h>
 #undef max
 #undef min
+
 #endif /* BOOST_WINDOWS */
+
 
 #if defined(_MSC_VER)
 #define __swprintf swprintf_s
 #else
 #define __swprintf snwprintf
 #endif
+
 
 #include <my_exception.h>
 #include <my_ptr.h>
@@ -593,8 +598,6 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 	{
 		++animator_debug_counter_;
 
-		anim_speed_sw_.start();
-
 #if 0
 		/* Мигание для "мигающих" объектов */
 		flash_alpha_ += (flash_new_alpha_ - flash_alpha_) / flash_step_;
@@ -607,26 +610,18 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 		}
 #endif
 
+		/* Если доступна отрисовка в потоке, то рисуем */
+		#if WXCART_PAINT_IN_THREAD
+
+		repaint();
+
+		/* Если нет, то только уведомляем главный поток
+			о необходимости отрисовки */
+		#else
+
 		Repaint();
 
-		anim_speed_sw_.finish();
-		anim_freq_sw_.finish();
-
-		if (anim_freq_sw_.total().total_milliseconds() >= 500)
-		{
-			anim_speed_sw_.push();
-			anim_speed_sw_.pop_back();
-
-			anim_freq_sw_.push();
-			anim_freq_sw_.pop_back();
-
-			anim_speed_ = my::time::div(
-				anim_speed_sw_.full_avg(), posix_time::milliseconds(1) );
-			anim_freq_ = my::time::div(
-				anim_freq_sw_.full_avg(), posix_time::milliseconds(1) );
-		}
-
-		anim_freq_sw_.start();
+		#endif
 
 		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
 		boost::posix_time::ptime now = my::time::utc_now();
@@ -1066,9 +1061,16 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 	sort_queue(server_queue_, fix_tile, server_loader_);
 }
 
+#if WXCART_PAINT_IN_THREAD
+void wxCartographer::repaint()
+#else
 void wxCartographer::repaint(wxDC &dc)
+#endif
 {
 	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+
+	/* Измеряем скорость отрисовки */
+	anim_speed_sw_.start();
 
 	wxCoord width, height;
 	GetClientSize(&width, &height);
@@ -1112,8 +1114,8 @@ void wxCartographer::repaint(wxDC &dc)
 		paint_map(gc, width, height, active_map_id_, z_,
 			fix_lat_, fix_lon_, width * fix_kx_, height * fix_ky_);
 
-		//if (on_paint_)
-			//on_paint_(gc, width, height);
+		if (on_paint_)
+			on_paint_(gc, width, height);
 
 		#ifndef NDEBUG
 		paint_debug_info(gc, width, height);
@@ -1123,11 +1125,13 @@ void wxCartographer::repaint(wxDC &dc)
 	}
 
 	/* Перерисовываем окно */
+	#if WXCART_PAINT_IN_THREAD
+	scoped_ptr<wxGraphicsContext> gc( wxGraphicsContext::Create(this) );
+	gc->DrawBitmap(buffer_, 0.0, 0.0, width, height);
+	#else
 	dc.DrawBitmap(buffer_, 0, 0);
+	#endif
 
-	/* Перерисовываем окно */
-	//scoped_ptr<wxGraphicsContext> gc_win( wxGraphicsContext::Create(this) );
-	//gc_win->DrawBitmap(buffer_, 0.0, 0.0, width, height);
 
 	#if defined(BOOST_WINDOWS)
 	#if 0
@@ -1146,6 +1150,29 @@ void wxCartographer::repaint(wxDC &dc)
 	#if 0
 	paint_debug_info(*gc_win.get(), width, height);
 	#endif
+
+
+	/* Измеряем скорость и частоту отрисовки:
+		anim_speed - средняя скорость выполнения repaint()
+		anim_freq - средняя частота запуска repaint() */
+	anim_speed_sw_.finish();
+	anim_freq_sw_.finish();
+
+	if (anim_freq_sw_.total().total_milliseconds() >= 500)
+	{
+		anim_speed_sw_.push();
+		anim_speed_sw_.pop_back();
+
+		anim_freq_sw_.push();
+		anim_freq_sw_.pop_back();
+
+		anim_speed_ = my::time::div(
+			anim_speed_sw_.full_avg(), posix_time::milliseconds(1) );
+		anim_freq_ = my::time::div(
+			anim_freq_sw_.full_avg(), posix_time::milliseconds(1) );
+	}
+
+	anim_freq_sw_.start();
 }
 
 void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
@@ -1169,12 +1196,22 @@ void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 
 void wxCartographer::on_paint(wxPaintEvent& event)
 {
-	//mutex::scoped_lock l(paint_mutex_);
+	/* Если отрисовка ведётся в потоке,
+		то выводим уже сформированную картинку */
+	#if WXCART_PAINT_IN_THREAD
 
-	/* Создание wxPaintDC в обработчике wxPaintEvent обязательно,
-		даже если мы не будем им пользоваться! */
+	mutex::scoped_lock l(paint_mutex_);
+	wxPaintDC dc(this);
+	dc.DrawBitmap(buffer_, 0, 0);
+
+	/* Если отрисовка доступна только в главном потоке,
+		то здесь и будет производиться вся работа по отрисовке */
+	#else
+
 	wxPaintDC dc(this);
 	repaint(dc);
+
+	#endif
 
 	event.Skip(false);
 }
@@ -1240,14 +1277,23 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 
 void wxCartographer::Repaint()
 {
-	Refresh(false);
-	//repaint();
+	/* Если отрисовка ведётся в потоке, будим поток,
+		занимающийся анимацией, если он спит */
+	#if WXCART_PAINT_IN_THREAD
 
 	/* Копированием указателя на "работника" гарантируем,
 		что он не будет удалён, пока выполняется функция */
-	//my::worker::ptr worker = animator_;
-	//if (worker)
-	//	wake_up(worker); /* Будим работника, если он спит */
+	my::worker::ptr worker = animator_;
+	if (worker)
+		wake_up(worker);
+
+	/* Если отрисовка доступна только в главном потоке,
+		то отсылаем сообщение о необходимости обновления */
+	#else
+
+	Refresh(false);
+
+	#endif
 }
 
 void wxCartographer::GetMaps(std::vector<wxCartographer::map> &Maps)

@@ -83,7 +83,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, 135.0719556 /* InitLon - долгота исходной точки */
 		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
 		, this, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
-		, 0 /* 0 - нет анимации */
+		, 60 /* 0 - нет анимации */
   	);
 	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	#endif
@@ -91,13 +91,13 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
     SetSizer(FlexGridSizer1);
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
-    MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _("Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
+    MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _(L"Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
     Menu1->Append(MenuItem1);
-    MenuBar1->Append(Menu1, _("Файл"));
+    MenuBar1->Append(Menu1, _(L"Файл"));
     Menu2 = new wxMenu();
-    MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _("О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
+    MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _(L"О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
     Menu2->Append(MenuItem2);
-    MenuBar1->Append(Menu2, _("Помощь"));
+    MenuBar1->Append(Menu2, _(L"Помощь"));
     SetMenuBar(MenuBar1);
     StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
     int __wxStatusBarWidths_1[1] = { -1 };
@@ -131,7 +131,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, 135.0719556 /* InitLon - долгота исходной точки */
 		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
 		, Panel1, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
-		, 0 /* 0 - нет анимации */
+		, 60 /* 0 - нет анимации */
   	);
   	#endif
 

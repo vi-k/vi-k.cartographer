@@ -41,6 +41,14 @@
 #include <wx/graphics.h> /* wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 
+#ifndef WXCART_PAINT_IN_THREAD
+	#if defined(BOOST_WINDOWS)
+		#define WXCART_PAINT_IN_THREAD 1
+	#else
+		#define WXCART_PAINT_IN_THREAD 0
+	#endif
+#endif
+
 class wxCartographer : public wxPanel, my::employer
 {
 public:
@@ -361,7 +369,7 @@ private:
 	*/
 
 	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
-	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем) */
+	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем), равен размерам экрана */
 	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
 	recursive_mutex params_mutex_;
@@ -384,7 +392,13 @@ private:
 	template<class DC>
 	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
+	/* Под линуксом вся отрисовка должна вестись в главном потоке.
+		Для Windows таких ограничений нет */
+	#if WXCART_PAINT_IN_THREAD
+	void repaint();
+	#else
 	void repaint(wxDC &dc);
+	#endif
 
 	/* Размеры рабочей области */
 	inline wxCoord widthi()
