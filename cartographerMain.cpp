@@ -233,7 +233,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 
 	DrawTextInBox(gc, str, x, y,
 		wxFont(font_sz, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL),
-		wxColour(0, 0, 0),
+		wxColour(255, 255, 255),
 		wxPen( wxColor(0, 0, 0), 1 ),
 		wxBrush( wxColor(255, 255, 0, 192) ));
 }

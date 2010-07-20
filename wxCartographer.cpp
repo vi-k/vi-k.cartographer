@@ -104,6 +104,7 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	, fix_lat_(initLat)
 	, fix_lon_(initLon)
 	, painter_debug_counter_(0)
+	, backgrounder_debug_counter_(0)
 	, move_mode_(false)
 	, force_repaint_(false)
 	, on_paint_(onPaintProc)
@@ -896,6 +897,9 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"animator: %d", animator_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"background rebuild: %d", backgrounder_debug_counter_);
+	gc.DrawText(buf, x, y), y += 12;
+
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
@@ -988,6 +992,7 @@ void wxCartographer::prepare_background(wxCartographerBuffer &buffer,
 		return;
 	}
 
+	++backgrounder_debug_counter_;
 
 	/* Немного расширяем экран, чтобы лишний раз не рисовать
 		при сдвигах карты */
@@ -1105,14 +1110,19 @@ void wxCartographer::paint_map(wxGCDC &dc, wxCoord width, wxCoord height)
 	force_repaint_ = false;
 
 	wxDouble k = 1.0 + z_ - zi;
-	wxDouble x = fix_scr_x - (fix_tile_x - background1_.first_tile_x) * 256.0 * k;
-	wxDouble y = fix_scr_y - (fix_tile_y - background1_.first_tile_y) * 256.0 * k;
+	wxDouble real_tile_sz = 256.0 * k;
+	wxCoord x = (wxCoord)(fix_scr_x
+        - (fix_tile_x - background1_.first_tile_x) * real_tile_sz + 0.5);
+	wxCoord y = (wxCoord)(fix_scr_y
+        - (fix_tile_y - background1_.first_tile_y) * real_tile_sz + 0.5);
 
 	/* Выводим буфер */
-	dc.GetGraphicsContext()->DrawBitmap( background1_.bitmap,
-		(wxCoord)(x + 0.5), (wxCoord)(y + 0.5),
-		(wxCoord)(background1_.bitmap.GetWidth() * k),
-		(wxCoord)(background1_.bitmap.GetHeight() * k));
+	//if (z_ - zi < 0.01)
+        //dc.DrawBitmap( background1_.bitmap, x, y);
+    //else
+        dc.GetGraphicsContext()->DrawBitmap( background1_.bitmap, x, y,
+            (wxCoord)(background1_.bitmap.GetWidth() * k),
+            (wxCoord)(background1_.bitmap.GetHeight() * k));
 
 	/* Перестраиваем очереди загрузки тайлов.
 		К этому моменту все необходимые тайлы уже в файловой очереди
@@ -1163,11 +1173,11 @@ void wxCartographer::repaint(wxDC &dc)
 
 	{
 		wxMemoryDC dc(buffer_);
-		/* Очищаем */
-		dc.SetBrush(*wxBLACK_BRUSH);
-		dc.Clear();
-
 		wxGCDC gc(dc);
+		/* Очищаем */
+		gc.SetBrush(*wxBLACK_BRUSH);
+		//gc.Clear();
+		gc.DrawRectangle(0, 0, width, height);
 
 		/* На время прорисовки параметры не должны изменяться */
 		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
@@ -1176,8 +1186,8 @@ void wxCartographer::repaint(wxDC &dc)
 		++painter_debug_counter_;
 		paint_map(gc, width, height);
 
-		if (on_paint_)
-			on_paint_(gc, width, height);
+		//if (on_paint_)
+		//	on_paint_(gc, width, height);
 
 		#ifndef NDEBUG
 		paint_debug_info(gc, width, height);

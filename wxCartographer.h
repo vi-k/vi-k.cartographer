@@ -403,6 +403,7 @@ private:
 	wxDouble fix_lat_; /* Географические координаты этой точки */
 	wxDouble fix_lon_;
 	int painter_debug_counter_;
+	int backgrounder_debug_counter_;
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
 
