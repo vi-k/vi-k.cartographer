@@ -1172,26 +1172,32 @@ void wxCartographer::repaint(wxDC &dc)
 	}
 
 	{
-		wxMemoryDC dc(buffer_);
-		wxGCDC gc(dc);
-		/* Очищаем */
-		gc.SetBrush(*wxBLACK_BRUSH);
-		//gc.Clear();
-		gc.DrawRectangle(0, 0, width, height);
+        wxMemoryDC dc;
+        dc.SelectObject(buffer_);
 
-		/* На время прорисовки параметры не должны изменяться */
-		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+		{
+		    wxGCDC gc(dc);
 
-		/* Рисуем */
-		++painter_debug_counter_;
-		paint_map(gc, width, height);
+            /* Очищаем */
+            gc.SetBackground(*wxBLACK_BRUSH);
+            gc.Clear();
 
-		//if (on_paint_)
-		//	on_paint_(gc, width, height);
+            /* На время прорисовки параметры не должны изменяться */
+            my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-		#ifndef NDEBUG
-		paint_debug_info(gc, width, height);
-		#endif
+            /* Рисуем */
+            ++painter_debug_counter_;
+            paint_map(gc, width, height);
+
+            //if (on_paint_)
+            //	on_paint_(gc, width, height);
+
+            #ifndef NDEBUG
+            paint_debug_info(gc, width, height);
+            #endif
+		}
+
+		dc.SelectObject(wxNullBitmap);
 	}
 
 	/* Перерисовываем окно */
