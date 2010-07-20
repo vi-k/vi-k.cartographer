@@ -5,7 +5,7 @@
 #include "handle_exception.h"
 
 /* windows */
-#if defined(BOOST_WINDOWS)
+#ifdef BOOST_WINDOWS
 
 /* Макросы нужны для gdiplus.h */
 #define max(a,b) (((a) > (b)) ? (a) : (b))
@@ -93,6 +93,8 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	, anim_speed_(0)
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
+	, background1_()
+	, background2_()
 	, buffer_(100,100)
 	, draw_tile_debug_counter_(0)
 	, active_map_id_(0)
@@ -102,6 +104,8 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	, fix_lat_(initLat)
 	, fix_lon_(initLon)
 	, painter_debug_counter_(0)
+	, move_mode_(false)
+	, force_repaint_(false)
 	, on_paint_(onPaintProc)
 {
 	try
@@ -248,15 +252,7 @@ void wxCartographer::Stop()
 
     /* Ждём завершения */
 	#ifndef NDEBUG
-	try
-	{
-		debug_wait_for_finish(L"wxCartographer", posix_time::seconds(5));
-	}
-	catch (std::exception &e)
-	{
-		handle_exception(&e, L"in wxCartographer::Stop()");
-		throw e;
-	}
+	debug_wait_for_finish(L"wxCartographer", posix_time::seconds(5));
     #endif
 
 	wait_for_finish();
@@ -291,6 +287,11 @@ void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 		}
 
 		cache_[tile_id] = ptr;
+	}
+
+	{
+		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+		force_repaint_ = true;
 	}
 
 	Repaint();
@@ -688,14 +689,6 @@ unsigned int wxCartographer::load_and_save_xml(const std::wstring &request,
 	return reply.status_code;
 }
 
-wxDouble wxCartographer::size_for_z(wxDouble z)
-{
-	/* Размер всей карты в тайлах.
-		Для дробного z - чуть посложнее, чем для целого */
-	int iz = (int)z;
-	return (wxDouble)(1 << (iz - 1)) * (1.0 + z - iz);
-}
-
 wxDouble wxCartographer::lon_to_tile_x(wxDouble lon, wxDouble z)
 {
 	return (lon + 180.0) * size_for_z(z) / 360.0;
@@ -933,8 +926,9 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	gc.DrawText(buf, x, y), y += 12;
 }
 
-void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
-	int map_id, int z, wxDouble fix_lat, wxDouble fix_lon,
+void wxCartographer::prepare_background(wxCartographerBuffer &buffer,
+	wxCoord width, wxCoord height, bool force_repaint, int map_id, int z,
+	wxDouble fix_tile_x, wxDouble fix_tile_y,
 	wxDouble fix_scr_x, wxDouble fix_scr_y)
 {
 	/*
@@ -946,11 +940,7 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 			fix_scr_x, fix_scr_y - фиксированная точка
 	*/
 
-	wxCartographer::map map = maps_[map_id];
-
-	/* "Тайловые" координаты центра экрана */
-	wxDouble fix_tile_x = lon_to_tile_x(fix_lon, z);
-	wxDouble fix_tile_y = lat_to_tile_y(fix_lat, z, map.projection);
+	/*! Блокировка должна быть обеспечена извне !*/
 
 	/* Тайл в центре экрана */
 	tile::id fix_tile(map_id, z, (int)fix_tile_x, (int)fix_tile_y);
@@ -959,39 +949,72 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 		к моменту отрисовки он уже и загрузится */
 	get_tile(fix_tile);
 
-	wxCoord x;
-	wxCoord y;
+	/* Координаты верхнего левого угла первого тайла */
+	wxCoord x = (wxCoord)(fix_scr_x - (fix_tile_x - fix_tile.x) * 256.0 + 0.5);
+	wxCoord y = (wxCoord)(fix_scr_y - (fix_tile_y - fix_tile.y) * 256.0 + 0.5);
 
-	/* Определяем тайл верхнего левого угла экрана */
-	x = (wxCoord)(fix_scr_x - (fix_tile_x - fix_tile.x) * 256.0 + 0.5);
-	y = (wxCoord)(fix_scr_y - (fix_tile_y - fix_tile.y) * 256.0 + 0.5);
-
-	int first_x = fix_tile.x;
-	int first_y = fix_tile.y;
+	/* Определяем первый тайл (верхний левый угог экрана) */
+	int first_tile_x = fix_tile.x;
+	int first_tile_y = fix_tile.y;
 
 	while (x > 0)
-		x -= 256, --first_x;
+		x -= 256, --first_tile_x;
 	while (y > 0)
-		y -= 256, --first_y;
+		y -= 256, --first_tile_y;
 
-	/* Определяем тайл нижнего правого угла экрана */
-	x += 256; /* x,y - координаты нижнего правого угла тайла */
-	y += 256;
-	int last_x = first_x;
-	int last_y = first_y;
+	/* Определяем последний тайл (нижний правый угол экрана) */
+	int last_tile_x = first_tile_x;
+	int last_tile_y = first_tile_y;
 
 	while (x < width)
-		x += 256, ++last_x;
+		x += 256, ++last_tile_x;
 	while (y < height)
-		y += 256, ++last_y;
+		y += 256, ++last_tile_y;
 
 
-	x -= 256; /* x,y - координаты верхнего левого угла правого нижнего тайла */
-	y -= 256;
+	/* Итого:
+		first_tile_x, first_tile_y - первый (верхний левый) тайл экрана
+		last_tile_x, last_tile_y - последний (нижний правый) тайл экрана */
 
+	/* Проверяем, необходимо ли обновлять буфер */
+	if (!force_repaint
+		&& buffer.map_id == map_id
+		&& buffer.z == z
+		&& buffer.first_tile_x <= first_tile_x
+		&& buffer.first_tile_y <= first_tile_y
+		&& buffer.last_tile_x >= last_tile_x
+		&& buffer.last_tile_y >= last_tile_y)
+	{
+		return;
+	}
+
+
+	/* Немного расширяем экран, чтобы лишний раз не рисовать
+		при сдвигах карты */
+	--first_tile_x;
+	--first_tile_y;
+	++last_tile_x;
+	++last_tile_y;
+
+	wxCoord buf_width = (last_tile_x - first_tile_x) * 256;
+	wxCoord buf_height = (last_tile_y - first_tile_y) * 256;
+
+	if (!buffer.bitmap.IsOk()
+		|| buffer.bitmap.GetWidth() < buf_width
+		|| buffer.bitmap.GetHeight() < buf_height)
+	{
+		wxImage image(buf_width, buf_height, false);
+		image.InitAlpha();
+		buffer.bitmap = wxBitmap(image);
+
+		//buffer.bitmap.Create(buf_width, buf_height);
+	}
+
+	wxMemoryDC dc(buffer.bitmap);
+	wxGCDC gc(dc);
 
 	/* Рисуем */
-	tile::id tile_id(map_id, z, last_x, 0);
+	tile::id tile_id(map_id, z, first_tile_x, 0);
 
 	draw_tile_debug_counter_ = 0;
 
@@ -1004,27 +1027,28 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
 	#endif
 
-	for (wxCoord tx = x; tile_id.x >= first_x; --tile_id.x, tx -= 256)
+	for (x = 0; tile_id.x < last_tile_x; ++tile_id.x, x += 256)
 	{
-		tile_id.y = last_y;
+		tile_id.y = first_tile_y;
 
-		for (wxCoord ty = y; tile_id.y >= first_y; --tile_id.y, ty -= 256)
+		for (y = 0; tile_id.y < last_tile_y; ++tile_id.y, y += 256)
 		{
 			tile::ptr tile_ptr = get_tile(tile_id);
+
 			if (tile_ptr && tile_ptr->ok())
 			{
 				++draw_tile_debug_counter_;
-				gc.DrawBitmap(tile_ptr->bitmap(), tx, ty);
+				gc.DrawBitmap(tile_ptr->bitmap(), x, y);
 			}
 			else
 			{
 				/* Чёрный тайл */
-				gc.DrawRectangle(tx, ty, 256, 256);
+				gc.DrawRectangle(x, y, 256, 256);
 			}
 
 			#ifndef NDEBUG
-			wxCoord sx = tx + 2;
-			wxCoord sy = ty + 2;
+			wxCoord sx = x + 2;
+			wxCoord sy = y + 2;
 			wchar_t buf[200];
 
 			__swprintf(buf, sizeof(buf)/sizeof(*buf),
@@ -1051,10 +1075,53 @@ void wxCartographer::paint_map(wxDC &gc, wxCoord width, wxCoord height,
 		}
 	}
 
+	buffer.map_id = map_id;
+	buffer.z = z;
+	buffer.first_tile_x = first_tile_x;
+	buffer.first_tile_y = first_tile_y;
+	buffer.last_tile_x = last_tile_x;
+	buffer.last_tile_y = last_tile_y;
+}
+
+void wxCartographer::paint_map(wxGCDC &dc, wxCoord width, wxCoord height)
+{
+	/*! Блокировка должна быть обеспечена извне !*/
+
+	wxCartographer::map map = maps_[active_map_id_];
+
+	int zi = (int)z_;
+
+	/* "Тайловые" координаты центра экрана */
+	wxDouble fix_tile_x = lon_to_tile_x(fix_lon_, zi);
+	wxDouble fix_tile_y = lat_to_tile_y(fix_lat_, zi, map.projection);
+
+	/* Экранные координаты центра экрана */
+	wxDouble fix_scr_x = width * fix_kx_;
+	wxDouble fix_scr_y = height * fix_ky_;
+
+	prepare_background(background1_, width, height, force_repaint_,
+		active_map_id_, zi, fix_tile_x, fix_tile_y, fix_scr_x, fix_scr_y);
+
+	force_repaint_ = false;
+
+	wxDouble k = 1.0 + z_ - zi;
+	wxDouble x = fix_scr_x - (fix_tile_x - background1_.first_tile_x) * 256.0 * k;
+	wxDouble y = fix_scr_y - (fix_tile_y - background1_.first_tile_y) * 256.0 * k;
+
+	/* Выводим буфер */
+	dc.GetGraphicsContext()->DrawBitmap( background1_.bitmap,
+		(wxCoord)(x + 0.5), (wxCoord)(y + 0.5),
+		(wxCoord)(background1_.bitmap.GetWidth() * k),
+		(wxCoord)(background1_.bitmap.GetHeight() * k));
+
 	/* Перестраиваем очереди загрузки тайлов.
 		К этому моменту все необходимые тайлы уже в файловой очереди
 		благодаря get_tile(). Но если её так и оставить, то файлы будут
 		загружаться с правого нижнего угла, а нам хотелось бы, чтоб с центра */
+
+	/* Тайл в центре экрана */
+	tile::id fix_tile(active_map_id_, zi, (int)fix_tile_x, (int)fix_tile_y);
+
 	sort_queue(file_queue_, fix_tile, file_loader_);
 
 	/* Серверную очередь тоже корректируем */
@@ -1067,6 +1134,11 @@ void wxCartographer::repaint()
 void wxCartographer::repaint(wxDC &dc)
 #endif
 {
+	/* Задача функции - подготовить буфер (создать, изменить размер,
+		очистить), вызвать функции прорисовки карты (paint_map)
+		и прорисовки объектов на карте пользователем (on_paint_),
+		перенести всё это на экран */
+
 	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 
 	/* Измеряем скорость отрисовки */
@@ -1091,28 +1163,18 @@ void wxCartographer::repaint(wxDC &dc)
 
 	{
 		wxMemoryDC dc(buffer_);
+		/* Очищаем */
+		dc.SetBrush(*wxBLACK_BRUSH);
+		dc.Clear();
+
 		wxGCDC gc(dc);
 
-		/* Очищаем */
-		gc.SetBrush(*wxBLACK_BRUSH);
-		gc.Clear();
-
-		/* Копируем все нужные параметры */
-		//int map_id;
-		//wxDouble z;
-		//wxDouble lat, lon;
-
+		/* На время прорисовки параметры не должны изменяться */
 		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
-
-		//map_id = active_map_id_;
-		//z = z_;
-		//lat = lat_;
-		//lon = lon_;
 
 		/* Рисуем */
 		++painter_debug_counter_;
-		paint_map(gc, width, height, active_map_id_, z_,
-			fix_lat_, fix_lon_, width * fix_kx_, height * fix_ky_);
+		paint_map(gc, width, height);
 
 		if (on_paint_)
 			on_paint_(gc, width, height);
@@ -1120,8 +1182,6 @@ void wxCartographer::repaint(wxDC &dc)
 		#ifndef NDEBUG
 		paint_debug_info(gc, width, height);
 		#endif
-
-		dc.SelectObject(wxNullBitmap);
 	}
 
 	/* Перерисовываем окно */
@@ -1133,7 +1193,6 @@ void wxCartographer::repaint(wxDC &dc)
 	#endif
 
 
-	#if defined(BOOST_WINDOWS)
 	#if 0
 	Gdiplus::Graphics *gr_win = (Gdiplus::Graphics*)gc_win->GetNativeContext();
 	HDC hdc_win = gr_win->GetHDC();
@@ -1144,10 +1203,7 @@ void wxCartographer::repaint(wxDC &dc)
 
 	gr_win->ReleaseHDC(hdc_win);
 	gr_buf->ReleaseHDC(hdc_buf);
-	#endif
-	#endif
 
-	#if 0
 	paint_debug_info(*gc_win.get(), width, height);
 	#endif
 
@@ -1232,27 +1288,34 @@ void wxCartographer::on_left_down(wxMouseEvent& event)
 
 	set_fix_to_scr_xy( (wxDouble)event.GetX(), (wxDouble)event.GetY() );
 
+	move_mode_ = true;
+
+	#ifdef BOOST_WINDOWS
 	CaptureMouse();
+	#endif
 }
 
 void wxCartographer::on_left_up(wxMouseEvent& event)
 {
-	if (HasCapture())
+	if (move_mode_)
 	{
 		set_fix_to_scr_xy( widthd() / 2.0, heightd() / 2.0 );
+		move_mode_ = false;
+
+		#ifdef BOOST_WINDOWS
 		ReleaseMouse();
+		#endif
 	}
 }
 
 void wxCartographer::on_capture_lost(wxMouseCaptureLostEvent& event)
 {
-	set_fix_to_scr_xy( widthd() / 2.0, heightd() / 2.0 );
-	Repaint();
+	move_mode_ = false;
 }
 
 void wxCartographer::on_mouse_move(wxMouseEvent& event)
 {
-	if (HasCapture())
+	if (move_mode_)
 	{
 		move_fix_to_scr_xy( (wxDouble)event.GetX(), (wxDouble)event.GetY() );
 		Repaint();
@@ -1264,12 +1327,17 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 	{
 		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-		int z = (int)z_ + event.GetWheelRotation() / event.GetWheelDelta();
+		z_ += (event.GetWheelRotation() / event.GetWheelDelta()) / 3.0;
 
-		if (z < 1) z = 1;
-		if (z > 30) z = 30;
+		if (z_ < 1.0)
+			z_ = 1.0;
 
-		z_ = (wxDouble)z;
+		if (z_ > 30.0)
+			z_ = 30.0;
+
+		wxDouble z = std::floor(z_ + 0.5);
+		if ( std::abs(z_ - z) < 0.01)
+			z_ = z;
 	}
 
 	Repaint();

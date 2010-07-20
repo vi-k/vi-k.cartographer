@@ -16,7 +16,7 @@ class cartographerApp : public wxApp
 {
     public:
         virtual bool OnInit();
-
+        virtual int OnExit();
 		virtual bool OnExceptionInMainLoop();
 	    virtual void OnUnhandledException();
 	    virtual void OnFatalException();

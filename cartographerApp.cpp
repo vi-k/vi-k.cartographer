@@ -72,6 +72,12 @@ bool cartographerApp::OnInit()
 
 }
 
+int cartographerApp::OnExit()
+{
+	main_log << L"Finish" << main_log;
+	return 0;
+}
+
 bool cartographerApp::OnExceptionInMainLoop()
 {
 	try

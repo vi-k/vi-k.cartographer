@@ -10,7 +10,7 @@
 #define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
 #include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
                              Обязательно до включения windows.h! */
-#if defined(BOOST_WINDOWS)
+#ifdef BOOST_WINDOWS
 #include <wx/msw/winundef.h>
 #endif
 
@@ -42,7 +42,7 @@
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 
 #ifndef WXCART_PAINT_IN_THREAD
-	#if defined(BOOST_WINDOWS)
+	#ifdef BOOST_WINDOWS
 		#define WXCART_PAINT_IN_THREAD 1
 	#else
 		#define WXCART_PAINT_IN_THREAD 0
@@ -53,6 +53,28 @@ class wxCartographer : public wxPanel, my::employer
 {
 public:
 	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
+
+	/* Буфер для отрисовки карты */
+	struct wxCartographerBuffer
+	{
+		wxBitmap bitmap;
+		int map_id;
+		int z;
+		int first_tile_x;
+		int first_tile_y;
+		int last_tile_x;
+		int last_tile_y;
+
+		wxCartographerBuffer()
+			: map_id(0)
+			, z(0)
+			, first_tile_x(0)
+			, first_tile_y(0)
+			, last_tile_x(0)
+			, last_tile_y(0)
+		{
+		}
+	};
 
 	/* Карта */
 	struct map
@@ -368,8 +390,9 @@ private:
 		Отображение карты
 	*/
 
-	wxBitmap background_; /* Буфер для фона (т.е. для самой карты, до "порчи" пользователем ) */
-	wxBitmap buffer_; /* Буфер для прорисовки (после "порчи пользователем), равен размерам экрана */
+	wxCartographerBuffer background1_; /* Буфер для фона (карта без объектов) */
+	wxCartographerBuffer background2_; /* Буфер для фона (карта без объектов) */
+	wxBitmap buffer_; /* Буфер для прорисовки, равен размерам экрана */
 	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
 	recursive_mutex params_mutex_;
@@ -380,11 +403,17 @@ private:
 	wxDouble fix_lat_; /* Географические координаты этой точки */
 	wxDouble fix_lon_;
 	int painter_debug_counter_;
+	bool move_mode_;
+	bool force_repaint_; /* Флаг обязательной перерисовки */
+
+	/* Подготовка фона (карты) к отрисовке */
+	void prepare_background(wxCartographerBuffer &buffer,
+		wxCoord width, wxCoord height, bool force_repaint, int map_id, int z,
+		wxDouble fix_tile_x, wxDouble fix_tile_y,
+		wxDouble fix_scr_x, wxDouble fix_scr_y);
 
 	/* Нарисовать карту */
-	void paint_map(wxDC &gc, wxCoord width, wxCoord height,
-		int map_id, int z, wxDouble fix_lat, wxDouble fix_lon,
-	wxDouble fix_src_x, wxDouble fix_src_y);
+	void paint_map(wxGCDC &gc, wxCoord width, wxCoord height);
 
 	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
 	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
@@ -423,10 +452,19 @@ private:
 
 	/* Размер "мира" в тайлах, для заданного масштаба */
 	static inline int size_for_int_z(int z)
-		{ return 1 << (z - 1); }
+	{
+		return 1 << (z - 1);
+	}
 
 	/* Размер мира в тайлах - для дробного z дробный результат */
-	static inline wxDouble size_for_z(wxDouble z);
+	static inline wxDouble size_for_z(wxDouble z)
+	{
+		/* Размер всей карты в тайлах.
+			Для дробного z - чуть посложнее, чем для целого */
+		int iz = (int)z;
+		return (wxDouble)(1 << (iz - 1)) * (1.0 + z - iz);
+	}
+
 
 	/* Градусы -> тайловые координаты */
 	static inline wxDouble lon_to_tile_x(wxDouble lon, wxDouble z);

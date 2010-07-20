@@ -155,9 +155,9 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 cartographerFrame::~cartographerFrame()
 {
-	/* Удаление/остановка картографера обязательно должна быть выполнена
+	/* Остановка картографера обязательно должна быть выполнена
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
-	//delete cartographer_;
+	cartographer_->Stop();
 
     //(*Destroy(cartographerFrame)
     //*)
