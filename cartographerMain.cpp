@@ -70,25 +70,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	//Panel1 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
 	//FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 
-	#if 1
-	cartographer_ = new wxCartographer(
-		L"127.0.0.1" /* ServerAddr - адрес сервера */
-		, L"27543" /* ServerPort - порт сервера */
-		, 1000 /* CacheSize - размер кэша (в тайлах) */
-		, L"cache" /* CachePath - путь к кэшу на диске */
-		, false /* OnlyCache - работать только с кэшем */
-		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 2 /* InitZ - исходный масштаб (>1) */
-		, 48.48021475 /* InitLat - широта исходной точки */
-		, 135.0719556 /* InitLon - долгота исходной точки */
-		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
-		, this, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
-		, 60 /* 0 - нет анимации */
-  	);
-	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-	#endif
-
-    SetSizer(FlexGridSizer1);
     MenuBar1 = new wxMenuBar();
     Menu1 = new wxMenu();
     MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _(L"Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
@@ -112,6 +93,29 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
     Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
     //*)
+
+    SetClientSize(400, 400);
+    Show(true);
+
+	#if 1
+	cartographer_ = new wxCartographer(
+		this
+		, L"127.0.0.1" /* ServerAddr - адрес сервера */
+		, L"27543" /* ServerPort - порт сервера */
+		, 1000 /* CacheSize - размер кэша (в тайлах) */
+		, L"cache" /* CachePath - путь к кэшу на диске */
+		, false /* OnlyCache - работать только с кэшем */
+		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		, 2 /* InitZ - исходный масштаб (>1) */
+		, 48.48021475 /* InitLat - широта исходной точки */
+		, 135.0719556 /* InitLon - долгота исходной точки */
+		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
+		, 0 /* 0 - нет анимации */
+  	);
+	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+	#endif
+
+    SetSizer(FlexGridSizer1);
 
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
@@ -142,6 +146,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	{
 		ComboBox1->Append(iter->name);
 	}
+
+	wxString s = "фыва";
+	//std::string = "фыва";
+	//std::wstring = L"фыва";
 
 	ComboBox1->SetValue( cartographer_->GetActiveMap().name );
 

@@ -60,7 +60,70 @@ Real atanh(Real x)
 	return 0.5 * log( (1.0 + x) / (1.0 - x) );
 }
 
-BEGIN_EVENT_TABLE(wxCartographer, wxPanel)
+static void LoadImage(const char *filename, raw_image &image)
+{
+    wxImage wx_image(filename);
+
+	if (!wx_image.IsOk())
+    	throw "!IsOk()";
+
+    unsigned char *rgb = wx_image.GetData();
+    unsigned char *alpha = wx_image.GetAlpha();
+
+	if (alpha)
+		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 32, GL_RGBA);
+	else
+		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 24, GL_RGB);
+
+    unsigned char *ptr = image.data();
+    unsigned char *end = image.end();
+
+    if (!alpha)
+		memcpy(ptr, rgb, end - ptr);
+	else
+	{
+		unsigned char *end2 = ptr + 4 * 2560;
+
+		while (ptr != end2)
+		{
+    		*ptr++ = 0;
+    		*ptr++ = 128;
+    		*ptr++ = 255;
+    		*ptr++ = 255;
+		}
+
+		while (ptr != end)
+		{
+    		*ptr++ = *rgb++;
+    		*ptr++ = *rgb++;
+    		*ptr++ = *rgb++;
+    		*ptr++ = *alpha++;
+		}
+	}
+}
+
+static void CheckGLError()
+{
+    GLenum errLast = GL_NO_ERROR;
+
+    for ( ;; )
+    {
+        GLenum err = glGetError();
+        if ( err == GL_NO_ERROR )
+            return;
+
+        // normally the error is reset by the call to glGetError() but if
+        // glGetError() itself returns an error, we risk looping forever here
+        // so check that we get a different error than the last time
+        if ( err == errLast )
+            throw my::exception(L"OpenGL error state couldn't be reset");
+
+        errLast = err;
+        throw my::exception(L"OpenGL error %1%") % err;
+    }
+}
+
+BEGIN_EVENT_TABLE(wxCartographer, wxGLCanvas)
     EVT_PAINT(wxCartographer::on_paint)
     EVT_ERASE_BACKGROUND(wxCartographer::on_erase_background)
     EVT_SIZE(wxCartographer::on_size)
@@ -72,14 +135,16 @@ BEGIN_EVENT_TABLE(wxCartographer, wxPanel)
     //EVT_KEY_DOWN(wxCartographer::OnKeyDown)
 END_EVENT_TABLE()
 
-wxCartographer::wxCartographer( const std::wstring &serverAddr,
+wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	const std::wstring &serverPort, std::size_t cacheSize,
 	std::wstring cachePath, bool onlyCache,
 	const std::wstring &initMap, int initZ, wxDouble initLat, wxDouble initLon,
 	OnPaintProc_t onPaintProc,
-	wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size,
 	int animPeriod, int defAnimSteps)
-	: wxPanel(parent, id, pos, size, 0)
+	: wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
+                 wxDefaultPosition, wxDefaultSize,
+                 wxFULL_REPAINT_ON_RESIZE)
+	, gl_context_(this)
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
 	, cache_(cacheSize)
@@ -111,6 +176,8 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 {
 	try
 	{
+		init_gl();
+
 		std::wstring request;
 		std::wstring file;
 
@@ -230,6 +297,116 @@ wxCartographer::wxCartographer( const std::wstring &serverAddr,
 	}
 
 	Repaint();
+}
+
+void wxCartographer::init_gl()
+{
+    wxInitAllImageHandlers();
+
+    SetCurrent(gl_context_);
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_2D);
+
+	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
+	glClearColor(0.0f, 0.0f, 0.3f, 0.5f);				// Black Background
+	glClearDepth(1.0f);									// Depth Buffer Setup
+
+    glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glGenTextures(WXSIZEOF(m_textures), m_textures);
+
+    for ( unsigned i = 0; i < WXSIZEOF(m_textures); i++ )
+    {
+		raw_image image;
+    	LoadImage(i == 0 ? "y11357.png" : "y11340.png", image);
+		//LoadImage(i == 0 ? "y22649.jpg" : "y22650.jpg", image);
+
+        glBindTexture(GL_TEXTURE_2D, m_textures[i]);
+
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(),
+			0, (GLint)image.type(), GL_UNSIGNED_BYTE, image.data());
+    }
+
+	glEnable(GL_BLEND);			// Turn Blending On
+	glDisable(GL_DEPTH_TEST);	// Turn Depth Testing Off
+
+    CheckGLError();
+}
+
+void wxCartographer::draw_gl()
+{
+	GLdouble alpha = 0.5;
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glRotatef(xangle, 1.0f, 0.0f, 0.0f);
+    //glRotatef(-10, 0.0f, 1.0f, 0.0f);
+	//glOrtho(0.0, 2.0, 0.0, -2.0, 0.0, 1.0);
+    glTranslated(0.0, 0.0, -1.0);
+
+	/*-
+	glRasterPos2d(0.0,0);
+	glPixelZoom(1,1);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glDrawPixels(image.width(), image.height(),
+		image.type(), GL_UNSIGNED_BYTE, image.data());
+	-*/
+
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);					// Full Brightness.  50% Alpha
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);	// Set The Blending Function For Translucency
+
+    glBindTexture(GL_TEXTURE_2D, m_textures[0]);
+    glBegin(GL_QUADS);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  0.0f);
+    glEnd();
+
+	glColor4f(1.0f, 1.0f, 1.0f, alpha);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindTexture(GL_TEXTURE_2D, m_textures[1]);
+    glBegin(GL_QUADS);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  0.0f);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, m_textures[1]);
+    glBegin(GL_QUADS);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(2.0f, 0.0f,  0.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(2.0f, 1.0f,  0.0f);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
+    glEnd();
+
+	glBindTexture(GL_TEXTURE_2D, m_textures[1]);
+    glBegin(GL_QUADS);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 1.0f,  0.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex3f(-1.0f, 1.0f,  0.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex3f(-1.0f, 1.0f,  -1.0f);
+		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  -1.0f);
+    glEnd();
+
+	glFlush();
+
+    CheckGLError();
 }
 
 wxCartographer::~wxCartographer()
@@ -1266,8 +1443,39 @@ void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 	move_fix_to_scr_xy(scr_x, scr_y);
 }
 
-void wxCartographer::on_paint(wxPaintEvent& event)
+void wxCartographer::on_paint(wxPaintEvent& WXUNUSED(event))
 {
+    wxPaintDC dc(this);
+
+	int width;
+	int height;
+    GetClientSize(&width, &height);
+
+	glViewport(0, 0, width, height);
+
+	glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+	//double fix_kx_ = 0.5;
+	//double fix_ky_ = 0.5;
+
+	GLdouble w = width / 256.0;
+	GLdouble h = height / 256.0;
+	GLdouble x = -w * fix_kx_;
+	GLdouble y = -h * fix_ky_;
+	//glFrustum(x, x + w, -y - h, -y, 1.0, 3.0);
+	glOrtho(x, x + w, -y - h, -y, -1.0, 1.0);
+	glScaled(1.0, -1.0, 1.0);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+	// Render the graphics and swap the buffers.
+	draw_gl();
+    SwapBuffers();
+
+
+#if 0
 	/* Если отрисовка ведётся в потоке,
 		то выводим уже сформированную картинку */
 	#if WXCART_PAINT_IN_THREAD
@@ -1286,6 +1494,7 @@ void wxCartographer::on_paint(wxPaintEvent& event)
 	#endif
 
 	event.Skip(false);
+#endif
 }
 
 void wxCartographer::on_erase_background(wxEraseEvent& event)

@@ -40,6 +40,8 @@
 #include <wx/dcgraph.h> /* wxGCDC */
 #include <wx/graphics.h> /* wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
+#include "wx/glcanvas.h" /* OpenGL */
+
 
 #ifndef WXCART_PAINT_IN_THREAD
 	#ifdef BOOST_WINDOWS
@@ -49,7 +51,78 @@
 	#endif
 #endif
 
-class wxCartographer : public wxPanel, my::employer
+class raw_image
+{
+private:
+	int width_;
+	int height_;
+	int bpp_;
+	int type_;
+	unsigned char *data_;
+
+	void init()
+	{
+		width_ = 0;
+		height_ = 0;
+		bpp_ = 0;
+		type_ = 0;
+		data_ = 0;
+	}
+
+public:
+	raw_image()
+	{
+		init();
+	}
+
+	raw_image(int width, int height, int bpp, int type = 0)
+	{
+		init();
+		create(width, height, bpp, type);
+	}
+
+	~raw_image()
+	{
+		delete[] data_;
+	}
+
+	void create(int width, int height, int bpp, int type = 0)
+	{
+		delete[] data_;
+
+		width_ = width;
+		height_ = height;
+		bpp_ = bpp;
+		type_ = type;
+		data_ = new unsigned char[ width * height * (bpp / 8) ];
+	}
+
+	inline int width() const
+		{ return width_; }
+
+	inline int height() const
+		{ return height_; }
+
+	inline int bpp() const
+		{ return bpp_; }
+
+	inline int type() const
+		{ return type_; }
+
+	inline unsigned char* data()
+		{ return data_; }
+
+	inline const unsigned char * data() const
+		{ return data_; }
+
+	inline unsigned char* end()
+		{ return data_ + width_ * height_ * (bpp_ / 8); }
+
+	inline const unsigned char* end() const
+		{ return data_ + width_ * height_ * (bpp_ / 8); }
+};
+
+class wxCartographer : public wxGLCanvas, my::employer
 {
 public:
 	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
@@ -269,6 +342,16 @@ private:
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
 	typedef my::mru::list<tile::id, int> tiles_queue;
+
+	/*
+		Open GL
+	*/
+
+	wxGLContext gl_context_;
+	GLuint m_textures[2];
+
+	void init_gl();
+	void draw_gl();
 
 
 	/*
@@ -506,13 +589,11 @@ private:
 	void on_mouse_wheel(wxMouseEvent& event);
 
 public:
-	wxCartographer( const std::wstring &serverAddr,
+	wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 		const std::wstring &serverPort, std::size_t cacheSize,
 		std::wstring cachePath, bool onlyCache,
 		const std::wstring &initMap, int initZ, wxDouble initLat, wxDouble initLon,
 		OnPaintProc_t onPaintProc,
-		wxWindow *parent = NULL, wxWindowID id = wxID_ANY,
-		const wxPoint &pos = wxDefaultPosition, const wxSize &size = wxDefaultSize,
 		int animPeriod = 0, int defAnimSteps = 0);
 	~wxCartographer();
 
