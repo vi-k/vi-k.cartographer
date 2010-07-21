@@ -348,10 +348,11 @@ private:
 	*/
 
 	wxGLContext gl_context_;
-	GLuint m_textures[2];
+	GLuint m_textures[7];
 
 	void init_gl();
 	void draw_gl();
+	void draw_tile(double x, double y, double alpha, double z, GLuint texture);
 
 
 	/*

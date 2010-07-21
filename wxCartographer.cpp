@@ -1,4 +1,5 @@
 ﻿//#define WXCART_PAINT_IN_THREAD 0
+#define TEST_FRUSTRUM
 
 #include "wxCartographer.h"
 #include "wxCartographer.h"
@@ -305,24 +306,69 @@ void wxCartographer::init_gl()
 
     SetCurrent(gl_context_);
 
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_TEXTURE_2D);
+	#ifdef TEST_FRUSTRUM
+	glEnable(GL_DEPTH_TEST);
+	#endif
 
+    //glEnable(GL_LIGHTING);
+    //glEnable(GL_LIGHT0);
+
+	glEnable(GL_TEXTURE_2D);
 	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
-	glClearColor(0.0f, 0.0f, 0.3f, 0.5f);				// Black Background
-	glClearDepth(1.0f);									// Depth Buffer Setup
+	glClearColor(0.0f, 0.0f, 0.3f, 1.0f);				// Black Background
+	glClearDepth(1.0);									// Depth Buffer Setup
 
+    // add slightly more light, the default lighting is rather dark
+    //GLfloat ambient[] = { 0.5, 0.5, 0.5, 0.5 };
+    //glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+
+    // set viewing projection
     glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+	//glOrtho(0.0, 2.0, 0.0, 2.0, 0.0, 1.0);
 
+    //glMatrixMode(GL_MODELVIEW);
+    //glLoadIdentity();
+
+	//glOrtho(0.0, 2.0, 0.0, 1.0, 0.0, 1.0);
+	//glFrustum(0.0f, 1.0f, 0.0f, 1.0f, 1.25f, 3.0f);
+
+    // create the textures to use for cube sides: they will be reused by all
+    // canvases (which is probably not critical in the case of simple textures
+    // we use here but could be really important for a real application where
+    // each texture could take many megabytes)
     glGenTextures(WXSIZEOF(m_textures), m_textures);
 
     for ( unsigned i = 0; i < WXSIZEOF(m_textures); i++ )
     {
 		raw_image image;
-    	LoadImage(i == 0 ? "y11357.png" : "y11340.png", image);
+
+		#define EXT ".jpg"
+
+		switch (i)
+		{
+			case 0:
+				LoadImage("y11357.png", image);
+				break;
+			case 1:
+				LoadImage("y11340.png", image);
+				break;
+			case 2:
+				LoadImage("z15x14338y5674" EXT, image);
+				break;
+			case 3:
+				LoadImage("z15x14338y5675" EXT, image);
+				break;
+			case 4:
+				LoadImage("z15x14339y5674" EXT, image);
+				break;
+			case 5:
+				LoadImage("z15x14339y5675" EXT, image);
+				break;
+			case 6:
+				LoadImage("z14x7169y2837.png", image);
+				break;
+		}
 		//LoadImage(i == 0 ? "y22649.jpg" : "y22650.jpg", image);
 
         glBindTexture(GL_TEXTURE_2D, m_textures[i]);
@@ -339,7 +385,6 @@ void wxCartographer::init_gl()
     }
 
 	glEnable(GL_BLEND);			// Turn Blending On
-	glDisable(GL_DEPTH_TEST);	// Turn Depth Testing Off
 
     CheckGLError();
 }
@@ -349,64 +394,86 @@ void wxCartographer::draw_gl()
 	GLdouble alpha = 0.5;
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glRotatef(xangle, 1.0f, 0.0f, 0.0f);
-    //glRotatef(-10, 0.0f, 1.0f, 0.0f);
-	//glOrtho(0.0, 2.0, 0.0, -2.0, 0.0, 1.0);
-    glTranslated(0.0, 0.0, -1.0);
 
-	/*-
-	glRasterPos2d(0.0,0);
-	glPixelZoom(1,1);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glDrawPixels(image.width(), image.height(),
-		image.type(), GL_UNSIGNED_BYTE, image.data());
-	-*/
+	glMatrixMode(GL_PROJECTION);
+	glScaled(2.0 - alpha, 2.0 - alpha, 1.0);
+	glScaled(0.5, 0.5, 1.0);
+	glTranslated(0.0, 0.0, -1.0);
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);					// Full Brightness.  50% Alpha
+	double x = 7169.0;
+	double y = 2837.0;
+	double x2 = 14338.0;
+	double y2 = 5674.0;
+
+	/* * * * * * */
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+	glTranslated(-2 * x - 1.0, -2 * y - 1.0, 0.0);
+
+	for (int i = -2; i <= 2; ++i)
+	{
+		for (int j = -1; j <= 1; ++j)
+		{
+			draw_tile(2*i + x2, 2*j + y2, 1.0, -0.1, m_textures[2]);
+			draw_tile(2*i + x2, 2*j + y2 + 1.0, 1.0, -0.1, m_textures[3]);
+			draw_tile(2*i + x2 + 1.0, 2*j + y2, 1.0, -0.1, m_textures[4]);
+			draw_tile(2*i + x2 + 1.0, 2*j + y2 + 1.0, 1.0, -0.1, m_textures[5]);
+		}
+	}
+
+
+	/* * * * * * */
+	glMatrixMode(GL_PROJECTION);
+	glScaled(2.0, 2.0, 1.0);
+
+	glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+	glTranslated(-x - 0.5, -y - 0.5, 0.0);
+
+	glColor4f(1.0f, 1.0f, 1.0f, alpha);					// Full Brightness.  50% Alpha
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);	// Set The Blending Function For Translucency
 
-    glBindTexture(GL_TEXTURE_2D, m_textures[0]);
-    glBegin(GL_QUADS);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
-		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  0.0f);
-    glEnd();
-
-	glColor4f(1.0f, 1.0f, 1.0f, alpha);
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-
-    glBindTexture(GL_TEXTURE_2D, m_textures[1]);
-    glBegin(GL_QUADS);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
-		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  0.0f);
-    glEnd();
-
-    glBindTexture(GL_TEXTURE_2D, m_textures[1]);
-    glBegin(GL_QUADS);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3f(1.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 0.0f); glVertex3f(2.0f, 0.0f,  0.0f);
-		glTexCoord2f(1.0f, 1.0f); glVertex3f(2.0f, 1.0f,  0.0f);
-		glTexCoord2f(0.0f, 1.0f); glVertex3f(1.0f, 1.0f,  0.0f);
-    glEnd();
-
-	glBindTexture(GL_TEXTURE_2D, m_textures[1]);
-    glBegin(GL_QUADS);
-        glNormal3f( 0.0f, 0.0f, 1.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 1.0f,  0.0f);
-		glTexCoord2f(1.0f, 0.0f); glVertex3f(-1.0f, 1.0f,  0.0f);
-		glTexCoord2f(1.0f, 1.0f); glVertex3f(-1.0f, 1.0f,  -1.0f);
-		glTexCoord2f(0.0f, 1.0f); glVertex3f(0.0f, 1.0f,  -1.0f);
-    glEnd();
+	for (int i = -2; i <= 2; ++i)
+		for (int j = -1; j <= 1; ++j)
+			draw_tile(x + i, y + j, alpha, 0.0, m_textures[6]);
 
 	glFlush();
 
     CheckGLError();
+}
+
+void wxCartographer::draw_tile(double x, double y, double alpha, double z, GLuint texture)
+{
+	glColor4f(1.0f, 1.0f, 1.0f, alpha);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+    glBegin(GL_QUADS);
+        glNormal3f( 0.0f, 0.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex3d(x,       y,       z);
+		glTexCoord2f(1.0f, 0.0f); glVertex3d(x + 1.0, y,       z);
+		glTexCoord2f(1.0f, 1.0f); glVertex3d(x + 1.0, y + 1.0, z);
+		glTexCoord2f(0.0f, 1.0f); glVertex3d(x,       y + 1.0, z);
+    glEnd();
+
+	#ifdef TEST_FRUSTRUM
+	glColor4d(0.0, 0.0, 0.0, alpha);
+	glLineWidth(3);
+
+	glBegin(GL_LINES);
+		glVertex3d(x, y, z);
+		glVertex3d(x, y, z + 0.2);
+
+		glVertex3d(x, y + 1.0, z);
+		glVertex3d(x, y + 1.0, z + 0.2);
+
+		glVertex3d(x + 1.0, y, z);
+		glVertex3d(x + 1.0, y, z + 0.2);
+
+		glVertex3d(x + 1.0, y + 1.0, z);
+		glVertex3d(x + 1.0, y + 1.0, z + 0.2);
+	glEnd();
+	#endif
 }
 
 wxCartographer::~wxCartographer()
@@ -1347,7 +1414,7 @@ void wxCartographer::repaint(wxDC &dc)
 
 		//buffer_.Create(width, height);
 	}
-
+#if 0
 	{
         wxMemoryDC dc;
         dc.SelectObject(buffer_);
@@ -1422,6 +1489,7 @@ void wxCartographer::repaint(wxDC &dc)
 	}
 
 	anim_freq_sw_.start();
+#endif
 }
 
 void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
@@ -1447,6 +1515,8 @@ void wxCartographer::on_paint(wxPaintEvent& WXUNUSED(event))
 {
     wxPaintDC dc(this);
 
+	repaint();
+
 	int width;
 	int height;
     GetClientSize(&width, &height);
@@ -1463,17 +1533,15 @@ void wxCartographer::on_paint(wxPaintEvent& WXUNUSED(event))
 	GLdouble h = height / 256.0;
 	GLdouble x = -w * fix_kx_;
 	GLdouble y = -h * fix_ky_;
-	//glFrustum(x, x + w, -y - h, -y, 1.0, 3.0);
-	glOrtho(x, x + w, -y - h, -y, -1.0, 1.0);
+	#ifdef TEST_FRUSTRUM
+	glFrustum(x, x + w, -y - h, -y, 0.8, 3.0);
+	#else
+	glOrtho(x, x + w, -y - h, -y, -1.0, 2.0);
+	#endif
 	glScaled(1.0, -1.0, 1.0);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-	// Render the graphics and swap the buffers.
 	draw_gl();
     SwapBuffers();
-
 
 #if 0
 	/* Если отрисовка ведётся в потоке,
@@ -1518,6 +1586,8 @@ void wxCartographer::on_left_down(wxMouseEvent& event)
 	#ifdef BOOST_WINDOWS
 	CaptureMouse();
 	#endif
+
+	Refresh(false);
 }
 
 void wxCartographer::on_left_up(wxMouseEvent& event)
