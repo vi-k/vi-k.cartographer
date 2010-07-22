@@ -14,7 +14,9 @@
 				<Option projectLinkerOptionsRelation="2" />
 				<Compiler>
 					<Add option="/MDd" />
+					<Add option="/Gm" />
 					<Add option="/Zi" />
+					<Add option='/Fp&quot;obj\Debug\stdafx.pch&quot;' />
 					<Add option="/D_DEBUG" />
 					<Add option="/D__WXDEBUG__" />
 					<Add directory="$(#wx)\lib\vc_lib\mswud" />
@@ -55,6 +57,7 @@
 					<Add option="/MD" />
 					<Add option="/O2" />
 					<Add option="/Ox" />
+					<Add option='/Fp&quot;obj\Release\stdafx.pch&quot;' />
 					<Add option="/Ob1" />
 					<Add option="/DNDEBUG" />
 					<Add directory="$(#wx)\lib\vc_lib\mswu" />
@@ -92,6 +95,9 @@
 			<Add option="/GF" />
 			<Add option="/W3" />
 			<Add option="/wd4503" />
+			<Add option="/Zm300" />
+			<Add option='/FI&quot;stdafx.h&quot;' />
+			<Add option='/Yu&quot;stdafx.h&quot;' />
 			<Add option="/DWIN32" />
 			<Add option="/D__WIN32__" />
 			<Add option="/D__WXMSW__" />
@@ -100,6 +106,7 @@
 			<Add option="/D_CRT_SECURE_DEPRECATE" />
 			<Add option="/D_CRT_NONSTDC_NO_DEPRECATE" />
 			<Add option="/D_VC80_UPGRADE=0x0600" />
+			<Add option="/DWX_PRECOMP" />
 			<Add directory="$(#wx)\include" />
 			<Add directory="$(#wx)\contrib\include" />
 			<Add directory="$(BOOST)" />
@@ -138,6 +145,12 @@
 		<Unit filename="resource.rc">
 			<Option compilerVar="WINDRES" />
 		</Unit>
+		<Unit filename="stdafx.cpp">
+			<Option weight="0" />
+			<Option compiler="msvc8" use="1" buildCommand='$compiler /Yc&quot;stdafx.h&quot; /nologo $options $includes /c $file /Fo$object' />
+		</Unit>
+		<Unit filename="stdafx.h" />
+		<Unit filename="stdafx.pch" />
 		<Unit filename="wxCartographer.cpp" />
 		<Unit filename="wxCartographer.h" />
 		<Unit filename="wxsmith\cartographerframe.wxs" />

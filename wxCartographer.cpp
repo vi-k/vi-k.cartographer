@@ -1,7 +1,6 @@
 ﻿//#define WXCART_PAINT_IN_THREAD 0
-#define TEST_FRUSTRUM
+//#define TEST_FRUSTRUM
 
-#include "wxCartographer.h"
 #include "wxCartographer.h"
 #include "handle_exception.h"
 
@@ -29,17 +28,9 @@
 #define __swprintf snwprintf
 #endif
 
-
-#include <my_exception.h>
-#include <my_ptr.h>
-#include <my_utf8.h>
-#include <my_time.h>
-#include <my_xml.h>
-#include <my_fs.h> /* boost::filesystem */
-#include <my_curline.h>
-
 #include <math.h> /* sin, sqrt */
 #include <wchar.h> /* swprintf */
+#include <string.h> /* swprintf */
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -61,7 +52,132 @@ Real atanh(Real x)
 	return 0.5 * log( (1.0 + x) / (1.0 - x) );
 }
 
-static void LoadImage(const char *filename, raw_image &image)
+class raw_image
+{
+private:
+	int width_;
+	int height_;
+	int bpp_;
+	int type_;
+	unsigned char *data_;
+
+	void init()
+	{
+		width_ = 0;
+		height_ = 0;
+		bpp_ = 0;
+		type_ = 0;
+		data_ = 0;
+	}
+
+public:
+	raw_image()
+	{
+		init();
+	}
+
+	raw_image(int width, int height, int bpp, int type = 0)
+	{
+		init();
+		create(width, height, bpp, type);
+	}
+
+	~raw_image()
+	{
+		delete[] data_;
+	}
+
+	void create(int width, int height, int bpp, int type = 0)
+	{
+		delete[] data_;
+
+		width_ = width;
+		height_ = height;
+		bpp_ = bpp;
+		type_ = type;
+		data_ = new unsigned char[ width * height * (bpp / 8) ];
+	}
+
+	inline int width() const
+		{ return width_; }
+
+	inline int height() const
+		{ return height_; }
+
+	inline int bpp() const
+		{ return bpp_; }
+
+	inline int type() const
+		{ return type_; }
+
+	inline unsigned char* data()
+		{ return data_; }
+
+	inline const unsigned char * data() const
+		{ return data_; }
+
+	inline unsigned char* end()
+		{ return data_ + width_ * height_ * (bpp_ / 8); }
+
+	inline const unsigned char* end() const
+		{ return data_ + width_ * height_ * (bpp_ / 8); }
+};
+
+GLuint wxCartographer::gl_create_texture(wxImage &wx_image)
+{
+	if (!wx_image.IsOk())
+    	return 0;
+
+	raw_image image;
+
+    unsigned char *rgb = wx_image.GetData();
+    unsigned char *alpha = wx_image.GetAlpha();
+
+	if (alpha)
+		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 32, GL_RGBA);
+	else
+		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 24, GL_RGB);
+
+    unsigned char *ptr = image.data();
+    unsigned char *end = image.end();
+
+    if (!alpha)
+		memcpy(ptr, rgb, end - ptr);
+	else
+	{
+		while (ptr != end)
+		{
+    		*ptr++ = *rgb++;
+    		*ptr++ = *rgb++;
+    		*ptr++ = *rgb++;
+    		*ptr++ = *alpha++;
+		}
+	}
+
+	GLuint id;
+
+	glGenTextures(1, &id);
+
+	glBindTexture(GL_TEXTURE_2D, id);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(),
+		0, (GLint)image.type(), GL_UNSIGNED_BYTE, image.data());
+
+	return id;
+}
+
+void wxCartographer::gl_delete_texture(GLuint id)
+{
+	glDeleteTextures(1, &id);
+}
+
+void LoadImage(const char *filename, raw_image &image)
 {
     wxImage wx_image(filename);
 
@@ -139,7 +255,7 @@ END_EVENT_TABLE()
 wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	const std::wstring &serverPort, std::size_t cacheSize,
 	std::wstring cachePath, bool onlyCache,
-	const std::wstring &initMap, int initZ, wxDouble initLat, wxDouble initLon,
+	const std::wstring &initMap, int initZ, double initLat, double initLon,
 	OnPaintProc_t onPaintProc,
 	int animPeriod, int defAnimSteps)
 	: wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
@@ -302,45 +418,23 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 
 void wxCartographer::init_gl()
 {
-    wxInitAllImageHandlers();
+	wxInitAllImageHandlers();
 
-    SetCurrent(gl_context_);
+	SetCurrent(gl_context_);
 
 	#ifdef TEST_FRUSTRUM
 	glEnable(GL_DEPTH_TEST);
 	#endif
 
-    //glEnable(GL_LIGHTING);
-    //glEnable(GL_LIGHT0);
-
 	glEnable(GL_TEXTURE_2D);
-	glShadeModel(GL_SMOOTH);							// Enable Smooth Shading
-	glClearColor(0.0f, 0.0f, 0.3f, 1.0f);				// Black Background
-	glClearDepth(1.0);									// Depth Buffer Setup
+	glShadeModel(GL_SMOOTH);
+	glClearColor(0.0f, 0.2f, 0.5f, 1.0f);
+	glClearDepth(1.0);
 
-    // add slightly more light, the default lighting is rather dark
-    //GLfloat ambient[] = { 0.5, 0.5, 0.5, 0.5 };
-    //glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+	glGenTextures(WXSIZEOF(m_textures), m_textures);
 
-    // set viewing projection
-    glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	//glOrtho(0.0, 2.0, 0.0, 2.0, 0.0, 1.0);
-
-    //glMatrixMode(GL_MODELVIEW);
-    //glLoadIdentity();
-
-	//glOrtho(0.0, 2.0, 0.0, 1.0, 0.0, 1.0);
-	//glFrustum(0.0f, 1.0f, 0.0f, 1.0f, 1.25f, 3.0f);
-
-    // create the textures to use for cube sides: they will be reused by all
-    // canvases (which is probably not critical in the case of simple textures
-    // we use here but could be really important for a real application where
-    // each texture could take many megabytes)
-    glGenTextures(WXSIZEOF(m_textures), m_textures);
-
-    for ( unsigned i = 0; i < WXSIZEOF(m_textures); i++ )
-    {
+	for ( unsigned i = 0; i < WXSIZEOF(m_textures); i++ )
+	{
 		raw_image image;
 
 		#define EXT ".jpg"
@@ -384,40 +478,92 @@ void wxCartographer::init_gl()
 			0, (GLint)image.type(), GL_UNSIGNED_BYTE, image.data());
     }
 
-	glEnable(GL_BLEND);			// Turn Blending On
+	glEnable(GL_BLEND);
 
     CheckGLError();
 }
 
-void wxCartographer::draw_gl()
+void wxCartographer::draw_gl(int widthi, int heighti)
 {
-	GLdouble alpha = 0.5;
+	double widthd = (double)widthi;
+	double heightd = (double)heighti;
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	/* Активная карта */
+	wxCartographer::map map = maps_[active_map_id_];
 
-	glMatrixMode(GL_PROJECTION);
-	glScaled(2.0 - alpha, 2.0 - alpha, 1.0);
-	glScaled(0.5, 0.5, 1.0);
-	glTranslated(0.0, 0.0, -1.0);
+	/* Текущий масштаб. При перемещениях
+		между масштабами - верхний масштаб */
+	int zi = (int)z_;
+	double dz = z_ - (double)zi;
+	double alpha = 1.0 - dz;
 
-	double x = 7169.0;
-	double y = 2837.0;
-	double x2 = 14338.0;
-	double y2 = 5674.0;
+	/* "Тайловые" координаты fix-точки */
+	double fix_tile_x = lon_to_tile_x(fix_lon_, zi);
+	double fix_tile_y = lat_to_tile_y(fix_lat_, zi, map.projection);
 
-	/* * * * * * */
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-	glTranslated(-2 * x - 1.0, -2 * y - 1.0, 0.0);
+	tile::id fix_tile(active_map_id_, zi, (int)fix_tile_x, (int)fix_tile_y);
+
+	/* И сразу его в очередь на загрузку - глядишь,
+		к моменту отрисовки он уже и загрузится */
+	get_tile(fix_tile);
+
+
+	/* Экранные координаты fix-точки */
+	//double fix_scr_x = widthd * fix_kx_;
+	//double fix_scr_y = heightd * fix_ky_;
+
+	//glDeleteTextures(WXSIZEOF(m_textures), m_textures);
+
+
+	/*
+		Подготовка OpenGL
+	*/
+
+	glViewport(0, 0, widthi, heighti);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); /* Пока не разобрался - зачем */
+
+	{
+		/* Уровень GL_PROJECTION */
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+
+		/* Зрителя помещаем в fix-точку */
+		double w = widthd / 256.0;
+		double h = heightd / 256.0;
+		double x = -w * fix_kx_;
+		double y = -h * fix_ky_;
+
+		#ifdef TEST_FRUSTRUM
+		glFrustum(x, x + w, -y - h, -y, 0.8, 3.0);
+		#else
+		glOrtho(x, x + w, -y - h, -y, -1.0, 2.0);
+		#endif
+
+		/* С вертикалью работаем по старинке
+			- сверху вниз, а не снизу вверх */
+		glScaled(1.0, -1.0, 1.0);
+		glScaled(1.0 + dz, 1.0 + dz, 1.0);
+		glScaled(0.5, 0.5, 1.0);
+		glTranslated(0.0, 0.0, -1.0);
+
+		/* Уровень GL_MODELVIEW */
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		glTranslated(-2.0 * fix_tile_x, -2.0 * fix_tile_y, 0.0);
+	}
+
+	int x2 = 2 * (int)fix_tile_x;
+	int y2 = 2 * (int)fix_tile_y;
+
 
 	for (int i = -2; i <= 2; ++i)
 	{
 		for (int j = -1; j <= 1; ++j)
 		{
-			draw_tile(2*i + x2, 2*j + y2, 1.0, -0.1, m_textures[2]);
-			draw_tile(2*i + x2, 2*j + y2 + 1.0, 1.0, -0.1, m_textures[3]);
-			draw_tile(2*i + x2 + 1.0, 2*j + y2, 1.0, -0.1, m_textures[4]);
-			draw_tile(2*i + x2 + 1.0, 2*j + y2 + 1.0, 1.0, -0.1, m_textures[5]);
+			draw_tile(2*i + x2,     2*j + y2,     1.0, -0.1, m_textures[2]);
+			draw_tile(2*i + x2,     2*j + y2 + 1, 1.0, -0.1, m_textures[3]);
+			draw_tile(2*i + x2 + 1, 2*j + y2,     1.0, -0.1, m_textures[4]);
+			draw_tile(2*i + x2 + 1, 2*j + y2 + 1, 1.0, -0.1, m_textures[5]);
 		}
 	}
 
@@ -428,21 +574,31 @@ void wxCartographer::draw_gl()
 
 	glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-	glTranslated(-x - 0.5, -y - 0.5, 0.0);
+	glTranslated(-fix_tile_x, -fix_tile_y, 0.0);
 
-	glColor4f(1.0f, 1.0f, 1.0f, alpha);					// Full Brightness.  50% Alpha
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);	// Set The Blending Function For Translucency
+	glColor4f(1.0f, 1.0f, 1.0f, alpha);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	tile::ptr ptr = get_tile(fix_tile);
+
+	GLuint id;
+	if (ptr)
+		id = ptr->texture_id();
 
 	for (int i = -2; i <= 2; ++i)
 		for (int j = -1; j <= 1; ++j)
-			draw_tile(x + i, y + j, alpha, 0.0, m_textures[6]);
+			if (ptr)
+				draw_tile(fix_tile.x + i, fix_tile.y + j, alpha, 0.0, ptr->texture_id());
+			else
+				draw_tile(fix_tile.x + i, fix_tile.y + j, alpha, 0.0, m_textures[6]);
 
 	glFlush();
 
     CheckGLError();
 }
 
-void wxCartographer::draw_tile(double x, double y, double alpha, double z, GLuint texture)
+void wxCartographer::draw_tile(int tile_x, int tile_y, double alpha,
+	double z, GLuint texture)
 {
 	glColor4f(1.0f, 1.0f, 1.0f, alpha);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -450,10 +606,10 @@ void wxCartographer::draw_tile(double x, double y, double alpha, double z, GLuin
 	glBindTexture(GL_TEXTURE_2D, texture);
     glBegin(GL_QUADS);
         glNormal3f( 0.0f, 0.0f, 1.0f);
-		glTexCoord2f(0.0f, 0.0f); glVertex3d(x,       y,       z);
-		glTexCoord2f(1.0f, 0.0f); glVertex3d(x + 1.0, y,       z);
-		glTexCoord2f(1.0f, 1.0f); glVertex3d(x + 1.0, y + 1.0, z);
-		glTexCoord2f(0.0f, 1.0f); glVertex3d(x,       y + 1.0, z);
+		glTexCoord2i(0, 0); glVertex3i(tile_x,     tile_y,     z);
+		glTexCoord2i(1, 0); glVertex3i(tile_x + 1, tile_y,     z);
+		glTexCoord2i(1, 1); glVertex3i(tile_x + 1, tile_y + 1, z);
+		glTexCoord2i(0, 1); glVertex3i(tile_x,     tile_y + 1, z);
     glEnd();
 
 	#ifdef TEST_FRUSTRUM
@@ -461,17 +617,17 @@ void wxCartographer::draw_tile(double x, double y, double alpha, double z, GLuin
 	glLineWidth(3);
 
 	glBegin(GL_LINES);
-		glVertex3d(x, y, z);
-		glVertex3d(x, y, z + 0.2);
+		glVertex3d(tile_x, tile_y, z);
+		glVertex3d(tile_x, tile_y, z + 0.2);
 
-		glVertex3d(x, y + 1.0, z);
-		glVertex3d(x, y + 1.0, z + 0.2);
+		glVertex3d(tile_x, tile_y + 1.0, z);
+		glVertex3d(tile_x, tile_y + 1.0, z + 0.2);
 
-		glVertex3d(x + 1.0, y, z);
-		glVertex3d(x + 1.0, y, z + 0.2);
+		glVertex3d(tile_x + 1.0, tile_y, z);
+		glVertex3d(tile_x + 1.0, tile_y, z + 0.2);
 
-		glVertex3d(x + 1.0, y + 1.0, z);
-		glVertex3d(x + 1.0, y + 1.0, z + 0.2);
+		glVertex3d(tile_x + 1.0, tile_y + 1.0, z);
+		glVertex3d(tile_x + 1.0, tile_y + 1.0, z + 0.2);
 	glEnd();
 	#endif
 }
@@ -934,16 +1090,16 @@ unsigned int wxCartographer::load_and_save_xml(const std::wstring &request,
 	return reply.status_code;
 }
 
-wxDouble wxCartographer::lon_to_tile_x(wxDouble lon, wxDouble z)
+double wxCartographer::lon_to_tile_x(double lon, double z)
 {
 	return (lon + 180.0) * size_for_z(z) / 360.0;
 }
 
-wxDouble wxCartographer::lat_to_tile_y(wxDouble lat, wxDouble z,
+double wxCartographer::lat_to_tile_y(double lat, double z,
 	map::projection_t projection)
 {
-	wxDouble s = std::sin( lat / 180.0 * M_PI );
-	wxDouble y;
+	double s = std::sin( lat / 180.0 * M_PI );
+	double y;
 
 	switch (projection)
 	{
@@ -962,33 +1118,33 @@ wxDouble wxCartographer::lat_to_tile_y(wxDouble lat, wxDouble z,
 	return y;
 }
 
-wxDouble wxCartographer::lon_to_scr_x(wxDouble lon, wxDouble z,
-	wxDouble fix_lon, wxDouble fix_scr_x)
+double wxCartographer::lon_to_scr_x(double lon, double z,
+	double fix_lon, double fix_scr_x)
 {
-	wxDouble fix_tile_x = lon_to_tile_x(fix_lon, z);
-	wxDouble tile_x = lon_to_tile_x(lon, z);
+	double fix_tile_x = lon_to_tile_x(fix_lon, z);
+	double tile_x = lon_to_tile_x(lon, z);
 	return (tile_x - fix_tile_x) * 256.0 + fix_scr_x;
 }
 
-wxDouble wxCartographer::lat_to_scr_y(wxDouble lat, wxDouble z,
-	map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y)
+double wxCartographer::lat_to_scr_y(double lat, double z,
+	map::projection_t projection, double fix_lat, double fix_scr_y)
 {
-	wxDouble fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
-	wxDouble tile_y = lat_to_tile_y(lat, z, projection);
+	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
+	double tile_y = lat_to_tile_y(lat, z, projection);
 	return (tile_y - fix_tile_y) * 256.0 + fix_scr_y;
 }
 
-wxDouble wxCartographer::tile_x_to_lon(wxDouble x, wxDouble z)
+double wxCartographer::tile_x_to_lon(double x, double z)
 {
 	return x / size_for_z(z) * 360.0 - 180.0;
 }
 
-wxDouble wxCartographer::tile_y_to_lat(wxDouble y, wxDouble z,
+double wxCartographer::tile_y_to_lat(double y, double z,
 	map::projection_t projection)
 {
-	wxDouble lat;
-	wxDouble sz = size_for_z(z);
-	wxDouble tmp = atan( exp( (0.5 - y / sz) * (2 * M_PI) ) );
+	double lat;
+	double sz = size_for_z(z);
+	double tmp = atan( exp( (0.5 - y / sz) * (2 * M_PI) ) );
 
 	switch (projection)
 	{
@@ -999,8 +1155,8 @@ wxDouble wxCartographer::tile_y_to_lat(wxDouble y, wxDouble z,
 		case map::ellipsoid:
 		{
 			tmp = tmp * 2.0 - M_PI / 2.0;
-			wxDouble yy = y - sz / 2.0;
-			wxDouble tmp2;
+			double yy = y - sz / 2.0;
+			double tmp2;
 			do
 			{
 				tmp2 = tmp;
@@ -1019,17 +1175,17 @@ wxDouble wxCartographer::tile_y_to_lat(wxDouble y, wxDouble z,
 	return lat;
 }
 
-wxDouble wxCartographer::scr_x_to_lon(wxDouble x, wxDouble z,
-	wxDouble fix_lon, wxDouble fix_scr_x)
+double wxCartographer::scr_x_to_lon(double x, double z,
+	double fix_lon, double fix_scr_x)
 {
-	wxDouble fix_tile_x = lon_to_tile_x(fix_lon, z);
+	double fix_tile_x = lon_to_tile_x(fix_lon, z);
 	return tile_x_to_lon( fix_tile_x + (x - fix_scr_x) / 256.0, z );
 }
 
-wxDouble wxCartographer::scr_y_to_lat(wxDouble y, wxDouble z,
-	map::projection_t projection, wxDouble fix_lat, wxDouble fix_scr_y)
+double wxCartographer::scr_y_to_lat(double y, double z,
+	map::projection_t projection, double fix_lat, double fix_scr_y)
 {
-	wxDouble fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
+	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
 }
 
@@ -1043,8 +1199,8 @@ void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 
 		fix_tile.map_id = active_map_id_;
 		fix_tile.z = (int)(z_ + 0.5);
-		fix_tile.x = (wxCoord)lon_to_tile_x(fix_lon_, (wxDouble)fix_tile.z);
-		fix_tile.y = (wxCoord)lat_to_tile_y(fix_lat_, (wxDouble)fix_tile.z,
+		fix_tile.x = (wxCoord)lon_to_tile_x(fix_lon_, (double)fix_tile.z);
+		fix_tile.y = (wxCoord)lat_to_tile_y(fix_lat_, (double)fix_tile.z,
 			maps_[fix_tile.map_id].projection);
 	}
 
@@ -1099,9 +1255,9 @@ void wxCartographer::paint_debug_info(wxDC &gc,
 	wxCoord width, wxCoord height)
 {
 	/* Отладочная информация */
-	//gc.SetPen(*wxWHITE_PEN);
-	//gc.DrawLine(0, height/2, width, height/2);
-	//gc.DrawLine(width/2, 0, width/2, height);
+	gc.SetPen(*wxWHITE_PEN);
+	gc.DrawLine(0, height/2, width, height/2);
+	gc.DrawLine(width/2, 0, width/2, height);
 
 	gc.SetTextForeground(*wxWHITE);
 	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
@@ -1176,8 +1332,8 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 
 void wxCartographer::prepare_background(wxCartographerBuffer &buffer,
 	wxCoord width, wxCoord height, bool force_repaint, int map_id, int z,
-	wxDouble fix_tile_x, wxDouble fix_tile_y,
-	wxDouble fix_scr_x, wxDouble fix_scr_y)
+	double fix_tile_x, double fix_tile_y,
+	double fix_scr_x, double fix_scr_y)
 {
 	/*
 		Подготовка фона для заданного z:
@@ -1341,20 +1497,20 @@ void wxCartographer::paint_map(wxGCDC &dc, wxCoord width, wxCoord height)
 	int zi = (int)z_;
 
 	/* "Тайловые" координаты центра экрана */
-	wxDouble fix_tile_x = lon_to_tile_x(fix_lon_, zi);
-	wxDouble fix_tile_y = lat_to_tile_y(fix_lat_, zi, map.projection);
+	double fix_tile_x = lon_to_tile_x(fix_lon_, zi);
+	double fix_tile_y = lat_to_tile_y(fix_lat_, zi, map.projection);
 
 	/* Экранные координаты центра экрана */
-	wxDouble fix_scr_x = width * fix_kx_;
-	wxDouble fix_scr_y = height * fix_ky_;
+	double fix_scr_x = width * fix_kx_;
+	double fix_scr_y = height * fix_ky_;
 
 	prepare_background(background1_, width, height, force_repaint_,
 		active_map_id_, zi, fix_tile_x, fix_tile_y, fix_scr_x, fix_scr_y);
 
 	force_repaint_ = false;
 
-	wxDouble k = 1.0 + z_ - zi;
-	wxDouble real_tile_sz = 256.0 * k;
+	double k = 1.0 + z_ - zi;
+	double real_tile_sz = 256.0 * k;
 	wxCoord x = (wxCoord)(fix_scr_x
         - (fix_tile_x - background1_.first_tile_x) * real_tile_sz + 0.5);
 	wxCoord y = (wxCoord)(fix_scr_y
@@ -1492,7 +1648,7 @@ void wxCartographer::repaint(wxDC &dc)
 #endif
 }
 
-void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
+void wxCartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
@@ -1500,7 +1656,7 @@ void wxCartographer::move_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
 	fix_ky_ = scr_y / heightd();
 }
 
-void wxCartographer::set_fix_to_scr_xy(wxDouble scr_x, wxDouble scr_y)
+void wxCartographer::set_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
@@ -1515,33 +1671,16 @@ void wxCartographer::on_paint(wxPaintEvent& WXUNUSED(event))
 {
     wxPaintDC dc(this);
 
-	repaint();
+	repaint(); /* Изменение размера буфера */
 
 	int width;
 	int height;
     GetClientSize(&width, &height);
 
-	glViewport(0, 0, width, height);
-
-	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-
-	//double fix_kx_ = 0.5;
-	//double fix_ky_ = 0.5;
-
-	GLdouble w = width / 256.0;
-	GLdouble h = height / 256.0;
-	GLdouble x = -w * fix_kx_;
-	GLdouble y = -h * fix_ky_;
-	#ifdef TEST_FRUSTRUM
-	glFrustum(x, x + w, -y - h, -y, 0.8, 3.0);
-	#else
-	glOrtho(x, x + w, -y - h, -y, -1.0, 2.0);
-	#endif
-	glScaled(1.0, -1.0, 1.0);
-
-	draw_gl();
+	draw_gl(width, height);
     SwapBuffers();
+
+    paint_debug_info(dc, width, height);
 
 #if 0
 	/* Если отрисовка ведётся в потоке,
@@ -1579,7 +1718,7 @@ void wxCartographer::on_left_down(wxMouseEvent& event)
 {
 	SetFocus();
 
-	set_fix_to_scr_xy( (wxDouble)event.GetX(), (wxDouble)event.GetY() );
+	set_fix_to_scr_xy( (double)event.GetX(), (double)event.GetY() );
 
 	move_mode_ = true;
 
@@ -1600,6 +1739,8 @@ void wxCartographer::on_left_up(wxMouseEvent& event)
 		#ifdef BOOST_WINDOWS
 		ReleaseMouse();
 		#endif
+
+		Refresh(false);
 	}
 }
 
@@ -1612,8 +1753,9 @@ void wxCartographer::on_mouse_move(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
-		move_fix_to_scr_xy( (wxDouble)event.GetX(), (wxDouble)event.GetY() );
+		move_fix_to_scr_xy( (double)event.GetX(), (double)event.GetY() );
 		Repaint();
+		Refresh(false);
 	}
 }
 
@@ -1630,7 +1772,7 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 		if (z_ > 30.0)
 			z_ = 30.0;
 
-		wxDouble z = std::floor(z_ + 0.5);
+		double z = std::floor(z_ + 0.5);
 		if ( std::abs(z_ - z) < 0.01)
 			z_ = z;
 	}
@@ -1695,7 +1837,7 @@ bool wxCartographer::SetActiveMap(const std::wstring &MapName)
 	return false;
 }
 
-wxCoord wxCartographer::LatToY(wxDouble Lat)
+wxCoord wxCartographer::LatToY(double Lat)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
@@ -1703,7 +1845,7 @@ wxCoord wxCartographer::LatToY(wxDouble Lat)
 		fix_lat_, heightd() * fix_ky_) + 0.5);
 }
 
-wxCoord wxCartographer::LonToX(wxDouble Lon)
+wxCoord wxCartographer::LonToX(double Lon)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
@@ -1726,21 +1868,21 @@ void wxCartographer::SetZ(int z)
 	Repaint();
 }
 
-wxDouble wxCartographer::GetLat()
+double wxCartographer::GetLat()
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return fix_lat_;
 }
 
-wxDouble wxCartographer::GetLon()
+double wxCartographer::GetLon()
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	return fix_lon_;
 }
 
-void wxCartographer::MoveTo(int z, wxDouble lat, wxDouble lon)
+void wxCartographer::MoveTo(int z, double lat, double lon)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 

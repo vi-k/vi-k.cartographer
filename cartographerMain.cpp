@@ -7,6 +7,8 @@
  * License:
  **************************************************************/
 
+#include "stdafx.h"
+
 #include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
 
 #include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
@@ -91,7 +93,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
     Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
     Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
     Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
-    Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
+	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
     //*)
 
     SetClientSize(400, 400);
@@ -146,10 +148,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	{
 		ComboBox1->Append(iter->name);
 	}
-
-	wxString s = "фыва";
-	//std::string = "фыва";
-	//std::wstring = L"фыва";
 
 	ComboBox1->SetValue( cartographer_->GetActiveMap().name );
 

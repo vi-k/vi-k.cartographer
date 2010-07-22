@@ -1,25 +1,28 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <CodeBlocks_layout_file>
 	<ActiveTarget name="Debug" />
-	<File name="cartographerApp.cpp" open="1" top="0" tabpos="5">
-		<Cursor position="932" topLine="24" />
+	<File name="cartographerApp.cpp" open="1" top="0" tabpos="4">
+		<Cursor position="573" topLine="0" />
 	</File>
 	<File name="cartographerApp.h" open="0" top="0" tabpos="6">
 		<Cursor position="382" topLine="0" />
 	</File>
-	<File name="cartographerMain.cpp" open="1" top="0" tabpos="1">
-		<Cursor position="4187" topLine="84" />
+	<File name="cartographerMain.cpp" open="1" top="0" tabpos="3">
+		<Cursor position="309" topLine="0" />
 	</File>
-	<File name="handle_exception.cpp" open="1" top="0" tabpos="4">
-		<Cursor position="460" topLine="8" />
+	<File name="handle_exception.cpp" open="0" top="0" tabpos="4">
+		<Cursor position="290" topLine="8" />
 	</File>
-	<File name="handle_exception.h" open="1" top="0" tabpos="6">
+	<File name="handle_exception.h" open="0" top="0" tabpos="6">
 		<Cursor position="0" topLine="0" />
 	</File>
-	<File name="wxCartographer.cpp" open="1" top="1" tabpos="2">
-		<Cursor position="46085" topLine="1502" />
+	<File name="stdafx.h" open="0" top="0" tabpos="0">
+		<Cursor position="769" topLine="0" />
 	</File>
-	<File name="wxCartographer.h" open="1" top="0" tabpos="3">
-		<Cursor position="9418" topLine="323" />
+	<File name="wxCartographer.cpp" open="1" top="1" tabpos="1">
+		<Cursor position="2300" topLine="114" />
+	</File>
+	<File name="wxCartographer.h" open="1" top="0" tabpos="2">
+		<Cursor position="7796" topLine="253" />
 	</File>
 </CodeBlocks_layout_file>

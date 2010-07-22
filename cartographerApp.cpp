@@ -8,6 +8,7 @@
  **************************************************************/
 
 #include "stdafx.h"
+
 #include "cartographerApp.h"
 #include "handle_exception.h"
 

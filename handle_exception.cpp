@@ -1,6 +1,4 @@
-﻿#include "stdafx.h"
-
-#include "handle_exception.h"
+﻿#include "handle_exception.h"
 
 #include <my_exception.h>
 #include <my_log.h>
@@ -45,7 +43,7 @@ void handle_exception(
 	}
 
 	log << L"-- " << log_title;
-	
+
 	if (!add_to_log.empty())
 		log << ' ' << add_to_log;
 
