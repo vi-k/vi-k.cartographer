@@ -17,7 +17,7 @@
 #include <wx/msw/winundef.h>
 #endif
 
-#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
+#include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
 
 /* Начиная отсюда - все редко изменяемые инклуды */
@@ -37,6 +37,8 @@
 #include <wx/graphics.h> /* wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 #include <wx/glcanvas.h> /* OpenGL */
+
+#include "raw_image.h"
 
 
 #ifndef WXCART_PAINT_IN_THREAD
@@ -186,7 +188,7 @@ public:
 		~tile()
 		{
 			if (texture_id_)
-				wxCartographer::gl_delete_texture(texture_id_);
+				wxCartographer::delete_texture(texture_id_);
 		}
 
 		/* Создание "чистого" тайла (№5 или №6) для построения */
@@ -207,7 +209,9 @@ public:
 			if (fs::exists(filename))
 			{
 				wxImage image(filename);
-				texture_id_ = wxCartographer::gl_create_texture(image);
+				raw_image raw;
+				wxCartographer::load_image(image, raw);
+				texture_id_ = load_texture(raw);
 
 				bitmap_ = wxBitmap(image);
 				if (ok())
@@ -231,7 +235,10 @@ public:
 
 			if (image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
 			{
-				texture_id_ = wxCartographer::gl_create_texture(image);
+				raw_image raw;
+				wxCartographer::load_image(image, raw);
+				texture_id_ = load_texture(raw);
+
 				bitmap_ = wxBitmap(image);
 				if (ok())
 				{
@@ -291,8 +298,9 @@ private:
 	void init_gl();
 	void draw_gl(int widthi, int heighti);
 	void draw_tile(int tile_x, int tile_y, double alpha, double z, GLuint texture);
-	static GLuint gl_create_texture(wxImage &wx_image);
-	static void gl_delete_texture(GLuint id);
+	static void load_image(wxImage &from, raw_image &to);
+	static GLuint load_texture(raw_image &image);
+	static void delete_texture(GLuint id);
 
 
 	/*

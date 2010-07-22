@@ -40,29 +40,35 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalOptions="-Zm300"
 				Optimization="0"
 				AdditionalIncludeDirectories="D:\DevApps\boost_1_43_0;&quot;D:\DevApps\wxWidgets-2.9.0\include&quot;;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib\mswud&quot;;..\mylib"
 				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
-				UsePrecompiledHeader="0"
+				UsePrecompiledHeader="2"
+				PrecompiledHeaderThrough="stdafx.h"
 				WarningLevel="3"
 				DebugInformationFormat="4"
+				DisableSpecificWarnings="4503"
+				ForcedIncludeFiles="stdafx.h"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				AdditionalIncludeDirectories="&quot;D:\DevApps\wxWidgets-2.9.0\include&quot;;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib\mswud&quot;"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="mylibd.lib wxmsw29ud_gl.lib wxmsw29ud_core.lib wxbase29ud.lib wxpngd.lib wxjpegd.lib wxtiffd.lib wxzlibd.lib comctl32.lib rpcrt4.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="D:\DevApps\boost_1_43_0\stage\lib;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib&quot;"
+				AdditionalLibraryDirectories="D:\DevApps\boost_1_43_0\stage\lib;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib&quot;;..\mylib\vc_lib"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -179,13 +185,17 @@
 			<File
 				RelativePath=".\cartographerMain.cpp"
 				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						ForcedIncludeFiles=""
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\handle_exception.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\stdafx.cpp"
 				>
 			</File>
 			<File
@@ -213,6 +223,14 @@
 			<File
 				RelativePath=".\stdafx.h"
 				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="1"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\wxCartographer.h"
@@ -224,6 +242,10 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\resource-vcproj.rc"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

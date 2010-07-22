@@ -16,12 +16,14 @@
 #include <wx/msw/winundef.h>
 #endif
 
-#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
+#include <wx/platform.h> /* Обязательно самым первым среди wxWidgets! */
 #include <wx/msgdlg.h>    /* А это вторым! */
 
 
 /* Начиная отсюда - все редко изменяемые инклуды */
+#if 1
 #include <mylib.h>
+#endif
 
 #include <wx/wx.h>
 

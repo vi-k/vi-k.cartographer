@@ -1,5 +1,6 @@
 ﻿//#define WXCART_PAINT_IN_THREAD 0
 //#define TEST_FRUSTRUM
+#include "stdafx.h"
 
 #include "wxCartographer.h"
 #include "handle_exception.h"
@@ -52,94 +53,23 @@ Real atanh(Real x)
 	return 0.5 * log( (1.0 + x) / (1.0 - x) );
 }
 
-class raw_image
+static void CheckGLError();
+
+void wxCartographer::load_image(wxImage &from, raw_image &to)
 {
-private:
-	int width_;
-	int height_;
-	int bpp_;
-	int type_;
-	unsigned char *data_;
+	if (!from.IsOk())
+    	return;
 
-	void init()
-	{
-		width_ = 0;
-		height_ = 0;
-		bpp_ = 0;
-		type_ = 0;
-		data_ = 0;
-	}
-
-public:
-	raw_image()
-	{
-		init();
-	}
-
-	raw_image(int width, int height, int bpp, int type = 0)
-	{
-		init();
-		create(width, height, bpp, type);
-	}
-
-	~raw_image()
-	{
-		delete[] data_;
-	}
-
-	void create(int width, int height, int bpp, int type = 0)
-	{
-		delete[] data_;
-
-		width_ = width;
-		height_ = height;
-		bpp_ = bpp;
-		type_ = type;
-		data_ = new unsigned char[ width * height * (bpp / 8) ];
-	}
-
-	inline int width() const
-		{ return width_; }
-
-	inline int height() const
-		{ return height_; }
-
-	inline int bpp() const
-		{ return bpp_; }
-
-	inline int type() const
-		{ return type_; }
-
-	inline unsigned char* data()
-		{ return data_; }
-
-	inline const unsigned char * data() const
-		{ return data_; }
-
-	inline unsigned char* end()
-		{ return data_ + width_ * height_ * (bpp_ / 8); }
-
-	inline const unsigned char* end() const
-		{ return data_ + width_ * height_ * (bpp_ / 8); }
-};
-
-GLuint wxCartographer::gl_create_texture(wxImage &wx_image)
-{
-	if (!wx_image.IsOk())
-    	return 0;
-
-	raw_image image;
-
-    unsigned char *rgb = wx_image.GetData();
-    unsigned char *alpha = wx_image.GetAlpha();
+	unsigned char *rgb = from.GetData();
+    unsigned char *alpha = from.GetAlpha();
 
 	if (alpha)
-		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 32, GL_RGBA);
+		to.create(from.GetWidth(), from.GetHeight(), 32, GL_RGBA);
 	else
-		image.create(wx_image.GetWidth(), wx_image.GetHeight(), 24, GL_RGB);
+		to.create(from.GetWidth(), from.GetHeight(), 24, GL_RGB);
 
-    unsigned char *ptr = image.data();
-    unsigned char *end = image.end();
+    unsigned char *ptr = to.data();
+    unsigned char *end = to.end();
 
     if (!alpha)
 		memcpy(ptr, rgb, end - ptr);
@@ -153,10 +83,14 @@ GLuint wxCartographer::gl_create_texture(wxImage &wx_image)
     		*ptr++ = *alpha++;
 		}
 	}
+}
 
+GLuint wxCartographer::load_texture(raw_image &image)
+{
 	GLuint id;
 
 	glGenTextures(1, &id);
+	CheckGLError();
 
 	glBindTexture(GL_TEXTURE_2D, id);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -172,7 +106,7 @@ GLuint wxCartographer::gl_create_texture(wxImage &wx_image)
 	return id;
 }
 
-void wxCartographer::gl_delete_texture(GLuint id)
+void wxCartographer::delete_texture(GLuint id)
 {
 	glDeleteTextures(1, &id);
 }
