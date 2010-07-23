@@ -307,7 +307,7 @@ private:
 
 	my::worker::ptr animator_; /* "Работник" для анимации */
 	posix_time::time_duration anim_period_; /* Период анимации */
-	int def_anim_steps_; /* Кол-во шагов анимации */
+	int def_min_anim_steps_; /* Минимальное кол-во шагов анимации */
 	my::stopwatch anim_speed_sw_;
 	double anim_speed_;
 	my::stopwatch anim_freq_sw_;
@@ -344,6 +344,8 @@ private:
 	recursive_mutex params_mutex_;
 	int active_map_id_; /* Активная карта */
 	double z_; /* Текущий масштаб */
+	double new_z_;
+	int z_step_;
 	double fix_kx_; /* Координаты точки экрана (от 0.0 до 1.0), */
 	double fix_ky_; /* остающейся фиксированной при изменении масштаба */
 	double fix_lat_; /* Географические координаты этой точки */
@@ -451,7 +453,7 @@ public:
 		std::wstring cachePath, bool onlyCache,
 		const std::wstring &initMap, int initZ, double initLat, double initLon,
 		OnPaintProc_t onPaintProc,
-		int animPeriod = 0, int defAnimSteps = 0);
+		int animPeriod = 0, int defMinAnimSteps = 1);
 	~wxCartographer();
 
 	void Stop();
