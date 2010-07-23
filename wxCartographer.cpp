@@ -218,7 +218,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	std::wstring cachePath, bool onlyCache,
 	const std::wstring &initMap, int initZ, double initLat, double initLon,
 	OnPaintProc_t onPaintProc,
-	int animPeriod, int defAnimSteps)
+	int animPeriod, int defMinAnimSteps)
 	: wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
                  wxDefaultPosition, wxDefaultSize,
                  wxFULL_REPAINT_ON_RESIZE)
@@ -233,7 +233,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, server_queue_(100)
 	, server_loader_debug_counter_(0)
 	, anim_period_( posix_time::milliseconds(animPeriod) )
-	, def_anim_steps_(defAnimSteps)
+	, def_min_anim_steps_(defMinAnimSteps)
 	, anim_speed_(0)
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
@@ -243,6 +243,8 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, draw_tile_debug_counter_(0)
 	, active_map_id_(0)
 	, z_(initZ)
+	, new_z_(z_)
+	, z_step_(0)
 	, fix_kx_(0.5)
 	, fix_ky_(0.5)
 	, fix_lat_(initLat)
@@ -964,12 +966,22 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 	{
 		++animator_debug_counter_;
 
+		{
+			my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+
+			if (z_step_)
+			{
+				z_ += (new_z_ - z_) / z_step_;
+				--z_step_;
+			}
+		}
+
 #if 0
 		/* Мигание для "мигающих" объектов */
 		flash_alpha_ += (flash_new_alpha_ - flash_alpha_) / flash_step_;
 		if (--flash_step_ == 0)
 		{
-			flash_step_ = def_anim_steps_;
+			flash_step_ = def_min_anim_steps_ ? def_min_anim_steps_ : 1;
 			/* При выходе из паузы, меняем направление мигания */
 			if ((flash_pause_ = !flash_pause_) == false)
 				flash_new_alpha_ = (flash_new_alpha_ == 0 ? 1 : 0);
@@ -1675,17 +1687,15 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 	{
 		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-		z_ += (event.GetWheelRotation() / event.GetWheelDelta()) / 3.0;
+		int z = (int)new_z_ + event.GetWheelRotation() / event.GetWheelDelta();
 
-		if (z_ < 1.0)
-			z_ = 1.0;
+		if (z < 1)
+			z = 1;
 
-		if (z_ > 30.0)
-			z_ = 30.0;
-
-		double z = std::floor(z_ + 0.5);
-		if ( std::abs(z_ - z) < 0.01)
-			z_ = z;
+		if (z > 30)
+			z = 30.0;
+		
+		SetZ(z);
 	}
 
 	Repaint();
@@ -1759,7 +1769,9 @@ void wxCartographer::SetZ(int z)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-	z_ = z;
+	new_z_ = z;
+	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
+
 	Repaint();
 }
 
