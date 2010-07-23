@@ -18,8 +18,6 @@
 
 #include <boost/bind.hpp>
 
-extern my::log main_log;
-
 MYLOCKINSPECTOR_INIT()
 
 #define EXCT 0.081819790992 /* эксцентриситет эллипса */
@@ -211,6 +209,7 @@ BEGIN_EVENT_TABLE(wxCartographer, wxGLCanvas)
     //EVT_KEY_DOWN(wxCartographer::OnKeyDown)
 	EVT_COMMAND(wxID_ANY, WXCART_LOAD_TEXTURE_EVENT, wxCartographer::on_load_texture)
 	EVT_COMMAND(wxID_ANY, WXCART_DELETE_TEXTURE_EVENT, wxCartographer::on_delete_texture)
+	EVT_IDLE(wxCartographer::on_idle)
 END_EVENT_TABLE()
 
 wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
@@ -228,10 +227,12 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, only_cache_(onlyCache)
 	, cache_(cacheSize)
 	, builder_debug_counter_(0)
-	, file_queue_(100)
-	, file_loader_debug_counter_(0)
-	, server_queue_(100)
-	, server_loader_debug_counter_(0)
+	, file_queue_(300)
+	, file_loader_dbg_loop_(0)
+	, file_loader_dbg_load_(0)
+	, server_queue_(300)
+	, server_loader_dbg_loop_(0)
+	, server_loader_dbg_load_(0)
 	, anim_period_( posix_time::milliseconds(animPeriod) )
 	, def_min_anim_steps_(defMinAnimSteps)
 	, anim_speed_(0)
@@ -254,6 +255,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, move_mode_(false)
 	, force_repaint_(false)
 	, on_paint_(onPaintProc)
+	, on_idle_debug_counter_(0)
 {
 	try
 	{
@@ -298,9 +300,9 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 
 				map.tile_type = p.first->second.get<std::wstring>(L"tile-type");
 				if (map.tile_type == L"image/jpeg")
-					map.ext = L"jpg";
+					map.ext = L".jpg";
 				else if (map.tile_type == L"image/png")
-					map.ext = L"png";
+					map.ext = L".png";
 				else
 					throw my::exception(L"Неизвестный тип тайла")
 						<< my::param(L"map", map.sid)
@@ -809,6 +811,8 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 	{
 		tile::id tile_id;
 
+		++file_loader_dbg_loop_;
+
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
@@ -828,35 +832,53 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
 
-		++file_loader_debug_counter_;
+		++file_loader_dbg_load_;
 
+		/*-
 		main_log << L"z=" << tile_id.z
 			<< L" x=" << tile_id.x
 			<< L" y=" << tile_id.y
 			<< L" cache=" << cache_.size()
 			<< main_log;
+		-*/
 
 		/* Загружаем тайл с диска */
-		std::wstringstream tile_path;
+		std::wstringstream path;
 
 		wxCartographer::map &map = maps_[tile_id.map_id];
 
-		tile_path << cache_path_
+		path << cache_path_
 			<< L"/" << map.sid
 			<< L"/z" << tile_id.z
 			<< L'/' << (tile_id.x >> 10)
 			<< L"/x" << tile_id.x
 			<< L'/' << (tile_id.y >> 10)
-			<< L"/y" << tile_id.y << L'.' << map.ext;
+			<< L"/y" << tile_id.y;
 
-		tile::ptr ptr( new tile(*this, tile_path.str()) );
+		std::wstring filename = path.str() + map.ext;
 
-		if (ptr->image())
-		    /* При успехе операции - сохраняем тайл в кэше */
-			add_to_cache(tile_id, ptr);
+		/* Если файла нет - загружаем с сервера */
+		if (!fs::exists(filename))
+		{
+			/* Но только если нет файла-метки об отсутствии тайла и там */
+			if ( fs::exists(path.str() + L".tne") )
+				add_to_cache(tile_id, tile::ptr());
+			else
+				add_to_server_queue(tile_id);
+		}
 		else
-			/* Иначе - загружаем с сервера */
-			add_to_server_queue(tile_id);
+		{
+			tile::ptr ptr( new tile(*this, filename) );
+
+			/* При успешной загрузке с диска - сохраняем тайл в кэше */
+			if (ptr->image())
+				add_to_cache(tile_id, ptr);
+			else
+			{
+				add_to_cache(tile_id, tile::ptr());
+				main_log << L"Ошибка загрузки wxImage: " << filename << main_log;
+			}
+		}
 
 		/* Удаляем тайл из очереди */
 		{
@@ -874,6 +896,8 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 	while (!finish())
 	{
 		tile::id tile_id;
+
+		++server_loader_dbg_loop_;
 
 		/* Берём идентификатор первого тайла из очереди */
 		{
@@ -894,20 +918,20 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
 
-		++server_loader_debug_counter_;
+		++server_loader_dbg_load_;
 
 		/* Загружаем тайл с сервера */
-		std::wstringstream tile_path; /* Путь к локальному файлу  */
+		std::wstringstream path; /* Путь к локальному файлу  */
 
 		wxCartographer::map &map = maps_[tile_id.map_id];
 
-		tile_path << cache_path_
+		path << cache_path_
 			<< L"/" << map.sid
 			<< L"/z" << tile_id.z
 			<< L'/' << (tile_id.x >> 10)
 			<< L"/x" << tile_id.x
 			<< L'/' << (tile_id.y >> 10)
-			<< L"/y" << tile_id.y << L'.' << map.ext;
+			<< L"/y" << tile_id.y;
 
 		std::wstringstream request;
 		request << L"/maps/gettile?map=" << map.sid
@@ -923,21 +947,30 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 
 			tile::ptr ptr;
 
-			if (reply.status_code == 200)
+			/* Тайла нет на сервере - создаём файл-метку */
+			if (reply.status_code == 404)
 			{
-				/* При успешной загрузке с сервера, создаём тайл из буфера */
+				reply.save(path.str() + L".tne");
+			}
+			
+			/* При успешной загрузке с сервера, создаём тайл из буфера */
+			else if (reply.status_code == 200)
+			{
 				ptr.reset( new tile(*this, reply.body.c_str(), reply.body.size()) );
 				
 				/* Если тайл нормальный, сохраняем на диске */
 				if (ptr->image())
-					reply.save(tile_path.str());
+					reply.save(path.str() + map.ext);
 
 				/* Если нет - очищаем. В кэш добавим "нулевой" указатель */
 				else
+				{
 					ptr.reset();
+					main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
+				}
 	
 			}
-
+			
 			/* Добавляем в кэш в любом случае, чтобы не загружать повторно */
 			add_to_cache(tile_id, ptr);
 
@@ -1220,9 +1253,9 @@ void wxCartographer::paint_debug_info(wxDC &gc,
 	wxCoord width, wxCoord height)
 {
 	/* Отладочная информация */
-	gc.SetPen(*wxWHITE_PEN);
-	gc.DrawLine(0, height/2, width, height/2);
-	gc.DrawLine(width/2, 0, width/2, height);
+	//gc.SetPen(*wxWHITE_PEN);
+	//gc.DrawLine(0, height/2, width, height/2);
+	//gc.DrawLine(width/2, 0, width/2, height);
 
 	gc.SetTextForeground(*wxWHITE);
 	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
@@ -1277,10 +1310,13 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: %d", file_loader_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: loop=%d load=%d queue=%d", file_loader_dbg_loop_, file_loader_dbg_load_, file_queue_.size());
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: %d", server_loader_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d queue=%d", server_loader_dbg_loop_, server_loader_dbg_load_, server_queue_.size());
+	gc.DrawText(buf, x, y), y += 12;
+
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"on_idle: %d", on_idle_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
@@ -1797,4 +1833,9 @@ void wxCartographer::MoveTo(int z, double lat, double lon)
 	fix_lat_ = lat;
 	fix_lon_ = lon;
 	Repaint();
+}
+
+void wxCartographer::on_idle(wxIdleEvent& event)
+{
+	++on_idle_debug_counter_;
 }
