@@ -35,6 +35,8 @@
 wxDECLARE_EVENT(WXCART_LOAD_TEXTURE_EVENT, wxCommandEvent);
 wxDECLARE_EVENT(WXCART_DELETE_TEXTURE_EVENT, wxCommandEvent);
 
+extern my::log main_log;
+
 class wxCartographer : public wxGLCanvas, my::employer
 {
 public:
@@ -158,12 +160,9 @@ public:
 			, image_(0)
 			, texture_id_(0)
 		{
-			if (fs::exists(filename))
-			{
-				wxImage wx_image(filename);
-				if (wx_image.IsOk())
-					image_ = wxCartographer::convert_to_raw(wx_image);
-			}
+			wxImage wx_image(filename);
+			if (wx_image.IsOk())
+				image_ = wxCartographer::convert_to_raw(wx_image);
 		}
 
 		/* Загрузка из памяти */
@@ -270,11 +269,13 @@ private:
 
 	tiles_queue file_queue_; /* Очередь загрузки с дискового кэша (файловая очередь) */
 	my::worker::ptr file_loader_; /* "Работник" файловой очереди (синхронизация) */
-	int file_loader_debug_counter_;
+	int file_loader_dbg_loop_;
+	int file_loader_dbg_load_;
 
 	tiles_queue server_queue_; /* Очередь загрузки с сервера (серверная очередь) */
 	my::worker::ptr server_loader_; /* "Работник" серверной очереди (синхронизация) */
-	int server_loader_debug_counter_;
+	int server_loader_dbg_loop_;
+	int server_loader_dbg_load_;
 
 	/* Добавление тайла в очередь */
 	void add_to_file_queue(const tile::id &tile_id);
@@ -446,6 +447,8 @@ private:
 	void on_capture_lost(wxMouseCaptureLostEvent& event);
 	void on_mouse_move(wxMouseEvent& event);
 	void on_mouse_wheel(wxMouseEvent& event);
+	void on_idle(wxIdleEvent& event);
+	int on_idle_debug_counter_;
 
 public:
 	wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
