@@ -18,6 +18,8 @@
 
 #include <boost/bind.hpp>
 
+extern my::log main_log;
+
 MYLOCKINSPECTOR_INIT()
 
 #define EXCT 0.081819790992 /* эксцентриситет эллипса */
@@ -61,43 +63,34 @@ raw_image* wxCartographer::convert_to_raw(const wxImage &src)
 	return dest;
 }
 
-void wxCartographer::post_load_texture(const tile::id &tile_id)
+void wxCartographer::post_load_texture(tile::ptr tile_ptr)
 {
     /* Сообщение основному потоку о загрузке текстуры */
 	wxCommandEvent *event = new wxCommandEvent(WXCART_LOAD_TEXTURE_EVENT);
-	tile::id *p_clone_id = new tile::id(tile_id);
-	event->SetClientData( (void*)p_clone_id );
+	tile::ptr *tile_ptr_ptr = new tile::ptr(tile_ptr);
+	event->SetClientData( (void*)tile_ptr_ptr );
 	QueueEvent(event);
 }
 
 void wxCartographer::on_load_texture(wxCommandEvent& event)
 {
 	/* Обработка сообщения о загрузке текстуры */
-	tile::id *p_tile_id = (tile::id*)event.GetClientData();
+	tile::ptr *tile_ptr_ptr = (tile::ptr*)event.GetClientData();
 
-	/* Ищем в кэше */
-	{
-		my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
-		tiles_cache::iterator iter = cache_.find(*p_tile_id);
+	++texturer_debug_counter_;
 
-		/* Пока прийдёт сообщение, тайл уже может исчезнуть из кэша */
-		if (iter != cache_.end())
-		{
-			tile::ptr tile_ptr = iter->value();
+	tile::ptr tile_ptr = *tile_ptr_ptr;
+	delete tile_ptr_ptr;
 	
-			if (tile_ptr && tile_ptr->texture_id() == 0)
-			{
-				raw_image *image = tile_ptr->image();
-				GLuint texture_id = load_texture(image);
-				tile_ptr->set_texture_id(texture_id);
+	if (tile_ptr && tile_ptr->texture_id() == 0)
+	{
+		raw_image *image = tile_ptr->image();
+		GLuint texture_id = load_texture(image);
+		tile_ptr->set_texture_id(texture_id);
 				
-				/* Если текстура загружена, то картинка нам больше не нужна */
-				tile_ptr->reset_image();
-			}
-		}
+		/* Если текстура загружена, то картинка нам больше не нужна */
+		tile_ptr->reset_image();
 	}
-
-	delete p_tile_id;
 }
 
 GLuint wxCartographer::load_texture(raw_image *image)
@@ -230,6 +223,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
                  wxDefaultPosition, wxDefaultSize,
                  wxFULL_REPAINT_ON_RESIZE)
 	, gl_context_(this)
+	, texturer_debug_counter_(0)
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
 	, cache_(cacheSize)
@@ -640,11 +634,14 @@ void wxCartographer::Stop()
 
 void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
+	/* Загружать текстуру можно только в основном потоке */
+	post_load_texture(ptr);
+
 	{
 		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 		cache_[tile_id] = ptr;
 	}
-
+	
 	{
 		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 		force_repaint_ = true;
@@ -746,7 +743,7 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	tile::ptr tile_ptr;
 
 	/* Ищем в кэше */
-	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+	my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 	tiles_cache::iterator iter = cache_.find(tile_id);
 
 	/* Если не находим, добавляем в очередь на загрузку */
@@ -755,6 +752,8 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	else
 	{
 		tile_ptr = iter->value();
+
+		cache_.up(tile_id); /* Если уже был такой - переносим его наверх списка */
 
 		/* Если текстура ещё на загружена, делаем вид, что тайла нет в кэше,
 			чтобы нарисовался предок */
@@ -808,8 +807,6 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 	{
 		tile::id tile_id;
 
-		++file_loader_debug_counter_;
-
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
@@ -829,6 +826,14 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
 
+		++file_loader_debug_counter_;
+
+		main_log << L"z=" << tile_id.z
+			<< L" x=" << tile_id.x
+			<< L" y=" << tile_id.y
+			<< L" cache=" << cache_.size()
+			<< main_log;
+
 		/* Загружаем тайл с диска */
 		std::wstringstream tile_path;
 
@@ -842,7 +847,7 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 			<< L'/' << (tile_id.y >> 10)
 			<< L"/y" << tile_id.y << L'.' << map.ext;
 
-		tile::ptr ptr( new tile(*this, tile_id, tile_path.str()) );
+		tile::ptr ptr( new tile(*this, tile_path.str()) );
 
 		if (ptr->image())
 		    /* При успехе операции - сохраняем тайл в кэше */
@@ -868,8 +873,6 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 	{
 		tile::id tile_id;
 
-		++server_loader_debug_counter_;
-
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
@@ -888,6 +891,8 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 
 			/* Для дальнейших действий блокировка нам не нужна */
 		}
+
+		++server_loader_debug_counter_;
 
 		/* Загружаем тайл с сервера */
 		std::wstringstream tile_path; /* Путь к локальному файлу  */
@@ -919,8 +924,7 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 			if (reply.status_code == 200)
 			{
 				/* При успешной загрузке с сервера, создаём тайл из буфера */
-				ptr.reset( new tile(*this, tile_id,
-					reply.body.c_str(), reply.body.size()) );
+				ptr.reset( new tile(*this, reply.body.c_str(), reply.body.size()) );
 				
 				/* Если тайл нормальный, сохраняем на диске */
 				if (ptr->image())
@@ -1247,6 +1251,9 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"background rebuild: %d", backgrounder_debug_counter_);
+	gc.DrawText(buf, x, y), y += 12;
+
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"load textures: %d", texturer_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);

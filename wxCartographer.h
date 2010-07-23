@@ -153,8 +153,7 @@ public:
 		}
 
 		/* Загрузка из файла */
-		tile(wxCartographer &cartographer, const tile::id &tile_id,
-			const std::wstring &filename)
+		tile(wxCartographer &cartographer, const std::wstring &filename)
 			: cartographer_(cartographer)
 			, image_(0)
 			, texture_id_(0)
@@ -163,28 +162,20 @@ public:
 			{
 				wxImage wx_image(filename);
 				if (wx_image.IsOk())
-				{
 					image_ = wxCartographer::convert_to_raw(wx_image);
-					cartographer_.post_load_texture(tile_id);
-				}
 			}
 		}
 
 		/* Загрузка из памяти */
-		tile(wxCartographer &cartographer, const tile::id &tile_id,
-			const void *data, std::size_t size)
+		tile(wxCartographer &cartographer, const void *data, std::size_t size)
 			: cartographer_(cartographer)
 			, image_(0)
 			, texture_id_(0)
 		{
 			wxImage wx_image;
 			wxMemoryInputStream stream(data, size);
-
 			if (wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
-			{
 				image_ = wxCartographer::convert_to_raw(wx_image);
-				cartographer_.post_load_texture(tile_id);
-			}
 		}
 
 		inline raw_image* image()
@@ -224,8 +215,9 @@ private:
 	void paint_tile(const tile::id &tile_id, int level = 0);
 
 	void on_load_texture(wxCommandEvent& event);
-	void post_load_texture(const tile::id &tile_id);
+	void post_load_texture(tile::ptr tile_ptr);
 	static GLuint load_texture(raw_image *image);
+	int texturer_debug_counter_;
 
 	void post_delete_texture(GLuint texture_id);
 	void on_delete_texture(wxCommandEvent& event);
