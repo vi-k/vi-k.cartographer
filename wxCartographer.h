@@ -23,6 +23,7 @@
 #include <cstddef> /* std::size_t */
 #include <string>
 #include <map>
+#include <list>
 #include <vector>
 
 #include <boost/unordered_map.hpp>
@@ -213,14 +214,18 @@ private:
 	static raw_image* convert_to_raw(const wxImage &src);
 	void paint_tile(const tile::id &tile_id, int level = 0);
 
-	void on_load_texture(wxCommandEvent& event);
-	void post_load_texture(tile::ptr tile_ptr);
+	typedef std::list<tile::id> tile_id_list;
+	tile_id_list load_texture_queue_;
+	void post_load_texture(const tile::id &tile_id);
 	static GLuint load_texture(raw_image *image);
+	mutex load_texture_mutex_;
 	int texturer_debug_counter_;
 
+	typedef std::list<GLuint> texture_id_list;
+	texture_id_list delete_texture_queue_;
 	void post_delete_texture(GLuint texture_id);
-	void on_delete_texture(wxCommandEvent& event);
 	static void delete_texture(GLuint id);
+	mutex delete_texture_mutex_;
 
 	/*
 		Работа с сервером
