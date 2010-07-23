@@ -9,3 +9,6 @@ cache
 *.layout
 *.ncb
 *.suo
+*.ilk
+*.idb
+main.log

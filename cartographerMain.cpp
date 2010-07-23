@@ -102,6 +102,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, L"cache" /* CachePath - путь к кэшу на диске */
 		, false /* OnlyCache - работать только с кэшем */
 		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		//, L"Яндекс.Карта" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
 		, 2 /* InitZ - исходный масштаб (>1) */
 		, 48.48021475 /* InitLat - широта исходной точки */
 		, 135.0719556 /* InitLon - долгота исходной точки */
