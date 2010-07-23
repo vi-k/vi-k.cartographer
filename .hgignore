@@ -1,0 +1,11 @@
+syntax: glob
+Debug
+Release
+bin
+obj
+cache
+*.pdb
+*.depend
+*.layout
+*.ncb
+*.suo
