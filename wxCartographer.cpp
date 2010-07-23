@@ -61,34 +61,10 @@ raw_image* wxCartographer::convert_to_raw(const wxImage &src)
 	return dest;
 }
 
-void wxCartographer::post_load_texture(tile::ptr tile_ptr)
+void wxCartographer::post_load_texture(const tile::id &tile_id)
 {
-    /* Сообщение основному потоку о загрузке текстуры */
-	wxCommandEvent *event = new wxCommandEvent(WXCART_LOAD_TEXTURE_EVENT);
-	tile::ptr *tile_ptr_ptr = new tile::ptr(tile_ptr);
-	event->SetClientData( (void*)tile_ptr_ptr );
-	QueueEvent(event);
-}
-
-void wxCartographer::on_load_texture(wxCommandEvent& event)
-{
-	/* Обработка сообщения о загрузке текстуры */
-	tile::ptr *tile_ptr_ptr = (tile::ptr*)event.GetClientData();
-
-	++texturer_debug_counter_;
-
-	tile::ptr tile_ptr = *tile_ptr_ptr;
-	delete tile_ptr_ptr;
-	
-	if (tile_ptr && tile_ptr->texture_id() == 0)
-	{
-		raw_image *image = tile_ptr->image();
-		GLuint texture_id = load_texture(image);
-		tile_ptr->set_texture_id(texture_id);
-				
-		/* Если текстура загружена, то картинка нам больше не нужна */
-		tile_ptr->reset_image();
-	}
+    my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) );
+	load_texture_queue_.push_back(tile_id);
 }
 
 GLuint wxCartographer::load_texture(raw_image *image)
@@ -115,14 +91,8 @@ GLuint wxCartographer::load_texture(raw_image *image)
 
 void wxCartographer::post_delete_texture(GLuint texture_id)
 {
-	wxCommandEvent *event = new wxCommandEvent(WXCART_DELETE_TEXTURE_EVENT);
-    event->SetInt(texture_id);
-	QueueEvent(event);
-}
-
-void wxCartographer::on_delete_texture(wxCommandEvent& event)
-{
-	delete_texture( (GLuint)event.GetInt() );
+    my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
+	delete_texture_queue_.push_back(texture_id);
 }
 
 void wxCartographer::delete_texture(GLuint texture_id)
@@ -194,9 +164,6 @@ static void CheckGLError()
     }
 }
 
-wxDEFINE_EVENT(WXCART_LOAD_TEXTURE_EVENT, wxCommandEvent);
-wxDEFINE_EVENT(WXCART_DELETE_TEXTURE_EVENT, wxCommandEvent);
-
 BEGIN_EVENT_TABLE(wxCartographer, wxGLCanvas)
     EVT_PAINT(wxCartographer::on_paint)
     EVT_ERASE_BACKGROUND(wxCartographer::on_erase_background)
@@ -207,8 +174,6 @@ BEGIN_EVENT_TABLE(wxCartographer, wxGLCanvas)
     EVT_MOTION(wxCartographer::on_mouse_move)
     EVT_MOUSEWHEEL(wxCartographer::on_mouse_wheel)
     //EVT_KEY_DOWN(wxCartographer::OnKeyDown)
-	EVT_COMMAND(wxID_ANY, WXCART_LOAD_TEXTURE_EVENT, wxCartographer::on_load_texture)
-	EVT_COMMAND(wxID_ANY, WXCART_DELETE_TEXTURE_EVENT, wxCartographer::on_delete_texture)
 	EVT_IDLE(wxCartographer::on_idle)
 END_EVENT_TABLE()
 
@@ -469,7 +434,7 @@ void wxCartographer::draw_gl(int widthi, int heighti)
 
 	/* И сразу его в очередь на загрузку - глядишь,
 		к моменту отрисовки он уже и загрузится */
-	get_tile(fix_tile);
+	//get_tile(fix_tile);
 
 
 	/* Экранные координаты fix-точки */
@@ -505,43 +470,40 @@ void wxCartographer::draw_gl(int widthi, int heighti)
 
 		/* С вертикалью работаем по старинке
 			- сверху вниз, а не снизу вверх */
-		glScaled(1.0, -1.0, 1.0);
-		glScaled(1.0 + dz, 1.0 + dz, 1.0);
-		glScaled(0.5, 0.5, 1.0);
-		glTranslated(0.0, 0.0, -1.0);
+		glScaled(1.0 + dz, -1.0 - dz, 1.0);
+	}
 
-		/* Уровень GL_MODELVIEW */
+	/* Рисуем задний фон */
+	if (dz > 0.01)
+	{
+		/* Тайлы заднего фона меньше в два раза */
+		glScaled(0.5, 0.5, 1.0);
+
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
 		glTranslated(-2.0 * fix_tile_x, -2.0 * fix_tile_y, 0.0);
-	}
 
-	int x2 = 2 * fix_tile.x;
-	int y2 = 2 * fix_tile.y;
+		int x2 = 2 * fix_tile.x;
+		int y2 = 2 * fix_tile.y;
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
-	for (int i = -3; i <= 3; ++i)
-	{
-		for (int j = -2; j <= 2; ++j)
+		for (int i = -3; i <= 3; ++i)
 		{
-			paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2,     2*j + y2    ) );
-			paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2,     2*j + y2 + 1) );
-			paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2 + 1, 2*j + y2    ) );
-			paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2 + 1, 2*j + y2 + 1) );
-			/*-
-			draw_tile(2*i + x2,     2*j + y2,     1.0, -0.1, m_textures[2]);
-			draw_tile(2*i + x2,     2*j + y2 + 1, 1.0, -0.1, m_textures[3]);
-			draw_tile(2*i + x2 + 1, 2*j + y2,     1.0, -0.1, m_textures[4]);
-			draw_tile(2*i + x2 + 1, 2*j + y2 + 1, 1.0, -0.1, m_textures[5]);
-			-*/
+			for (int j = -2; j <= 2; ++j)
+			{
+				paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2,     2*j + y2    ) );
+				paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2,     2*j + y2 + 1) );
+				paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2 + 1, 2*j + y2    ) );
+				paint_tile( tile::id(fix_tile.map_id, fix_tile.z + 1, 2*i + x2 + 1, 2*j + y2 + 1) );
+			}
 		}
-	}
 
-	/* * * * * * */
-	glMatrixMode(GL_PROJECTION);
-	glScaled(2.0, 2.0, 1.0);
+		/* Восстанавливаем масштаб */
+		glMatrixMode(GL_PROJECTION);
+		glScaled(2.0, 2.0, 1.0);
+	}
 
 	glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -550,13 +512,9 @@ void wxCartographer::draw_gl(int widthi, int heighti)
 	glColor4f(1.0f, 1.0f, 1.0f, alpha);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
-	//glColor4f(1.0f, 1.0f, 1.0f, alpha);
-	//glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-
 	for (int i = -3; i <= 3; ++i)
 		for (int j = -2; j <= 2; ++j)
 			paint_tile( tile::id(fix_tile.map_id, fix_tile.z, fix_tile.x + i, fix_tile.y + j) );
-			//draw_tile(fix_tile.x + i, fix_tile.y + j, alpha, 0.0, m_textures[6]);
 
 	glFlush();
 
@@ -566,10 +524,10 @@ void wxCartographer::draw_gl(int widthi, int heighti)
 		К этому моменту все необходимые тайлы уже в файловой очереди
 		благодаря get_tile(). Но если её так и оставить, то файлы будут
 		загружаться с правого нижнего угла, а нам хотелось бы, чтоб с центра */
-	sort_queue(file_queue_, fix_tile, file_loader_);
+	//sort_queue(file_queue_, fix_tile, file_loader_);
 
 	/* Серверную очередь тоже корректируем */
-	sort_queue(server_queue_, fix_tile, server_loader_);
+	//sort_queue(server_queue_, fix_tile, server_loader_);
 }
 
 void wxCartographer::draw_tile(int tile_x, int tile_y, double alpha,
@@ -639,7 +597,7 @@ void wxCartographer::Stop()
 void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
 	/* Загружать текстуру можно только в основном потоке */
-	post_load_texture(ptr);
+	post_load_texture(tile_id);
 
 	{
 		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
@@ -721,10 +679,10 @@ void wxCartographer::paint_tile(const tile::id &tile_id, int level)
 		glBindTexture(GL_TEXTURE_2D, id);
 	    glBegin(GL_QUADS);
 			glNormal3f(0.0f, 0.0f, 1.0f);
-			glTexCoord2d(x,     y    ); glVertex3i(tile_id.x,     tile_id.y,     0);
-			glTexCoord2d(x + w, y    ); glVertex3i(tile_id.x + 1, tile_id.y,     0);
-			glTexCoord2d(x + w, y + w); glVertex3i(tile_id.x + 1, tile_id.y + 1, 0);
-			glTexCoord2d(x,     y + w); glVertex3i(tile_id.x,     tile_id.y + 1, 0);
+			glTexCoord2d(x,     y    ); glVertex3i(tile_id.x,     tile_id.y,     -1);
+			glTexCoord2d(x + w, y    ); glVertex3i(tile_id.x + 1, tile_id.y,     -1);
+			glTexCoord2d(x + w, y + w); glVertex3i(tile_id.x + 1, tile_id.y + 1, -1);
+			glTexCoord2d(x,     y + w); glVertex3i(tile_id.x,     tile_id.y + 1, -1);
 		glEnd();
 
 		CheckGLError();
@@ -813,6 +771,11 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 
 		++file_loader_dbg_loop_;
 
+		/* Останавливаем загрузку во время отрисовки */
+		{
+			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+		} /* Но и не мешаем рисовать, если уже начали загружать */
+
 		/* Берём идентификатор первого тайла из очереди */
 		{
 			/* Блокировкой гарантируем, что очередь не изменится */
@@ -898,6 +861,11 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 		tile::id tile_id;
 
 		++server_loader_dbg_loop_;
+
+		/* Останавливаем загрузку во время отрисовки */
+		{
+			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+		} /* Но и не мешаем рисовать, если уже начали загружать */
 
 		/* Берём идентификатор первого тайла из очереди */
 		{
@@ -1021,7 +989,13 @@ void wxCartographer::anim_thread_proc(my::worker::ptr this_worker)
 		}
 #endif
 
-		Repaint();
+		/* Ждём, пока отрисует прошлое состояние */
+		{
+			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+		}
+
+		//Repaint();
+		Refresh(false);
 
 		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
 		boost::posix_time::ptime now = my::time::utc_now();
@@ -1551,6 +1525,7 @@ void wxCartographer::repaint(wxDC &dc)
 		и прорисовки объектов на карте пользователем (on_paint_),
 		перенести всё это на экран */
 
+	/* Блокируем операции загрузки на время отрисовки */
 	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 
 	/* Измеряем скорость отрисовки */
@@ -1685,7 +1660,7 @@ void wxCartographer::on_left_down(wxMouseEvent& event)
 	CaptureMouse();
 	#endif
 
-	Refresh(false);
+	Repaint();
 }
 
 void wxCartographer::on_left_up(wxMouseEvent& event)
@@ -1699,7 +1674,7 @@ void wxCartographer::on_left_up(wxMouseEvent& event)
 		ReleaseMouse();
 		#endif
 
-		Refresh(false);
+		Repaint();
 	}
 }
 
@@ -1714,7 +1689,6 @@ void wxCartographer::on_mouse_move(wxMouseEvent& event)
 	{
 		move_fix_to_scr_xy( (double)event.GetX(), (double)event.GetY() );
 		Repaint();
-		Refresh(false);
 	}
 }
 
@@ -1739,7 +1713,7 @@ void wxCartographer::on_mouse_wheel(wxMouseEvent& event)
 
 void wxCartographer::Repaint()
 {
-	Refresh(false);
+	//Refresh(false);
 }
 
 void wxCartographer::GetMaps(std::vector<wxCartographer::map> &Maps)
@@ -1838,4 +1812,41 @@ void wxCartographer::MoveTo(int z, double lat, double lon)
 void wxCartographer::on_idle(wxIdleEvent& event)
 {
 	++on_idle_debug_counter_;
+
+	/* Загрузка текстур, накопленных в очереди */
+	{
+		{
+			my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) );
+
+			if (load_texture_queue_.size())
+			{
+				tile::id tile_id = load_texture_queue_.front();
+				load_texture_queue_.pop_front();
+
+				tile::ptr tile_ptr = find_tile(tile_id);
+			
+				if (tile_ptr && tile_ptr->texture_id() == 0)
+				{
+					++texturer_debug_counter_;
+
+					raw_image *image = tile_ptr->image();
+					GLuint texture_id = load_texture(image);
+					tile_ptr->set_texture_id(texture_id);
+				
+					/* Если текстура загружена, то картинка нам больше не нужна */
+					tile_ptr->reset_image();
+				}
+			} /* if (load_texture_queue_.size()) */
+		} /* my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) ) */
+
+		{
+			my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
+		
+			if (delete_texture_queue_.size())
+			{
+				GLuint texture_id = delete_texture_queue_.front();
+				delete_texture_queue_.pop_front();
+			}
+		} /* my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) ) */
+	}
 }
