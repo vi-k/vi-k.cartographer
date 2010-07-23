@@ -7,13 +7,7 @@
  * License:
  **************************************************************/
 
-#include "stdafx.h"
-
-#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
-
-#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
 #include "cartographerMain.h"
-#include <wx/msgdlg.h>
 
 #include <string>
 
@@ -27,7 +21,7 @@
 #include <wx/string.h>
 //*)
 
-#include <wx/filename.h>
+//#include <wx/filename.h>
 
 //(*IdInit(cartographerFrame)
 const long cartographerFrame::ID_COMBOBOX1 = wxNewId();
@@ -112,7 +106,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, 48.48021475 /* InitLat - широта исходной точки */
 		, 135.0719556 /* InitLon - долгота исходной точки */
 		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
-		, 0 /* 0 - нет анимации */
+		, 60 /* 0 - нет анимации */
   	);
 	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	#endif

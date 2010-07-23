@@ -9,21 +9,12 @@
 #define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN /* Необходимо для Asio */
 #endif
 
-#include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
-                             Обязательно до включения windows.h! */
-
-#if defined(BOOST_WINDOWS)
-#include <wx/msw/winundef.h>
-#endif
-
-#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
-#include <wx/msgdlg.h>    /* А это вторым! */
+#include <boost/asio.hpp> /* Обязательно до включения windows.h */
+#include <wx/wxprec.h> /* Обязательно самым первым среди wxWidgets! */
 
 
 /* Начиная отсюда - все редко изменяемые инклуды */
 #include <mylib.h>
-
-#include <wx/wx.h>
 
 /* std */
 #include <cmath>
@@ -63,7 +54,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
-#include <boost/format/format_fwd.hpp>
 #include <boost/function.hpp>
 #include <boost/functional/hash.hpp>
 #include <boost/fusion/include/std_pair.hpp>
@@ -81,3 +71,8 @@
 #include <boost/thread.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/utility.hpp>
+
+/* wx */
+#include <wx/dcgraph.h> /* wxGCDC и wxGraphicsContext */
+#include <wx/mstream.h>  /* wxMemoryInputStream */
+#include <wx/glcanvas.h> /* OpenGL */

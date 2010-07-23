@@ -1,7 +1,6 @@
 ﻿#include "handle_exception.h"
 
-#include <my_exception.h>
-#include <my_log.h>
+#include <mylib.h>
 
 #include <string>
 #include <sstream>

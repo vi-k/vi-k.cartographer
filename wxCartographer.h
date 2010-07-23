@@ -1,26 +1,23 @@
 ﻿#ifndef WX_CARTOGRAPHER_H
 #define WX_CARTOGRAPHER_H
 
-/* Эта часть не должна изменяться! */
-#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
-#include <boost/config.hpp>
+/***** Эта часть не должна изменяться! *****/
+	#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
+	#include <boost/config.hpp>
 
-#ifdef BOOST_WINDOWS
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501
-#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN /* Необходимо для Asio */
-#endif
+	#ifdef BOOST_WINDOWS
+		#undef _WIN32_WINNT
+		#define _WIN32_WINNT 0x0501
+		#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN /* Необходимо для Asio */
+	#endif
 
-#include <boost/asio.hpp> /* Сокеты, таймеры, асинхронные операции.
-                             Обязательно до включения windows.h! */
-#ifdef BOOST_WINDOWS
-#include <wx/msw/winundef.h>
-#endif
+	#include <boost/asio.hpp> /* Обязательно до включения windows.h */
+	#include <wx/wxprec.h>
+/*******************************************/
 
-#include <wx/setup.h> /* Обязательно самым первым среди wxWidgets! */
-#include <wx/msgdlg.h>    /* А это вторым! */
 
-/* Начиная отсюда - все редко изменяемые инклуды */
+#include "raw_image.h"
+
 #include <mylib.h>
 
 #include <cstddef> /* std::size_t */
@@ -31,29 +28,22 @@
 #include <boost/unordered_map.hpp>
 #include <boost/function.hpp>
 
-#include <wx/window.h>
-#include <wx/bitmap.h>
-#include <wx/dcgraph.h> /* wxGCDC */
-#include <wx/graphics.h> /* wxGraphicsContext */
+#include <wx/dcgraph.h> /* wxGCDC и wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 #include <wx/glcanvas.h> /* OpenGL */
 
-
-#ifndef WXCART_PAINT_IN_THREAD
-	#ifdef BOOST_WINDOWS
-		#define WXCART_PAINT_IN_THREAD 1
-	#else
-		#define WXCART_PAINT_IN_THREAD 0
-	#endif
-#endif
-
+wxDECLARE_EVENT(WXCART_LOAD_TEXTURE_EVENT, wxCommandEvent);
+wxDECLARE_EVENT(WXCART_DELETE_TEXTURE_EVENT, wxCommandEvent);
 
 class wxCartographer : public wxGLCanvas, my::employer
 {
 public:
 	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
 
-	/* Буфер для отрисовки карты */
+	
+	/*
+		Буфер для отрисовки карты
+	*/
 	struct wxCartographerBuffer
 	{
 		wxBitmap bitmap;
@@ -75,7 +65,10 @@ public:
 		}
 	};
 
-	/* Карта */
+	
+	/*
+		Описание карты
+	*/
 	struct map
 	{
 		enum projection_t {spheroid /*Google*/, ellipsoid /*Yandex*/};
@@ -87,7 +80,10 @@ public:
 		projection_t projection;
 	};
 
-	/* Тайл */
+	
+	/*
+		Тайл
+	*/
 	class tile
 	{
 	public:
@@ -139,141 +135,74 @@ public:
 
 				return seed;
 			}
-		};
+		}; /* struct tile::id */
 
 	private:
-		bool need_for_load_; /* Тайл нуждается в загрузке */
-		bool need_for_build_; /* Тайл нуждается в построении */
-		int level_; /* Расстояние до предка, отображённого на тайле
-			(при ручном построении тайла), при 0 - на тайле отображён сам тайл
-			(т.е. тайл был успешно загружен) */
-		wxBitmap bitmap_;
+		friend class wxCartographer;
+		wxCartographer &cartographer_;
+		raw_image *image_;
 		GLuint texture_id_;
 
-		/*
-			Возможные состояния тайла:
-			1. !need_for_load, !need_for_build, level == 0
-				- нормально загруженный тайл (ready() == true).
-			2. !need_for_load, need_for_build, level == 999
-				- тайл отсутствует на сервере, больше нет необходимости
-				пытаться его загружать, но требуется построение от "предков".
-				На экране рисуется чёрным квадратом.
-			3. !need_for_load, need_for_build, level >= 2 - тайл отсутствует
-				на сервере, в загрузке не нуждается, уже построен от "предков"
-				(level - уровень "испорченности" тайла). Если предки будут
-				подгружены, можно перестроить тайл заново.
-			4. !need_for_load, !need_for_build, level >= 1 - тайл отсутствует
-				на сервере, в загрузке не нуждается, уже построен от "предков"
-				(level - уровень "испорченности"). Но предки уже не будут
-				перестраиваться (все тайлы загружены или тайлов на сервере
-				нет), поэтому и этот тайл больше перестраивать не надо
-				(ready() == true).
-			5. need_for_load, need_for_build, level >= 2 - тайл нуждается
-				и в загрузке и в дополнительном построении.
-			6. need_for_load, !need_for_build, level >= 1 - тайл нуждается
-				в загрузке, но в построении уже не нуждается.
-		*/
-
 	public:
-		/* Создание "пустого" тайла (№2) - чтобы не загружать повторно */
-		tile()
-			: need_for_load_(false)
-			, need_for_build_(true)
-			, level_(999)
-		{
-		}
-
 		~tile()
 		{
+			delete image_;
+
 			if (texture_id_)
-				wxCartographer::gl_delete_texture(texture_id_);
+				cartographer_.post_delete_texture(texture_id_);
 		}
 
-		/* Создание "чистого" тайла (№5 или №6) для построения */
-		tile(int level)
-			: need_for_load_(true)
-			, need_for_build_(level >= 2)
-			, level_(level)
-			, bitmap_(256, 256)
-			, texture_id_(0) {}
-
-		/* Загрузка из файла (№1 или, при ошибке, №2 ) */
-		tile(const std::wstring &filename)
-			: need_for_load_(false)
-			, need_for_build_(true)
-			, level_(999)
+		/* Загрузка из файла */
+		tile(wxCartographer &cartographer, const tile::id &tile_id,
+			const std::wstring &filename)
+			: cartographer_(cartographer)
+			, image_(0)
 			, texture_id_(0)
 		{
 			if (fs::exists(filename))
 			{
-				wxImage image(filename);
-				texture_id_ = wxCartographer::gl_create_texture(image);
-
-				bitmap_ = wxBitmap(image);
-				if (ok())
+				wxImage wx_image(filename);
+				if (wx_image.IsOk())
 				{
-					level_ = 0;
-					need_for_build_ = false;
+					image_ = wxCartographer::convert_to_raw(wx_image);
+					cartographer_.post_load_texture(tile_id);
 				}
 			}
-
 		}
 
-		/* Загрузка из памяти (№1 или, при ошибке, №2) */
-		tile(const void *data, std::size_t size)
-			: need_for_load_(false)
-			, need_for_build_(true)
-			, level_(999)
+		/* Загрузка из памяти */
+		tile(wxCartographer &cartographer, const tile::id &tile_id,
+			const void *data, std::size_t size)
+			: cartographer_(cartographer)
+			, image_(0)
 			, texture_id_(0)
 		{
-			wxImage image;
+			wxImage wx_image;
 			wxMemoryInputStream stream(data, size);
 
-			if (image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
+			if (wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
 			{
-				texture_id_ = wxCartographer::gl_create_texture(image);
-				bitmap_ = wxBitmap(image);
-				if (ok())
-				{
-					level_ = 0;
-					need_for_build_ = false;
-				}
+				image_ = wxCartographer::convert_to_raw(wx_image);
+				cartographer_.post_load_texture(tile_id);
 			}
 		}
 
-		inline wxBitmap& bitmap()
-			{ return bitmap_; }
-
-		inline bool ok()
-			{ return bitmap_.IsOk(); }
-
-		inline bool need_for_load()
-			{ return need_for_load_; }
-
-		inline void reset_need_for_load()
-			{ need_for_load_ = false; }
-
-		inline bool need_for_build()
-			{ return need_for_build_; }
-
-		inline void reset_need_for_build()
-			{ need_for_build_ = false; }
-
-		inline int level()
-			{ return level_; }
-
-		inline void set_level(int level)
-			{ level_ = level; }
-
-		inline bool loaded()
-			{ return level_ == 0; }
-
-		inline bool ready()
-			{ return !need_for_load_ && !need_for_build_; }
-
-		inline GLint texture_id()
+		inline raw_image* image()
+			{ return image_; }
+	
+		inline GLuint texture_id()
 			{ return texture_id_; }
-	};
+
+		inline void set_texture_id(GLuint texture_id)
+			{ texture_id_ = texture_id; }
+
+		inline void reset_image()
+		{
+			delete image_;
+			image_ = 0;
+		}
+
+	}; /* class tile */
 
 private:
 	typedef std::map<int, map> maps_list;
@@ -291,9 +220,16 @@ private:
 	void init_gl();
 	void draw_gl(int widthi, int heighti);
 	void draw_tile(int tile_x, int tile_y, double alpha, double z, GLuint texture);
-	static GLuint gl_create_texture(wxImage &wx_image);
-	static void gl_delete_texture(GLuint id);
+	static raw_image* convert_to_raw(const wxImage &src);
+	void paint_tile(const tile::id &tile_id, int level = 0);
 
+	void on_load_texture(wxCommandEvent& event);
+	void post_load_texture(const tile::id &tile_id);
+	static GLuint load_texture(raw_image *image);
+
+	void post_delete_texture(GLuint texture_id);
+	void on_delete_texture(wxCommandEvent& event);
+	static void delete_texture(GLuint id);
 
 	/*
 		Работа с сервером
@@ -324,12 +260,6 @@ private:
 
 	/* Добавление загруженного тайла в кэш */
 	void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
-
-	/* Проверка - нуждается ли тайл в загрузке */
-	inline bool need_for_load(tile::ptr ptr);
-
-	/* Проверка - нуждается ли тайл в построении */
-	inline bool need_for_build(tile::ptr ptr);
 
 	/* Проверка корректности координат тайла */
 	inline bool check_tile_id(const tile::id &tile_id);
@@ -446,13 +376,7 @@ private:
 	template<class DC>
 	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
-	/* Под линуксом вся отрисовка должна вестись в главном потоке.
-		Для Windows таких ограничений нет */
-	#if WXCART_PAINT_IN_THREAD
-	void repaint();
-	#else
 	void repaint(wxDC &dc);
-	#endif
 
 	/* Размеры рабочей области */
 	inline wxCoord widthi()

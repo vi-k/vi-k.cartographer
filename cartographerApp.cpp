@@ -17,9 +17,7 @@
 #include <wx/image.h>
 //*)
 
-#include <my_log.h>
-#include <my_fs.h>
-#include <my_utf8.h>
+#include <mylib.h>
 
 #include <string>
 #include <fstream>

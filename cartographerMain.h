@@ -11,7 +11,6 @@
 #define CARTOGRAPHERMAIN_H
 
 #include "wxCartographer.h"
-#include <wx/dcgraph.h> /* wxGCDC */
 
 //(*Headers(cartographerFrame)
 #include <wx/sizer.h>
