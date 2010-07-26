@@ -61,11 +61,13 @@ raw_image* wxCartographer::convert_to_raw(const wxImage &src)
 	return dest;
 }
 
+#if 0
 void wxCartographer::post_load_texture(const tile::id &tile_id)
 {
     my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) );
 	load_texture_queue_.push_back(tile_id);
 }
+#endif
 
 GLuint wxCartographer::load_texture(raw_image *image)
 {
@@ -85,6 +87,8 @@ GLuint wxCartographer::load_texture(raw_image *image)
 		0, (GLint)image->type(), GL_UNSIGNED_BYTE, image->data());
 
 	CheckGLError();
+
+	++texturer_debug_counter_;
 
 	return id;
 }
@@ -191,11 +195,18 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
 	, cache_(cacheSize)
+	, basis_z_(0)
+	, basis_tile_x1_(0)
+	, basis_tile_y1_(0)
+	, basis_tile_x2_(0)
+	, basis_tile_y2_(0)
 	, builder_debug_counter_(0)
-	, file_queue_(300)
+	//, file_queue_(300)
+	, file_iterator_(cache_.end())
 	, file_loader_dbg_loop_(0)
 	, file_loader_dbg_load_(0)
-	, server_queue_(300)
+	//, server_queue_(300)
+	, server_iterator_(cache_.end())
 	, server_loader_dbg_loop_(0)
 	, server_loader_dbg_load_(0)
 	, anim_period_( posix_time::milliseconds(animPeriod) )
@@ -594,6 +605,7 @@ void wxCartographer::Stop()
 	wait_for_finish();
 }
 
+#if 0
 void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 {
 	/* Загружать текстуру можно только в основном потоке */
@@ -611,6 +623,7 @@ void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 
 	Repaint();
 }
+#endif
 
 bool wxCartographer::check_tile_id(const tile::id &tile_id)
 {
@@ -631,6 +644,7 @@ wxCartographer::tile::ptr wxCartographer::find_tile(const tile::id &tile_id)
 	return iter == cache_.end() ? tile::ptr() : iter->value();
 }
 
+#if 0
 bool wxCartographer::tile_in_queue(const tiles_queue &queue,
 	my::worker::ptr worker, const tile::id &tile_id)
 {
@@ -644,6 +658,7 @@ bool wxCartographer::tile_in_queue(const tiles_queue &queue,
 
 	return false;
 }
+#endif
 
 void wxCartographer::paint_tile(const tile::id &tile_id, int level)
 {
@@ -652,17 +667,14 @@ void wxCartographer::paint_tile(const tile::id &tile_id, int level)
 	if (z <= 0)
 		return;
 
-	tile::ptr ptr = get_tile( tile::id(
+	tile::ptr tile_ptr = get_tile( tile::id(
 		tile_id.map_id, z, tile_id.x >> level, tile_id.y >> level) );
 
-	if (!ptr)
+	if (!tile_ptr || tile_ptr->state() != tile::ready)
 		paint_tile(tile_id, level + 1);
 	else
 	{
-		GLuint id = ptr->texture_id();
-
-		if (id == 0)
-			id = load_texture(ptr->image());
+		GLuint id = tile_ptr->texture_id();
 
 		int mask = 0;
 		double w = 1.0;
@@ -702,30 +714,18 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	if ( !check_tile_id(tile_id))
 		return tile::ptr();
 
-	tile::ptr tile_ptr;
+	tile::ptr tile_ptr = find_tile(tile_id);
 
-	/* Ищем в кэше */
-	my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
-	tiles_cache::iterator iter = cache_.find(tile_id);
-
-	/* Если не находим, добавляем в очередь на загрузку */
-	if (iter == cache_.end())
-		add_to_file_queue(tile_id);
-	else
+	if (tile_ptr && tile_ptr->state() == tile::texture_generating)
 	{
-		tile_ptr = iter->value();
-
-		cache_.up(tile_id); /* Если уже был такой - переносим его наверх списка */
-
-		/* Если текстура ещё на загружена, делаем вид, что тайла нет в кэше,
-			чтобы нарисовался предок */
-		if (tile_ptr && tile_ptr->texture_id() == 0)
-			tile_ptr = tile::ptr();
+		GLuint id = load_texture(tile_ptr->image());
+		tile_ptr->set_texture_id(id);
 	}
 
 	return tile_ptr;
 }
 
+#if 0
 void wxCartographer::add_to_file_queue(const tile::id &tile_id)
 {
 	/* Не добавляем тайл в файловую очередь,
@@ -761,6 +761,7 @@ void wxCartographer::add_to_server_queue(const tile::id &tile_id)
 		}
 	}
 }
+#endif
 
 /* Загрузчик тайлов с диска. При пустой очереди - засыпает */
 void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
@@ -768,31 +769,34 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 	while (!finish())
 	{
 		tile::id tile_id;
+		tile::ptr tile_ptr;
 
 		++file_loader_dbg_loop_;
 
-		/* Останавливаем загрузку во время отрисовки */
+		/* Ищем в кэше тайл, требующий загрузки */
 		{
-			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
-		} /* Но и не мешаем рисовать, если уже начали загружать */
+			my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 
-		/* Берём идентификатор первого тайла из очереди */
-		{
-			/* Блокировкой гарантируем, что очередь не изменится */
-			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
-
-			tiles_queue::iterator iter = file_queue_.begin();
-
-			/* Если очередь пуста - засыпаем */
-			if (iter == file_queue_.end())
+			while (file_iterator_ != cache_.end())
 			{
-				sleep(this_worker, locker);
-				continue;
+				tile_ptr = file_iterator_->value();
+
+				if (tile_ptr->state() == tile::file_loading)
+				{
+					tile_id = file_iterator_->key();
+					++file_iterator_;
+					break;
+				}
+
+				++file_iterator_;
 			}
+		}
 
-			tile_id = iter->key();
-
-			/* Для дальнейших действий блокировка нам не нужна */
+		/* Если нет такого - засыпаем */
+		if (!tile_id)
+		{
+			sleep(this_worker);
+			continue;
 		}
 
 		++file_loader_dbg_load_;
@@ -820,34 +824,25 @@ void wxCartographer::file_loader_proc(my::worker::ptr this_worker)
 
 		std::wstring filename = path.str() + map.ext;
 
-		/* Если файла нет - загружаем с сервера */
+		/* В любой момент наш тайл может быть вытеснен из кэша,
+			не обращаем на это внимание, т.к. tile::ptr - это не что иное,
+			как shared_ptr, т.е. мы можем быть уверены, что тайл хоть
+			и "висит в воздухе", ожидая удаления, но он так и будет висеть,
+			пока мы его не освободим */
+
+		/* Если файла нет, устанавливаем метку, чтобы загружался с сервера */
 		if (!fs::exists(filename))
 		{
 			/* Но только если нет файла-метки об отсутствии тайла и там */
-			if ( fs::exists(path.str() + L".tne") )
-				add_to_cache(tile_id, tile::ptr());
+			if ( !fs::exists(path.str() + L".tne") )
+				tile_ptr->set_state(tile::server_loading);
 			else
-				add_to_server_queue(tile_id);
+				tile_ptr->set_state(tile::absent);
 		}
-		else
+		else if (!tile_ptr->load_from_file(filename))
 		{
-			tile::ptr ptr( new tile(*this, filename) );
-
-			/* При успешной загрузке с диска - сохраняем тайл в кэше */
-			if (ptr->image())
-				add_to_cache(tile_id, ptr);
-			else
-			{
-				add_to_cache(tile_id, tile::ptr());
-				main_log << L"Ошибка загрузки wxImage: " << filename << main_log;
-			}
-		}
-
-		/* Удаляем тайл из очереди */
-		{
-			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
-
-			file_queue_.remove(tile_id);
+			tile_ptr->set_state(tile::fail);
+			main_log << L"Ошибка загрузки wxImage: " << filename << main_log;
 		}
 
 	} /* while (!finish()) */
@@ -859,40 +854,47 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 	while (!finish())
 	{
 		tile::id tile_id;
+		tile::ptr tile_ptr;
 
 		++server_loader_dbg_loop_;
 
-		/* Останавливаем загрузку во время отрисовки */
+		/* Ищем в кэше тайл, требующий загрузки */
 		{
-			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
-		} /* Но и не мешаем рисовать, если уже начали загружать */
+			my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 
-		/* Берём идентификатор первого тайла из очереди */
-		{
-			/* Блокировкой гарантируем, что очередь не изменится */
-			my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
-
-			tiles_queue::iterator iter = server_queue_.begin();
-
-			/* Если очередь пуста - засыпаем */
-			if (iter == server_queue_.end())
+			while (server_iterator_ != cache_.end())
 			{
-				sleep(this_worker, locker);
-				continue;
+				tile_ptr = server_iterator_->value();
+
+				if (tile_ptr->state() == tile::server_loading)
+				{
+					tile_id = server_iterator_->key();
+					++server_iterator_;
+					break;
+				}
+
+				/* Не даём обогнать загрузчик файлов */
+				if (tile_ptr->state() == tile::file_loading)
+					break;
+
+				++server_iterator_;
 			}
+		}
 
-			tile_id = iter->key();
-
-			/* Для дальнейших действий блокировка нам не нужна */
+		/* Если нет такого - засыпаем */
+		if (!tile_id)
+		{
+			sleep(this_worker);
+			continue;
 		}
 
 		++server_loader_dbg_load_;
 
 		/* Загружаем тайл с сервера */
-		std::wstringstream path; /* Путь к локальному файлу  */
 
 		wxCartographer::map &map = maps_[tile_id.map_id];
 
+		std::wstringstream path; /* Путь к локальному файлу  */
 		path << cache_path_
 			<< L"/" << map.sid
 			<< L"/z" << tile_id.z
@@ -907,48 +909,39 @@ void wxCartographer::server_loader_proc(my::worker::ptr this_worker)
 			<< L"&x=" << tile_id.x
 			<< L"&y=" << tile_id.y;
 
+		/* В любой момент наш тайл может быть вытеснен из кэша,
+			не обращаем на это внимание, т.к. tile::ptr - это не что иное,
+			как shared_ptr, т.е. мы можем быть уверены, что тайл хоть
+			и "висит в воздухе", ожидая удаления, но он так и будет висеть,
+			пока мы его не освободим */
+
 		try
 		{
 			/* Загружаем тайл с сервера ... */
 			my::http::reply reply;
 			get(reply, request.str());
 
-			tile::ptr ptr;
-
-			/* Тайла нет на сервере - создаём файл-метку */
 			if (reply.status_code == 404)
 			{
+				/* Тайла нет на сервере - создаём файл-метку */
+				tile_ptr->set_state(tile::absent);
 				reply.save(path.str() + L".tne");
 			}
-			
-			/* При успешной загрузке с сервера, создаём тайл из буфера */
 			else if (reply.status_code == 200)
 			{
-				ptr.reset( new tile(*this, reply.body.c_str(), reply.body.size()) );
-				
-				/* Если тайл нормальный, сохраняем на диске */
-				if (ptr->image())
+				/* При успешной загрузке с сервера, создаём тайл из буфера */
+				if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
+				{
+					/* При успешной загрузке сохраняем файл на диске */
 					reply.save(path.str() + map.ext);
-
-				/* Если нет - очищаем. В кэш добавим "нулевой" указатель */
+				}
 				else
 				{
-					ptr.reset();
+					tile_ptr->set_state(tile::fail);
 					main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
 				}
 	
 			}
-			
-			/* Добавляем в кэш в любом случае, чтобы не загружать повторно */
-			add_to_cache(tile_id, ptr);
-
-			/* Удаляем тайл из очереди */
-			{
-				my::locker locker( MYLOCKERPARAMS(this_worker->get_mutex(), 5, MYCURLINE) );
-
-				server_queue_.remove(tile_id);
-			}
-
 		}
 		catch (...)
 		{
@@ -1161,6 +1154,7 @@ double wxCartographer::scr_y_to_lat(double y, double z,
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
 }
 
+#if 0
 void wxCartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 {
 	tile::id fix_tile; /* Тайл в центре экрана */
@@ -1222,6 +1216,7 @@ bool wxCartographer::sort_by_dist( tile::id fix_tile,
 	return std::sqrt( (double)(dx1*dx1 + dy1*dy1) )
 		< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
 }
+#endif
 
 void wxCartographer::paint_debug_info(wxDC &gc,
 	wxCoord width, wxCoord height)
@@ -1284,10 +1279,12 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"builder: %d", builder_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: loop=%d load=%d queue=%d", file_loader_dbg_loop_, file_loader_dbg_load_, file_queue_.size());
+	//__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: loop=%d load=%d queue=%d", file_loader_dbg_loop_, file_loader_dbg_load_, file_queue_.size());
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"file_loader: loop=%d load=%d", file_loader_dbg_loop_, file_loader_dbg_load_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d queue=%d", server_loader_dbg_loop_, server_loader_dbg_load_, server_queue_.size());
+	//__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d queue=%d", server_loader_dbg_loop_, server_loader_dbg_load_, server_queue_.size());
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d", server_loader_dbg_loop_, server_loader_dbg_load_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"on_idle: %d", on_idle_debug_counter_);
@@ -1468,6 +1465,7 @@ void wxCartographer::prepare_background(wxCartographerBuffer &buffer,
 #endif
 }
 
+#if 0
 void wxCartographer::paint_map(wxGCDC &dc, wxCoord width, wxCoord height)
 {
 	/*! Блокировка должна быть обеспечена извне !*/
@@ -1517,41 +1515,161 @@ void wxCartographer::paint_map(wxGCDC &dc, wxCoord width, wxCoord height)
 	/* Серверную очередь тоже корректируем */
 	sort_queue(server_queue_, fix_tile, server_loader_);
 }
+#endif
 
 void wxCartographer::repaint(wxDC &dc)
 {
-	/* Задача функции - подготовить буфер (создать, изменить размер,
-		очистить), вызвать функции прорисовки карты (paint_map)
-		и прорисовки объектов на карте пользователем (on_paint_),
-		перенести всё это на экран */
+	my::locker locker1( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+	my::recursive_locker locker2( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-	/* Блокируем операции загрузки на время отрисовки */
-	my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
-
-	/* Измеряем скорость отрисовки */
+	/* Измеряем скорость выполнения функции */
 	anim_speed_sw_.start();
 
-	wxCoord width, height;
-	GetClientSize(&width, &height);
+	/* Размеры окна */
+	int width_i, height_i;
+	get_viewport_size(&width_i, &height_i);
+
+	double width_d = (double)width_i;
+	double height_d = (double)height_i;
+
+	/* Активная карта */
+	wxCartographer::map map = maps_[active_map_id_];
+
+	/* Текущий масштаб. При перемещениях
+		между масштабами - масштаб верхнего слоя */
+	int z_i = (int)z_;
+	int basis_z = z_i;
+	double dz = z_ - (double)z_i;
+	double alpha = 1.0 - dz;
+
+
+	/*
+		Готовим буфер
+	*/
 
 	if (!buffer_.IsOk()
-		|| buffer_.GetWidth() != width || buffer_.GetHeight() != height)
+		|| buffer_.GetWidth() != width_i || buffer_.GetHeight() != height_i)
 	{
 		/* Вот такая хитрая комбинация в сравнении с
 			buffer_.Create(width, height); ускоряет вывод:
 			1) на чёрном экране (DrawRectangle) в 5 раз;
 			2) на заполненном экране (DrawBitmap) в 2 раза. */
-		wxImage image(width, height, false);
+		wxImage image(width_i, height_i, false);
 		image.InitAlpha();
 		buffer_ = wxBitmap(image);
 
 		//buffer_.Create(width, height);
 	}
 
-	draw_gl(width, height);
-    SwapBuffers();
 
-    paint_debug_info(dc, width, height);
+	/*
+		Рассчитываем основание пирамиды выводимых тайлов
+	*/
+
+	/* "Тайловые" координаты fix-точки */
+	double fix_tile_x = lon_to_tile_x(fix_lon_, z_i);
+	double fix_tile_y = lat_to_tile_y(fix_lat_, z_i, map.projection);
+
+	/* Экранные координаты fix-точки */
+	double fix_scr_x = width_d * fix_kx_;
+	double fix_scr_y = height_d * fix_ky_;
+
+	/* Тайл для fix-точки */
+	tile::id fix_tile(active_map_id_, z_, (int)fix_tile_x, (int)fix_tile_y);
+	
+	/* Координаты его верхнего левого угла */
+	int x = (int)(fix_scr_x - (fix_tile_x - (double)fix_tile.x) * 256.0 + 0.5);
+	int y = (int)(fix_scr_y - (fix_tile_y - (double)fix_tile.y) * 256.0 + 0.5);
+
+	/* Определяем начало основания (верхний левый угол) */
+	int basis_tile_x1 = fix_tile.x;
+	int basis_tile_y1 = fix_tile.y;
+
+	while (x > 0)
+		x -= 256, --basis_tile_x1;
+	while (y > 0)
+		y -= 256, --basis_tile_y1;
+
+	/* Определяем конец основания (нижний правый угол) */
+	int basis_tile_x2 = basis_tile_x1;
+	int basis_tile_y2 = basis_tile_y1;
+
+	while (x < width_i)
+		x += 256, ++basis_tile_x2;
+	while (y < height_i)
+		y += 256, ++basis_tile_y2;
+
+	/* При переходе между масштабами основанием будет нижний слой */
+	if (z_ - (double)basis_z >= 0.01)
+	{
+		basis_tile_x1 <<= 1;
+		basis_tile_y1 <<= 1;
+		basis_tile_x2 <<= 1;
+		basis_tile_x2 <<= 1;
+		++basis_z;
+	}
+
+	/* Если основание изменилось - перестраиваем пирамиду */
+	if ( basis_z_ != basis_z
+		|| basis_tile_x1_ != basis_tile_x1
+		|| basis_tile_y1_ != basis_tile_y1
+		|| basis_tile_x2_ != basis_tile_x2
+		|| basis_tile_y2_ != basis_tile_y2 )
+	{
+		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+
+		/* Сохраняем новое основание */
+		basis_tile_x1_ = basis_tile_x1;
+		basis_tile_y1_ = basis_tile_y1;
+		basis_tile_x2_ = basis_tile_x2;
+		basis_tile_y2_ = basis_tile_y2;
+		basis_z_ = basis_z;
+
+		/* Добавляем новые тайлы */
+		while (basis_z)
+		{
+			int xc = (basis_tile_x1 + basis_tile_x2) / 2;
+			int yc = (basis_tile_y1 + basis_tile_y2) / 2;
+
+			for (int tile_x = basis_tile_x1; tile_x < basis_tile_x2; ++tile_x)
+			{
+				for (int tile_y = basis_tile_y1; tile_y < basis_tile_y2; ++tile_y)
+				{
+					tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
+					tiles_cache::iterator iter = cache_.find(tile_id);
+					
+					if (iter == cache_.end())
+						cache_[ tile_id ] = tile::ptr(new tile(*this, tile::file_loading));
+					else
+						cache_.up(tile_id);
+				}
+			}
+
+			--basis_z;
+			basis_tile_x1 >>= 1;
+			basis_tile_y1 >>= 1;
+			basis_tile_x2 >>= 1;
+			basis_tile_y2 >>= 1;
+		}
+
+		/* Сортируем */
+		////
+
+		/* Устанавливаем итераторы загрузчиков на начало. Будим их */
+		file_iterator_ = server_iterator_ = cache_.begin();
+		wake_up(file_loader_);
+		wake_up(server_loader_);
+	}
+
+	/*
+		Рисуем
+	*/
+
+	draw_gl(width_i, height_i);
+    SwapBuffers();
+    paint_debug_info(dc, width_i, height_i);
+
+	//load_textures_from_queue();
 
 #if 0
 	{
@@ -1614,17 +1732,23 @@ void wxCartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-	fix_kx_ = scr_x / widthd();
-	fix_ky_ = scr_y / heightd();
+	double w, h;
+	get_viewport_size(&w, &h);
+
+	fix_kx_ = scr_x / w;
+	fix_ky_ = scr_y / h;
 }
 
 void wxCartographer::set_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
+	double w, h;
+	get_viewport_size(&w, &h);
+
 	fix_lat_ = scr_y_to_lat(scr_y, z_, maps_[active_map_id_].projection,
-		fix_lat_, heightd() * fix_ky_);
-	fix_lon_ = scr_x_to_lon(scr_x, z_, fix_lon_, widthd() * fix_kx_);
+		fix_lat_, h * fix_ky_);
+	fix_lon_ = scr_x_to_lon(scr_x, z_, fix_lon_, w * fix_kx_);
 
 	move_fix_to_scr_xy(scr_x, scr_y);
 }
@@ -1667,7 +1791,10 @@ void wxCartographer::on_left_up(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
-		set_fix_to_scr_xy( widthd() / 2.0, heightd() / 2.0 );
+		double w, h;
+		get_viewport_size(&w, &h);
+
+		set_fix_to_scr_xy( w/2.0, h/2.0 );
 		move_mode_ = false;
 
 		#ifdef BOOST_WINDOWS
@@ -1756,16 +1883,22 @@ wxCoord wxCartographer::LatToY(double Lat)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
+	double w, h;
+	get_viewport_size(&w, &h);
+
 	return (wxCoord)(lat_to_scr_y(Lat, z_, maps_[active_map_id_].projection,
-		fix_lat_, heightd() * fix_ky_) + 0.5);
+		fix_lat_, h * fix_ky_) + 0.5);
 }
 
 wxCoord wxCartographer::LonToX(double Lon)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
+	double w, h;
+	get_viewport_size(&w, &h);
+
 	return (wxCoord)(lon_to_scr_x(Lon, z_,
-		fix_lon_, widthd() * fix_kx_) + 0.5);
+		fix_lon_, w * fix_kx_) + 0.5);
 }
 
 int wxCartographer::GetZ(void)
@@ -1803,22 +1936,25 @@ void wxCartographer::MoveTo(int z, double lat, double lon)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-	z_ = z;
 	fix_lat_ = lat;
 	fix_lon_ = lon;
-	Repaint();
+	SetZ(z);
 }
 
 void wxCartographer::on_idle(wxIdleEvent& event)
 {
 	++on_idle_debug_counter_;
+}
 
+#if 0
+void wxCartographer::load_textures_from_queue()
+{
 	/* Загрузка текстур, накопленных в очереди */
 	{
 		{
 			my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) );
 
-			if (load_texture_queue_.size())
+			while (load_texture_queue_.size())
 			{
 				tile::id tile_id = load_texture_queue_.front();
 				load_texture_queue_.pop_front();
@@ -1842,7 +1978,7 @@ void wxCartographer::on_idle(wxIdleEvent& event)
 		{
 			my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
 		
-			if (delete_texture_queue_.size())
+			while (delete_texture_queue_.size())
 			{
 				GLuint texture_id = delete_texture_queue_.front();
 				delete_texture_queue_.pop_front();
@@ -1850,3 +1986,4 @@ void wxCartographer::on_idle(wxIdleEvent& event)
 		} /* my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) ) */
 	}
 }
+#endif
