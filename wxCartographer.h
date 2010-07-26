@@ -91,6 +91,7 @@ public:
 	{
 	public:
 		typedef shared_ptr<tile> ptr;
+		enum state_t {fail, empty, file_loading, server_loading, texture_generating, absent, ready};
 
 		/* Идентификатор тайла */
 		struct id
@@ -143,40 +144,87 @@ public:
 	private:
 		friend class wxCartographer;
 		wxCartographer &cartographer_;
+		state_t state_;
 		raw_image *image_;
 		GLuint texture_id_;
 
 	public:
+		tile(wxCartographer &cartographer, state_t state = empty)
+			: cartographer_(cartographer)
+			, state_(state)
+			, image_(0)
+			, texture_id_(0)
+		{
+		}
+
 		~tile()
 		{
-			delete image_;
+			clear();
+		}
+
+		void clear()
+		{
+			state_ = empty;
+
+			if (image_)
+			{
+				delete image_;
+				image_ = 0;
+			}
 
 			if (texture_id_)
+			{
 				cartographer_.post_delete_texture(texture_id_);
+				texture_id_ = 0;
+			}
 		}
 
 		/* Загрузка из файла */
-		tile(wxCartographer &cartographer, const std::wstring &filename)
-			: cartographer_(cartographer)
-			, image_(0)
-			, texture_id_(0)
+		bool load_from_file(const std::wstring &filename)
 		{
+			clear();
+
 			wxImage wx_image(filename);
 			if (wx_image.IsOk())
+			{
 				image_ = wxCartographer::convert_to_raw(wx_image);
+				if (image_)
+					state_ = texture_generating;
+			}
+
+			return image_ != 0;
 		}
 
 		/* Загрузка из памяти */
-		tile(wxCartographer &cartographer, const void *data, std::size_t size)
-			: cartographer_(cartographer)
-			, image_(0)
-			, texture_id_(0)
+		bool load_from_mem(const void *data, std::size_t size)
 		{
+			clear();
+
 			wxImage wx_image;
 			wxMemoryInputStream stream(data, size);
 			if (wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
+			{
 				image_ = wxCartographer::convert_to_raw(wx_image);
+				if (image_)
+					state_ = texture_generating;
+			}
+
+			return image_ != 0;
 		}
+
+		inline void set_texture_id(GLuint texture_id)
+		{
+			clear();
+			texture_id_ = texture_id;
+			if (texture_id_)
+				state_ = ready;
+		}
+
+		inline void set_state(state_t state)
+			{ state_ = state; }
+
+		inline state_t state()
+			{ return state_; }
 
 		inline raw_image* image()
 			{ return image_; }
@@ -184,22 +232,13 @@ public:
 		inline GLuint texture_id()
 			{ return texture_id_; }
 
-		inline void set_texture_id(GLuint texture_id)
-			{ texture_id_ = texture_id; }
-
-		inline void reset_image()
-		{
-			delete image_;
-			image_ = 0;
-		}
-
 	}; /* class tile */
 
 private:
 	typedef std::map<int, map> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
-	typedef my::mru::list<tile::id, int> tiles_queue;
+	//typedef my::mru::list<tile::id, int> tiles_queue;
 
 	/*
 		Open GL
@@ -214,18 +253,19 @@ private:
 	static raw_image* convert_to_raw(const wxImage &src);
 	void paint_tile(const tile::id &tile_id, int level = 0);
 
-	typedef std::list<tile::id> tile_id_list;
-	tile_id_list load_texture_queue_;
-	void post_load_texture(const tile::id &tile_id);
-	static GLuint load_texture(raw_image *image);
-	mutex load_texture_mutex_;
+	//typedef std::list<tile::id> tile_id_list;
+	//tile_id_list load_texture_queue_;
+	//mutex load_texture_mutex_;
 	int texturer_debug_counter_;
+	//void post_load_texture(const tile::id &tile_id);
+	GLuint load_texture(raw_image *image);
+	//void load_textures_from_queue();
 
 	typedef std::list<GLuint> texture_id_list;
 	texture_id_list delete_texture_queue_;
+	mutex delete_texture_mutex_;
 	void post_delete_texture(GLuint texture_id);
 	static void delete_texture(GLuint id);
-	mutex delete_texture_mutex_;
 
 	/*
 		Работа с сервером
@@ -252,10 +292,15 @@ private:
 	std::wstring cache_path_; /* Путь к кэшу */
 	bool only_cache_; /* Использовать только кэш */
 	tiles_cache cache_; /* Кэш */
+	int basis_z_;
+	int basis_tile_x1_;
+	int basis_tile_y1_;
+	int basis_tile_x2_;
+	int basis_tile_y2_;
 	shared_mutex cache_mutex_; /* Мьютекс для кэша */
 
 	/* Добавление загруженного тайла в кэш */
-	void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
+	//void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
 
 	/* Проверка корректности координат тайла */
 	inline bool check_tile_id(const tile::id &tile_id);
@@ -272,39 +317,41 @@ private:
 		Загрузка тайлов
 	*/
 
-	tiles_queue file_queue_; /* Очередь загрузки с дискового кэша (файловая очередь) */
+	//tiles_queue file_queue_; /* Очередь загрузки с дискового кэша (файловая очередь) */
 	my::worker::ptr file_loader_; /* "Работник" файловой очереди (синхронизация) */
+	tiles_cache::iterator file_iterator_; /* Итератор по кэшу */
 	int file_loader_dbg_loop_;
 	int file_loader_dbg_load_;
 
-	tiles_queue server_queue_; /* Очередь загрузки с сервера (серверная очередь) */
+	//tiles_queue server_queue_; /* Очередь загрузки с сервера (серверная очередь) */
 	my::worker::ptr server_loader_; /* "Работник" серверной очереди (синхронизация) */
+	tiles_cache::iterator server_iterator_; /* Итератор по кэшу */
 	int server_loader_dbg_loop_;
 	int server_loader_dbg_load_;
 
 	/* Добавление тайла в очередь */
-	void add_to_file_queue(const tile::id &tile_id);
-	void add_to_server_queue(const tile::id &tile_id);
+	//void add_to_file_queue(const tile::id &tile_id);
+	//void add_to_server_queue(const tile::id &tile_id);
 
 	/* Функции потоков */
 	void file_loader_proc(my::worker::ptr this_worker);
 	void server_loader_proc(my::worker::ptr this_worker);
 
 	/* Сортировка тайлов по расстоянию от текущего центра экрана */
-	void sort_queue(tiles_queue &queue, my::worker::ptr worker);
+	//void sort_queue(tiles_queue &queue, my::worker::ptr worker);
 
 	/* Сортировка тайлов по расстоянию от заданного тайла */
-	static void sort_queue(tiles_queue &queue, const tile::id &tile,
-		my::worker::ptr worker);
+	//static void sort_queue(tiles_queue &queue, const tile::id &tile,
+	//	my::worker::ptr worker);
 
 	/* Функция сортировки */
-	static bool sort_by_dist( tile::id tile,
-		const tiles_queue::item_type &first,
-		const tiles_queue::item_type &second );
+	//static bool sort_by_dist( tile::id tile,
+	//	const tiles_queue::item_type &first,
+	//	const tiles_queue::item_type &second );
 
 	/* Проверка на наличие тайла в очереди */
-	bool tile_in_queue(const tiles_queue &queue,
-		my::worker::ptr worker, const tile::id &tile_id);
+	//bool tile_in_queue(const tiles_queue &queue,
+	//	my::worker::ptr worker, const tile::id &tile_id);
 
 
 	/*
@@ -379,6 +426,16 @@ private:
 	void repaint(wxDC &dc);
 
 	/* Размеры рабочей области */
+	template<typename SIZE>
+	void get_viewport_size(SIZE *p_width, SIZE *p_height)
+	{
+		wxCoord w, h;
+		GetClientSize(&w, &h);
+		*p_width = (SIZE)w;
+		*p_height = (SIZE)h;
+	}
+
+	/*-
 	inline wxCoord widthi()
 		{ return buffer_.GetWidth(); }
 	inline wxCoord heighti()
@@ -387,6 +444,7 @@ private:
 		{ return (double)buffer_.GetWidth(); }
 	inline double heightd()
 		{ return (double)buffer_.GetHeight(); }
+	-*/
 
 	/* Назначить новую fix-точку */
 	void set_fix_to_scr_xy(double scr_x, double scr_y);
