@@ -186,6 +186,7 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
+#if 0
 	wxCoord x = cartographer_->LonToX(135.04954039);
 	wxCoord y = cartographer_->LatToY(48.47259794);
 
@@ -218,6 +219,55 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		wxColour(255, 255, 255),
 		wxPen( wxColor(0, 0, 0), 1 ),
 		wxBrush( wxColor(255, 255, 0, 192) ));
+#endif
+
+	/**/
+
+	glColor4d(1.0, 0.0, 0.0, 0.5);     // красный цвет
+    glBegin(GL_QUADS);
+		glNormal3f(0.0f, 0.0f, 1.0f);
+		glVertex3i(100, 100, -1);
+		glVertex3i(200, 100, -1);
+		glVertex3i(200, 200, -1);
+		glVertex3i(100, 200, -1);
+	glEnd();
+
+	glLineWidth(1);
+	glBegin(GL_LINES);
+		glColor3d(1,0,0);     // красный цвет
+		glVertex3d(55,130,-1); // первая линия
+		glVertex3d(70,130,-1);
+		glColor3d(0,1,0);     // зеленый
+		glVertex3d(70,133,0); // вторая линия
+		glVertex3d(60,134,0);
+	glEnd();
+	
+	glLineWidth(3);      // ширина 3
+	glBegin(GL_LINE_STRIP); // см. ниже
+		glColor3d(1,0,0);
+		glVertex3d(73,130,0);
+		glVertex3d(90,130,0);
+		glColor3d(0,1,0);
+		glVertex3d(85,133,0);
+		glColor3d(0,0,1);
+		glVertex3d(90,135,0);
+	glEnd();
+
+	glLineWidth(5);
+	glEnable(GL_LINE_SMOOTH);
+	glEnable(GL_LINE_STIPPLE); // разрешаем рисовать прерывистую линию
+	glLineStipple(2,58360);    // устанавливаем маску
+	glBegin(GL_LINE_LOOP);
+		glColor3d(1,0,0);
+		glVertex3d(110,130,0);
+		glVertex3d(140,130,0);
+		glColor3d(0,1,0);
+		glVertex3d(130,127,0);
+		glColor3d(0,0,1);
+		glVertex3d(125,137,0);
+	glEnd();
+	glDisable(GL_LINE_SMOOTH);
+	glDisable(GL_LINE_STIPPLE);
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

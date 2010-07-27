@@ -74,8 +74,6 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, anim_speed_(0)
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
-	, background1_()
-	, background2_()
 	, buffer_(100,100)
 	, draw_tile_debug_counter_(0)
 	, active_map_id_(0)
@@ -1012,7 +1010,7 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	gc.DrawText(buf, x, y), y += 12;
 }
 
-void wxCartographer::repaint(wxDC &dc)
+void wxCartographer::repaint(wxPaintDC &dc)
 {
 	my::locker locker1( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 	my::recursive_locker locker2( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
@@ -1259,11 +1257,45 @@ void wxCartographer::repaint(wxDC &dc)
 		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
 			paint_tile( tile::id(map_id, z_i, x, y) );
 
+	/* Картинка пользователя */
+	{
+		glColor4d(1.0, 1.0, 1.0, 1.0);
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+		glMatrixMode(GL_MODELVIEW);
+	    glLoadIdentity();
+		glScaled(1.0 / (256.0 * (1.0 + dz)), 1.0 / (256.0 * (1.0 + dz)), 1.0);
+		glTranslated(-fix_scr_x, -fix_scr_y, 0.0);
+
+		//wxMemoryDC dc;
+        //dc.SelectObject(buffer_);
+
+		{
+		    wxGCDC gc(dc);
+
+            /* Очищаем */
+            //gc.SetBackground(*wxBLACK_BRUSH);
+            //gc.Clear();
+
+            if (on_paint_)
+            	on_paint_(gc, width_i, height_i);
+
+            #ifndef NDEBUG
+            //paint_debug_info(gc, width_i, height_i);
+            #endif
+		}
+
+		//dc.SelectObject(wxNullBitmap);
+	}
+
+	//wxImage image = buffer_.ConvertToImage();
+
+	/* Перерисовываем окно */
+	//dc.DrawBitmap(buffer_, 0, 0);
+
 	glFlush();
     SwapBuffers();
-
     check_gl_error();
-
 	paint_debug_info(dc, width_i, height_i);
 
 	/* Перестраиваем очереди загрузки тайлов. Чтобы загрузка
@@ -1280,39 +1312,6 @@ void wxCartographer::repaint(wxDC &dc)
 		чтобы не тормозить отрисовку */
 	load_textures();
 
-#if 0
-	{
-        wxMemoryDC dc;
-        dc.SelectObject(buffer_);
-
-		{
-		    wxGCDC gc(dc);
-
-            /* Очищаем */
-            gc.SetBackground(*wxBLACK_BRUSH);
-            gc.Clear();
-
-            /* На время прорисовки параметры не должны изменяться */
-            my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
-
-            /* Рисуем */
-            ++painter_debug_counter_;
-            paint_map(gc, width, height);
-
-            //if (on_paint_)
-            //	on_paint_(gc, width, height);
-
-            #ifndef NDEBUG
-            paint_debug_info(gc, width, height);
-            #endif
-		}
-
-		dc.SelectObject(wxNullBitmap);
-	}
-
-	/* Перерисовываем окно */
-	dc.DrawBitmap(buffer_, 0, 0);
-#endif
 
 	/* Измеряем скорость и частоту отрисовки:
 		anim_speed - средняя скорость выполнения repaint()

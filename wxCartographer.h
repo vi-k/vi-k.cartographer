@@ -62,31 +62,6 @@ public:
 
 	
 	/*
-		Буфер для отрисовки карты
-	*/
-	struct wxCartographerBuffer
-	{
-		wxBitmap bitmap;
-		int map_id;
-		int z;
-		int first_tile_x;
-		int first_tile_y;
-		int last_tile_x;
-		int last_tile_y;
-
-		wxCartographerBuffer()
-			: map_id(0)
-			, z(0)
-			, first_tile_x(0)
-			, first_tile_y(0)
-			, last_tile_x(0)
-			, last_tile_y(0)
-		{
-		}
-	};
-
-	
-	/*
 		Описание карты
 	*/
 	struct map
@@ -390,8 +365,6 @@ private:
 		Отображение карты
 	*/
 
-	wxCartographerBuffer background1_; /* Буфер для фона (карта без объектов) */
-	wxCartographerBuffer background2_; /* Буфер для фона (карта без объектов) */
 	wxBitmap buffer_; /* Буфер для прорисовки, равен размерам экрана */
 	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
@@ -414,7 +387,7 @@ private:
 	template<class DC>
 	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
-	void repaint(wxDC &dc);
+	void repaint(wxPaintDC &dc);
 
 	/* Размеры рабочей области */
 	template<typename SIZE>
