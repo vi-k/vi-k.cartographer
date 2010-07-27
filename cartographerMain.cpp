@@ -93,7 +93,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
     SetClientSize(400, 400);
     Show(true);
 
-	#if 1
 	cartographer_ = new wxCartographer(
 		this
 		, L"127.0.0.1" /* ServerAddr - адрес сервера */
@@ -110,7 +109,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, 50, 5 /* 0 - нет анимации */
   	);
 	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-	#endif
 
     SetSizer(FlexGridSizer1);
 
@@ -118,23 +116,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	//setlocale(LC_ALL, "");
 
 	bitmap_.LoadFile(L"test.png", wxBITMAP_TYPE_ANY);
-
-	#if 0
-	cartographer_ = new wxCartographer(
-		L"127.0.0.1" /* ServerAddr - адрес сервера */
-		, L"27543" /* ServerPort - порт сервера */
-		, 1000 /* CacheSize - размер кэша (в тайлах) */
-		, L"cache" /* CachePath - путь к кэшу на диске */
-		, false /* OnlyCache - работать только с кэшем */
-		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 2 /* InitZ - исходный масштаб (>1) */
-		, 48.48021475 /* InitLat - широта исходной точки */
-		, 135.0719556 /* InitLon - долгота исходной точки */
-		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
-		, Panel1, wxID_ANY, wxDefaultPosition, wxSize(616, 331)
-		, 60 /* 0 - нет анимации */
-  	);
-  	#endif
 
 	cartographer_->GetMaps(maps_);
 

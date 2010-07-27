@@ -238,33 +238,29 @@ private:
 	typedef std::map<int, map> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
-	//typedef my::mru::list<tile::id, int> tiles_queue;
+
 
 	/*
 		Open GL
 	*/
 
-	wxGLContext gl_context_;
-	GLuint m_textures[7];
-
-	void init_gl();
-	void draw_gl(int widthi, int heighti);
-	void draw_tile(int tile_x, int tile_y, double alpha, double z, GLuint texture);
-	static raw_image* convert_to_raw(const wxImage &src);
-	void paint_tile(const tile::id &tile_id, int level = 0);
-
-	int load_texture_debug_counter_;
-	GLuint load_texture(raw_image *image);
-	void load_textures();
-
 	typedef std::list<GLuint> texture_id_list;
+	wxGLContext gl_context_;
+	int load_texture_debug_counter_;
 	texture_id_list delete_texture_queue_;
 	mutex delete_texture_mutex_;
 	int delete_texture_debug_counter_;
 
+	void init_gl();
+	static void check_gl_error();
+	static raw_image* convert_to_raw(const wxImage &src);
+	void paint_tile(const tile::id &tile_id, int level = 0);
+	GLuint load_texture(raw_image *image);
+	void load_textures();
 	void post_delete_texture(GLuint texture_id);
 	void delete_texture(GLuint id);
-	void clear_textures();
+	void delete_textures();
+
 
 	/*
 		Работа с сервером
@@ -300,9 +296,6 @@ private:
 	int basis_tile_y2_;
 	shared_mutex cache_mutex_; /* Мьютекс для кэша */
 
-	/* Добавление загруженного тайла в кэш */
-	//void add_to_cache(const tile::id &tile_id, tile::ptr ptr);
-
 	/* Проверка корректности координат тайла */
 	inline bool check_tile_id(const tile::id &tile_id);
 
@@ -318,21 +311,15 @@ private:
 		Загрузка тайлов
 	*/
 
-	//tiles_queue file_queue_; /* Очередь загрузки с дискового кэша (файловая очередь) */
 	my::worker::ptr file_loader_; /* "Работник" файловой очереди (синхронизация) */
 	tiles_cache::iterator file_iterator_; /* Итератор по кэшу */
 	int file_loader_dbg_loop_;
 	int file_loader_dbg_load_;
 
-	//tiles_queue server_queue_; /* Очередь загрузки с сервера (серверная очередь) */
 	my::worker::ptr server_loader_; /* "Работник" серверной очереди (синхронизация) */
 	tiles_cache::iterator server_iterator_; /* Итератор по кэшу */
 	int server_loader_dbg_loop_;
 	int server_loader_dbg_load_;
-
-	/* Добавление тайла в очередь */
-	//void add_to_file_queue(const tile::id &tile_id);
-	//void add_to_server_queue(const tile::id &tile_id);
 
 	/* Функции потоков */
 	void file_loader_proc(my::worker::ptr this_worker);
@@ -349,10 +336,6 @@ private:
 	//static bool sort_by_dist( tile::id tile,
 	//	const tiles_queue::item_type &first,
 	//	const tiles_queue::item_type &second );
-
-	/* Проверка на наличие тайла в очереди */
-	//bool tile_in_queue(const tiles_queue &queue,
-	//	my::worker::ptr worker, const tile::id &tile_id);
 
 
 	/*
@@ -405,18 +388,8 @@ private:
 	double fix_lat_; /* Географические координаты этой точки */
 	double fix_lon_;
 	int painter_debug_counter_;
-	int backgrounder_debug_counter_;
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
-
-	/* Подготовка фона (карты) к отрисовке */
-	void prepare_background(wxCartographerBuffer &buffer,
-		wxCoord width, wxCoord height, bool force_repaint, int map_id, int z,
-		double fix_tile_x, double fix_tile_y,
-		double fix_scr_x, double fix_scr_y);
-
-	/* Нарисовать карту */
-	void paint_map(wxGCDC &gc, wxCoord width, wxCoord height);
 
 	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
 	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
@@ -435,17 +408,6 @@ private:
 		*p_width = (SIZE)w;
 		*p_height = (SIZE)h;
 	}
-
-	/*-
-	inline wxCoord widthi()
-		{ return buffer_.GetWidth(); }
-	inline wxCoord heighti()
-		{ return buffer_.GetHeight(); }
-	inline double widthd()
-		{ return (double)buffer_.GetWidth(); }
-	inline double heightd()
-		{ return (double)buffer_.GetHeight(); }
-	-*/
 
 	/* Назначить новую fix-точку */
 	void set_fix_to_scr_xy(double scr_x, double scr_y);
