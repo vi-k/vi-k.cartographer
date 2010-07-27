@@ -12,3 +12,6 @@ cache
 *.ilk
 *.idb
 main.log
+stdafx.h.gch
+gl_vc
+gl_gcc

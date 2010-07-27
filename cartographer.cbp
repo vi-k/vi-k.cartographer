@@ -149,7 +149,10 @@
 			<Option weight="0" />
 			<Option compiler="msvc8" use="1" buildCommand='$compiler /Yc&quot;stdafx.h&quot; /nologo $options $includes /c $file /Fo$object' />
 		</Unit>
-		<Unit filename="stdafx.h" />
+		<Unit filename="stdafx.h">
+			<Option compilerVar="C" />
+			<Option compiler="msvc8" use="0" buildCommand='$compiler /TP /Yc&quot;stdafx.h&quot; /nologo $options $includes /c $file /Fo$object' />
+		</Unit>
 		<Unit filename="stdafx.pch" />
 		<Unit filename="wxCartographer.cpp" />
 		<Unit filename="wxCartographer.h" />

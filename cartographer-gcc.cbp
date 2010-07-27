@@ -126,6 +126,7 @@
 		<Unit filename="stdafx.h">
 			<Option compile="1" />
 			<Option weight="0" />
+			<Option compiler="gcc" use="1" buildCommand="$compiler -x c++ $options $includes -c $file -o $object" />
 		</Unit>
 		<Unit filename="wxCartographer.cpp" />
 		<Unit filename="wxCartographer.h" />

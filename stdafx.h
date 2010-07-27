@@ -1,19 +1,36 @@
-/* Эта часть не должна изменяться! */
+п»ї/***** Р­С‚Р° С‡Р°СЃС‚СЊ РЅРµ РґРѕР»Р¶РЅР° РёР·РјРµРЅСЏС‚СЊСЃСЏ! *****/
 
-#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
-#include <boost/config.hpp>
+	/* syncronize UNICODE options */
+	#if defined(_UNICODE) || defined(UNICODE) || defined(wxUSE_UNICODE)
+		#ifndef _UNICODE
+			#define _UNICODE
+		#endif
+		#ifndef UNICODE
+			#define UNICODE
+		#endif
+		#ifndef wxUSE_UNICODE
+			#define wxUSE_UNICODE
+		#endif
+	#endif
 
-#ifdef BOOST_WINDOWS
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501
-#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN /* Необходимо для Asio */
-#endif
+	#include <boost/config/warning_disable.hpp> /* РїСЂРѕС‚РёРІ unsafe РІ wxWidgets */
+	#include <boost/config.hpp>
 
-#include <boost/asio.hpp> /* Обязательно до включения windows.h */
-#include <wx/wxprec.h> /* Обязательно самым первым среди wxWidgets! */
+	#ifdef BOOST_WINDOWS
+		/* РќРµРѕР±С…РѕРґРёРјРѕ РґР»СЏ Asio РїРѕРґ Windows */
+		#ifndef _WIN32_WINNT
+			#define _WIN32_WINNT 0x0501
+		#endif
+		#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
+	#endif
+
+	#include <boost/asio.hpp> /* РћР±СЏР·Р°С‚РµР»СЊРЅРѕ РґРѕ РІРєР»СЋС‡РµРЅРёСЏ windows.h */
+	#include <wx/wxprec.h>
+
+/*******************************************/
 
 
-/* Начиная отсюда - все редко изменяемые инклуды */
+/* РќР°С‡РёРЅР°СЏ РѕС‚СЃСЋРґР° - РІСЃРµ СЂРµРґРєРѕ РёР·РјРµРЅСЏРµРјС‹Рµ РёРЅРєР»СѓРґС‹ */
 #include <mylib.h>
 
 /* std */
@@ -73,6 +90,10 @@
 #include <boost/utility.hpp>
 
 /* wx */
-#include <wx/dcgraph.h> /* wxGCDC и wxGraphicsContext */
+#ifdef WX_PRECOMP
+
+#include <wx/dcgraph.h> /* wxGCDC Рё wxGraphicsContext */
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 #include <wx/glcanvas.h> /* OpenGL */
+
+#endif

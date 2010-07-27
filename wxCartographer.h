@@ -2,17 +2,34 @@
 #define WX_CARTOGRAPHER_H
 
 /***** Эта часть не должна изменяться! *****/
+
+	/* syncronize UNICODE options */
+	#if defined(_UNICODE) || defined(UNICODE) || defined(wxUSE_UNICODE)
+		#ifndef _UNICODE
+			#define _UNICODE
+		#endif
+		#ifndef UNICODE
+			#define UNICODE
+		#endif
+		#ifndef wxUSE_UNICODE
+			#define wxUSE_UNICODE
+		#endif
+	#endif
+
 	#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
 	#include <boost/config.hpp>
 
 	#ifdef BOOST_WINDOWS
-		#undef _WIN32_WINNT
-		#define _WIN32_WINNT 0x0501
-		#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN /* Необходимо для Asio */
+		/* Необходимо для Asio под Windows */
+		#ifndef _WIN32_WINNT
+			#define _WIN32_WINNT 0x0501
+		#endif
+		#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
 	#endif
 
 	#include <boost/asio.hpp> /* Обязательно до включения windows.h */
 	#include <wx/wxprec.h>
+
 /*******************************************/
 
 
