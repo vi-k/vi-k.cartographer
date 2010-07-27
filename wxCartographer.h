@@ -253,19 +253,18 @@ private:
 	static raw_image* convert_to_raw(const wxImage &src);
 	void paint_tile(const tile::id &tile_id, int level = 0);
 
-	//typedef std::list<tile::id> tile_id_list;
-	//tile_id_list load_texture_queue_;
-	//mutex load_texture_mutex_;
-	int texturer_debug_counter_;
-	//void post_load_texture(const tile::id &tile_id);
+	int load_texture_debug_counter_;
 	GLuint load_texture(raw_image *image);
-	//void load_textures_from_queue();
+	void load_textures();
 
 	typedef std::list<GLuint> texture_id_list;
 	texture_id_list delete_texture_queue_;
 	mutex delete_texture_mutex_;
+	int delete_texture_debug_counter_;
+
 	void post_delete_texture(GLuint texture_id);
-	static void delete_texture(GLuint id);
+	void delete_texture(GLuint id);
+	void clear_textures();
 
 	/*
 		Работа с сервером
@@ -292,6 +291,8 @@ private:
 	std::wstring cache_path_; /* Путь к кэшу */
 	bool only_cache_; /* Использовать только кэш */
 	tiles_cache cache_; /* Кэш */
+	int cache_active_tiles_;
+	int basis_map_id_;
 	int basis_z_;
 	int basis_tile_x1_;
 	int basis_tile_y1_;
@@ -458,13 +459,13 @@ private:
 	*/
 
 	/* Размер "мира" в тайлах, для заданного масштаба */
-	static inline int size_for_int_z(int z)
+	static inline int size_for_z_i(int z)
 	{
 		return 1 << (z - 1);
 	}
 
 	/* Размер мира в тайлах - для дробного z дробный результат */
-	static inline double size_for_z(double z)
+	static inline double size_for_z_d(double z)
 	{
 		/* Размер всей карты в тайлах.
 			Для дробного z - чуть посложнее, чем для целого */
@@ -510,8 +511,6 @@ private:
 	void on_capture_lost(wxMouseCaptureLostEvent& event);
 	void on_mouse_move(wxMouseEvent& event);
 	void on_mouse_wheel(wxMouseEvent& event);
-	void on_idle(wxIdleEvent& event);
-	int on_idle_debug_counter_;
 
 public:
 	wxCartographer(wxWindow *parent, const std::wstring &serverAddr,

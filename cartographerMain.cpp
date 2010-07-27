@@ -98,7 +98,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		this
 		, L"127.0.0.1" /* ServerAddr - адрес сервера */
 		, L"27543" /* ServerPort - порт сервера */
-		, 1000 /* CacheSize - размер кэша (в тайлах) */
+		, 500 /* CacheSize - размер кэша (в тайлах) */
 		, L"cache" /* CachePath - путь к кэшу на диске */
 		, false /* OnlyCache - работать только с кэшем */
 		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */

@@ -88,9 +88,31 @@ GLuint wxCartographer::load_texture(raw_image *image)
 
 	CheckGLError();
 
-	++texturer_debug_counter_;
+	++load_texture_debug_counter_;
 
 	return id;
+}
+
+void wxCartographer::load_textures()
+{
+	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+	
+	tiles_cache::iterator iter = cache_.begin();
+
+	int count = 0;
+
+	while (iter != cache_.end() /*&& ++count <= cache_active_tiles_*/)
+	{
+		tile::ptr tile_ptr = iter->value();
+
+		if (tile_ptr->state() == tile::texture_generating)
+		{
+			GLuint id = load_texture(tile_ptr->image());
+			tile_ptr->set_texture_id(id);
+		}
+
+		++iter;
+	}
 }
 
 void wxCartographer::post_delete_texture(GLuint texture_id)
@@ -101,8 +123,21 @@ void wxCartographer::post_delete_texture(GLuint texture_id)
 
 void wxCartographer::delete_texture(GLuint texture_id)
 {
+	++delete_texture_debug_counter_;
 	glDeleteTextures(1, &texture_id);
 	CheckGLError();
+}
+
+void wxCartographer::clear_textures()
+{
+	my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
+		
+	while (delete_texture_queue_.size())
+	{
+		GLuint texture_id = delete_texture_queue_.front();
+		delete_texture_queue_.pop_front();
+		delete_texture(texture_id);
+	}
 }
 
 void LoadImage(const char *filename, raw_image &image)
@@ -178,7 +213,6 @@ BEGIN_EVENT_TABLE(wxCartographer, wxGLCanvas)
     EVT_MOTION(wxCartographer::on_mouse_move)
     EVT_MOUSEWHEEL(wxCartographer::on_mouse_wheel)
     //EVT_KEY_DOWN(wxCartographer::OnKeyDown)
-	EVT_IDLE(wxCartographer::on_idle)
 END_EVENT_TABLE()
 
 wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
@@ -191,10 +225,13 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
                  wxDefaultPosition, wxDefaultSize,
                  wxFULL_REPAINT_ON_RESIZE)
 	, gl_context_(this)
-	, texturer_debug_counter_(0)
+	, load_texture_debug_counter_(0)
+	, delete_texture_debug_counter_(0)
 	, cache_path_( fs::system_complete(cachePath).string() )
 	, only_cache_(onlyCache)
 	, cache_(cacheSize)
+	, cache_active_tiles_(0)
+	, basis_map_id_(0)
 	, basis_z_(0)
 	, basis_tile_x1_(0)
 	, basis_tile_y1_(0)
@@ -231,7 +268,6 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 	, move_mode_(false)
 	, force_repaint_(false)
 	, on_paint_(onPaintProc)
-	, on_idle_debug_counter_(0)
 {
 	try
 	{
@@ -603,6 +639,11 @@ void wxCartographer::Stop()
     #endif
 
 	wait_for_finish();
+
+	cache_.clear();
+	clear_textures();
+
+	assert( load_texture_debug_counter_ == delete_texture_debug_counter_);
 }
 
 #if 0
@@ -627,7 +668,7 @@ void wxCartographer::add_to_cache(const tile::id &tile_id, tile::ptr ptr)
 
 bool wxCartographer::check_tile_id(const tile::id &tile_id)
 {
-	int sz = size_for_int_z(tile_id.z);
+	int sz = size_for_z_i(tile_id.z);
 
 	return tile_id.z >= 1
 		&& tile_id.x >= 0 && tile_id.x < sz
@@ -711,16 +752,18 @@ void wxCartographer::paint_tile(const tile::id &tile_id, int level)
 
 wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 {
-	if ( !check_tile_id(tile_id))
-		return tile::ptr();
+	//if ( !check_tile_id(tile_id))
+	//	return tile::ptr();
 
 	tile::ptr tile_ptr = find_tile(tile_id);
 
+	/*-
 	if (tile_ptr && tile_ptr->state() == tile::texture_generating)
 	{
 		GLuint id = load_texture(tile_ptr->image());
 		tile_ptr->set_texture_id(id);
 	}
+	-*/
 
 	return tile_ptr;
 }
@@ -1057,7 +1100,7 @@ unsigned int wxCartographer::load_and_save_xml(const std::wstring &request,
 
 double wxCartographer::lon_to_tile_x(double lon, double z)
 {
-	return (lon + 180.0) * size_for_z(z) / 360.0;
+	return (lon + 180.0) * size_for_z_d(z) / 360.0;
 }
 
 double wxCartographer::lat_to_tile_y(double lat, double z,
@@ -1069,11 +1112,11 @@ double wxCartographer::lat_to_tile_y(double lat, double z,
 	switch (projection)
 	{
 		case map::spheroid:
-			y = (0.5 - atanh(s) / (2*M_PI)) * size_for_z(z);
+			y = (0.5 - atanh(s) / (2*M_PI)) * size_for_z_d(z);
 			break;
 
 		case map::ellipsoid:
-			y = (0.5 - (atanh(s) - EXCT*atanh(EXCT*s)) / (2*M_PI)) * size_for_z(z);
+			y = (0.5 - (atanh(s) - EXCT*atanh(EXCT*s)) / (2*M_PI)) * size_for_z_d(z);
 			break;
 
 		default:
@@ -1101,14 +1144,14 @@ double wxCartographer::lat_to_scr_y(double lat, double z,
 
 double wxCartographer::tile_x_to_lon(double x, double z)
 {
-	return x / size_for_z(z) * 360.0 - 180.0;
+	return x / size_for_z_d(z) * 360.0 - 180.0;
 }
 
 double wxCartographer::tile_y_to_lat(double y, double z,
 	map::projection_t projection)
 {
 	double lat;
-	double sz = size_for_z(z);
+	double sz = size_for_z_d(z);
 	double tmp = std::atan( std::exp( (0.5 - y / sz) * (2 * M_PI) ) );
 
 	switch (projection)
@@ -1267,7 +1310,10 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"background rebuild: %d", backgrounder_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"load textures: %d", texturer_debug_counter_);
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"textures loaded: %d", load_texture_debug_counter_);
+	gc.DrawText(buf, x, y), y += 12;
+
+	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"textures deleted: %d", delete_texture_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"painter: %d", painter_debug_counter_);
@@ -1285,9 +1331,6 @@ void wxCartographer::paint_debug_info_int(DC &gc,
 
 	//__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d queue=%d", server_loader_dbg_loop_, server_loader_dbg_load_, server_queue_.size());
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"server_loader: loop=%d load=%d", server_loader_dbg_loop_, server_loader_dbg_load_);
-	gc.DrawText(buf, x, y), y += 12;
-
-	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"on_idle: %d", on_idle_debug_counter_);
 	gc.DrawText(buf, x, y), y += 12;
 
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"z: %0.1f", z_);
@@ -1522,6 +1565,8 @@ void wxCartographer::repaint(wxDC &dc)
 	my::locker locker1( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
 	my::recursive_locker locker2( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
+	++painter_debug_counter_;
+
 	/* Измеряем скорость выполнения функции */
 	anim_speed_sw_.start();
 
@@ -1533,17 +1578,18 @@ void wxCartographer::repaint(wxDC &dc)
 	double height_d = (double)height_i;
 
 	/* Активная карта */
-	wxCartographer::map map = maps_[active_map_id_];
+	int map_id = active_map_id_;
+	wxCartographer::map map = maps_[map_id];
 
 	/* Текущий масштаб. При перемещениях
 		между масштабами - масштаб верхнего слоя */
 	int z_i = (int)z_;
 	int basis_z = z_i;
-	double dz = z_ - (double)z_i;
-	double alpha = 1.0 - dz;
+	double dz = z_ - (double)z_i; /* "Расстояние" от верхнего слоя */
+	double alpha = 1.0 - dz; /* Прозрачность верхнего слоя */
 
 
-	/*
+	/**
 		Готовим буфер
 	*/
 
@@ -1562,28 +1608,27 @@ void wxCartographer::repaint(wxDC &dc)
 	}
 
 
-	/*
+	/**
 		Рассчитываем основание пирамиды выводимых тайлов
 	*/
 
 	/* "Тайловые" координаты fix-точки */
-	double fix_tile_x = lon_to_tile_x(fix_lon_, z_i);
-	double fix_tile_y = lat_to_tile_y(fix_lat_, z_i, map.projection);
+	double fix_tile_x_d = lon_to_tile_x(fix_lon_, z_i);
+	double fix_tile_y_d = lat_to_tile_y(fix_lat_, z_i, map.projection);
+	int fix_tile_x_i = (int)fix_tile_x_d;
+	int fix_tile_y_i = (int)fix_tile_y_d;
 
 	/* Экранные координаты fix-точки */
 	double fix_scr_x = width_d * fix_kx_;
 	double fix_scr_y = height_d * fix_ky_;
 
-	/* Тайл для fix-точки */
-	tile::id fix_tile(active_map_id_, z_, (int)fix_tile_x, (int)fix_tile_y);
-	
 	/* Координаты его верхнего левого угла */
-	int x = (int)(fix_scr_x - (fix_tile_x - (double)fix_tile.x) * 256.0 + 0.5);
-	int y = (int)(fix_scr_y - (fix_tile_y - (double)fix_tile.y) * 256.0 + 0.5);
+	int x = (int)(fix_scr_x - (fix_tile_x_d - (double)fix_tile_x_i) * 256.0 + 0.5);
+	int y = (int)(fix_scr_y - (fix_tile_y_d - (double)fix_tile_y_i) * 256.0 + 0.5);
 
 	/* Определяем начало основания (верхний левый угол) */
-	int basis_tile_x1 = fix_tile.x;
-	int basis_tile_y1 = fix_tile.y;
+	int basis_tile_x1 = fix_tile_x_i;
+	int basis_tile_y1 = fix_tile_y_i;
 
 	while (x > 0)
 		x -= 256, --basis_tile_x1;
@@ -1599,18 +1644,47 @@ void wxCartographer::repaint(wxDC &dc)
 	while (y < height_i)
 		y += 256, ++basis_tile_y2;
 
+	/* Отсекаем выходы за пределы видимости */
+	{
+		if (basis_tile_x1 < 0)
+			basis_tile_x1 = 0;
+		if (basis_tile_y1 < 0)
+			basis_tile_y1 = 0;
+		if (basis_tile_x2 < 0)
+			basis_tile_x2 = 0;
+		if (basis_tile_y2 < 0)
+			basis_tile_y2 = 0;
+
+		int sz = size_for_z_i(basis_z);
+		if (basis_tile_x1 > sz)
+			basis_tile_x1 = sz;
+		if (basis_tile_y1 > sz)
+			basis_tile_y1 = sz;
+		if (basis_tile_x2 > sz)
+			basis_tile_x2 = sz;
+		if (basis_tile_y2 > sz)
+			basis_tile_y2 = sz;
+	}
+
+	/* Сохраняем границы верхнего слоя */
+	int z_i_tile_x1 = basis_tile_x1;
+	int z_i_tile_y1 = basis_tile_y1;
+	int z_i_tile_x2 = basis_tile_x2;
+	int z_i_tile_y2 = basis_tile_y2;
+
 	/* При переходе между масштабами основанием будет нижний слой */
-	if (z_ - (double)basis_z >= 0.01)
+	if (dz > 0.01)
 	{
 		basis_tile_x1 <<= 1;
 		basis_tile_y1 <<= 1;
 		basis_tile_x2 <<= 1;
-		basis_tile_x2 <<= 1;
+		basis_tile_y2 <<= 1;
 		++basis_z;
 	}
 
 	/* Если основание изменилось - перестраиваем пирамиду */
-	if ( basis_z_ != basis_z
+	if ( basis_map_id_ != map_id
+		|| basis_z_ != basis_z
 		|| basis_tile_x1_ != basis_tile_x1
 		|| basis_tile_y1_ != basis_tile_y1
 		|| basis_tile_x2_ != basis_tile_x2
@@ -1618,12 +1692,15 @@ void wxCartographer::repaint(wxDC &dc)
 	{
 		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
 
+		int tiles_count = 0; /* Считаем кол-во тайлов в пирамиде */
+
 		/* Сохраняем новое основание */
+		basis_map_id_ = map_id;
+		basis_z_ = basis_z;
 		basis_tile_x1_ = basis_tile_x1;
 		basis_tile_y1_ = basis_tile_y1;
 		basis_tile_x2_ = basis_tile_x2;
 		basis_tile_y2_ = basis_tile_y2;
-		basis_z_ = basis_z;
 
 		/* Добавляем новые тайлы */
 		while (basis_z)
@@ -1642,6 +1719,8 @@ void wxCartographer::repaint(wxDC &dc)
 						cache_[ tile_id ] = tile::ptr(new tile(*this, tile::file_loading));
 					else
 						cache_.up(tile_id);
+
+					++tiles_count;
 				}
 			}
 
@@ -1659,17 +1738,95 @@ void wxCartographer::repaint(wxDC &dc)
 		file_iterator_ = server_iterator_ = cache_.begin();
 		wake_up(file_loader_);
 		wake_up(server_loader_);
+
+		cache_active_tiles_ = tiles_count;
 	}
 
-	/*
+	
+	/**
 		Рисуем
 	*/
 
-	draw_gl(width_i, height_i);
-    SwapBuffers();
-    paint_debug_info(dc, width_i, height_i);
+	/* Настройка проекций OpenGL */
 
-	//load_textures_from_queue();
+	glViewport(0, 0, width_i, height_i);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); /* Пока не разобрался - зачем */
+
+	{
+		/* Уровень GL_PROJECTION */
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+
+		/* Зрителя помещаем в fix-точку */
+		double w = width_d / 256.0;
+		double h = height_d / 256.0;
+		double x = -w * fix_kx_;
+		double y = -h * fix_ky_;
+
+		#ifdef TEST_FRUSTRUM
+		glFrustum(x, x + w, -y - h, -y, 0.8, 3.0);
+		#else
+		glOrtho(x, x + w, -y - h, -y, -1.0, 2.0);
+		#endif
+
+		/* С вертикалью работаем по старинке - сверху вниз, а не снизу вверх */
+		glScaled(1.0 + dz, -1.0 - dz, 1.0);
+	}
+
+	/* Выводим нижний слой */
+	if (dz > 0.01)
+	{
+		/* Тайлы заднего фона меньше в два раза */
+		glScaled(0.5, 0.5, 1.0);
+
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		glTranslated(-2.0 * fix_tile_x_d, -2.0 * fix_tile_y_d, 0.0);
+
+		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+		/* Границы нижнего слоя в данном случае равны основанию пирамиды тайлов */
+		for (int x = basis_tile_x1_; x < basis_tile_x2_; ++x)
+			for (int y = basis_tile_y1_; y < basis_tile_y2_; ++y)
+				paint_tile( tile::id(map_id, basis_z_, x, y) );
+
+		/* Восстанавливаем масштаб для верхнего слоя */
+		glMatrixMode(GL_PROJECTION);
+		glScaled(2.0, 2.0, 1.0);
+	}
+
+	glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+	glTranslated(-fix_tile_x_d, -fix_tile_y_d, 0.0);
+
+	glColor4f(1.0f, 1.0f, 1.0f, alpha);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	for (int x = z_i_tile_x1; x < z_i_tile_x2; ++x)
+		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
+			paint_tile( tile::id(map_id, z_i, x, y) );
+
+	glFlush();
+    SwapBuffers();
+
+    CheckGLError();
+
+	paint_debug_info(dc, width_i, height_i);
+
+	/* Перестраиваем очереди загрузки тайлов. Чтобы загрузка
+		начиналась с центра экрана, а не с краёв */
+	//sort_queue(file_queue_, fix_tile, file_loader_);
+
+	/* Серверную очередь тоже корректируем */
+	//sort_queue(server_queue_, fix_tile, server_loader_);
+
+	/* Удаляем текстуры, вышедшие из употребления */
+	clear_textures();
+
+	/* Загружаем текстуры из пирамиды, делаем это в конце функции,
+		чтобы не тормозить отрисовку */
+	load_textures();
 
 #if 0
 	{
@@ -1940,50 +2097,3 @@ void wxCartographer::MoveTo(int z, double lat, double lon)
 	fix_lon_ = lon;
 	SetZ(z);
 }
-
-void wxCartographer::on_idle(wxIdleEvent& event)
-{
-	++on_idle_debug_counter_;
-}
-
-#if 0
-void wxCartographer::load_textures_from_queue()
-{
-	/* Загрузка текстур, накопленных в очереди */
-	{
-		{
-			my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) );
-
-			while (load_texture_queue_.size())
-			{
-				tile::id tile_id = load_texture_queue_.front();
-				load_texture_queue_.pop_front();
-
-				tile::ptr tile_ptr = find_tile(tile_id);
-			
-				if (tile_ptr && tile_ptr->texture_id() == 0)
-				{
-					++texturer_debug_counter_;
-
-					raw_image *image = tile_ptr->image();
-					GLuint texture_id = load_texture(image);
-					tile_ptr->set_texture_id(texture_id);
-				
-					/* Если текстура загружена, то картинка нам больше не нужна */
-					tile_ptr->reset_image();
-				}
-			} /* if (load_texture_queue_.size()) */
-		} /* my::locker locker( MYLOCKERPARAMS(load_texture_mutex_, 5, MYCURLINE) ) */
-
-		{
-			my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
-		
-			while (delete_texture_queue_.size())
-			{
-				GLuint texture_id = delete_texture_queue_.front();
-				delete_texture_queue_.pop_front();
-			}
-		} /* my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) ) */
-	}
-}
-#endif
