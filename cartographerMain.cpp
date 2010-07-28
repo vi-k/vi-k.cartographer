@@ -186,12 +186,12 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
-#if 0
 	wxCoord x = cartographer_->LonToX(135.04954039);
 	wxCoord y = cartographer_->LatToY(48.47259794);
 
 	int z = cartographer_->GetZ();
 
+#if 0
 	wxDouble bmp_w = bitmap_.GetWidth();
 	wxDouble bmp_h = bitmap_.GetHeight();
 
@@ -223,20 +223,39 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 
 	/**/
 
-	glColor4d(1.0, 0.0, 0.0, 0.5);     // красный цвет
     glBegin(GL_QUADS);
-		glNormal3f(0.0f, 0.0f, 1.0f);
-		glVertex3i(100, 100, -1);
-		glVertex3i(200, 100, -1);
-		glVertex3i(200, 200, -1);
-		glVertex3i(100, 200, -1);
+		glColor4d(1.0, 0.0, 0.0, 0.5);
+		glVertex3i(100, 100, 0);
+		glVertex3i(200, 100, 0);
+		glColor4d(0.0, 1.0, 0.0, 0.5);
+		glVertex3i(200, 200, 0);
+		glVertex3i(100, 200, 0);
 	glEnd();
 
+    glBegin(GL_QUADS);
+		glColor4d(0.0, 1.0, 0.0, 0.5);
+		glVertex3i(200, 200, 0);
+		glVertex3i(300, 200, 0);
+		glColor4d(0.0, 0.0, 1.0, 0.5);
+		glVertex3i(300, 300, 0);
+		glVertex3i(200, 300, 0);
+	glEnd();
+
+    glBegin(GL_QUADS);
+		glColor4d(0.0, 0.0, 1.0, 0.5);
+		glVertex3i(300, 300, 0);
+		glVertex3i(400, 300, 0);
+		glColor4d(1.0, 0.0, 0.0, 0.5);
+		glVertex3i(400, 400, 0);
+		glVertex3i(300, 400, 0);
+	glEnd();
+
+	/*-
 	glLineWidth(1);
 	glBegin(GL_LINES);
 		glColor3d(1,0,0);     // красный цвет
-		glVertex3d(55,130,-1); // первая линия
-		glVertex3d(70,130,-1);
+		glVertex3d(55,130,0); // первая линия
+		glVertex3d(70,130,0);
 		glColor3d(0,1,0);     // зеленый
 		glVertex3d(70,133,0); // вторая линия
 		glVertex3d(60,134,0);
@@ -268,6 +287,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 	glEnd();
 	glDisable(GL_LINE_SMOOTH);
 	glDisable(GL_LINE_STIPPLE);
+	-*/
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

@@ -1,6 +1,4 @@
-﻿//#define TEST_FRUSTRUM
-
-#include "wxCartographer.h"
+﻿#include "wxCartographer.h"
 #include "handle_exception.h"
 
 #if defined(_MSC_VER)
@@ -50,6 +48,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
                  wxDefaultPosition, wxDefaultSize,
                  wxFULL_REPAINT_ON_RESIZE)
 	, gl_context_(this)
+	, magic_id_(0)
 	, load_texture_debug_counter_(0)
 	, delete_texture_debug_counter_(0)
 	, cache_path_( fs::system_complete(cachePath).string() )
@@ -91,7 +90,7 @@ wxCartographer::wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
 {
 	try
 	{
-		init_gl();
+		magic_init();
 
 		std::wstring request;
 		std::wstring file;
@@ -242,26 +241,56 @@ void wxCartographer::Stop()
 
 	cache_.clear();
 	delete_textures();
+	magic_deinit();
 
 	assert( load_texture_debug_counter_ == delete_texture_debug_counter_);
 }
 
-void wxCartographer::init_gl()
+void wxCartographer::magic_init()
 {
+	unsigned char magic_data[4] = {255, 255, 255, 255};
+	
 	SetCurrent(gl_context_);
 
-	#ifdef TEST_FRUSTRUM
-	glEnable(GL_DEPTH_TEST);
-	#endif
+	glGenTextures(1, &magic_id_);
 
-	glEnable(GL_TEXTURE_2D);
-	glShadeModel(GL_SMOOTH);
-	glClearColor(0.0f, 0.2f, 0.5f, 1.0f);
-	glClearDepth(1.0);
+	glBindTexture(GL_TEXTURE_2D, magic_id_);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-	glEnable(GL_BLEND);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1,
+		0, GL_RGBA, GL_UNSIGNED_BYTE, magic_data);
 
-    check_gl_error();
+	check_gl_error();
+}
+
+void wxCartographer::magic_deinit()
+{
+	glDeleteTextures(1, &magic_id_);
+	check_gl_error();
+}
+
+void wxCartographer::magic_exec()
+{
+	/* Замечено, что ко всем отрисовываемым объектам примешивается цвет
+		последней выведенной точки последней выведенной текстуры.
+		Избавиться не удалось, поэтому делаем ход конём - выводим
+		в никуда белую текстуру */
+	
+	glColor4d(1.0, 1.0, 1.0, 0.0);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+	glBindTexture(GL_TEXTURE_2D, magic_id_);
+    glBegin(GL_QUADS);
+		glTexCoord2i(0, 0); glVertex3i( 0,  0, 0);
+		glTexCoord2i(1, 0); glVertex3i(-1,  0, 0);
+		glTexCoord2i(1, 0); glVertex3i(-1, -1, 0);
+		glTexCoord2i(0, 1); glVertex3i( 0, -1, 0);
+	glEnd();
 }
 
 void wxCartographer::check_gl_error()
@@ -324,10 +353,15 @@ GLuint wxCartographer::load_texture(raw_image *image)
 
 	glBindTexture(GL_TEXTURE_2D, id);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->width(), image->height(),
@@ -436,11 +470,11 @@ void wxCartographer::paint_tile(const tile::id &tile_id, int level)
 
 		glBindTexture(GL_TEXTURE_2D, id);
 	    glBegin(GL_QUADS);
-			glNormal3f(0.0f, 0.0f, 1.0f);
-			glTexCoord2d(x,     y    ); glVertex3i(tile_id.x,     tile_id.y,     -1);
-			glTexCoord2d(x + w, y    ); glVertex3i(tile_id.x + 1, tile_id.y,     -1);
-			glTexCoord2d(x + w, y + w); glVertex3i(tile_id.x + 1, tile_id.y + 1, -1);
-			glTexCoord2d(x,     y + w); glVertex3i(tile_id.x,     tile_id.y + 1, -1);
+			//glNormal3f(0.0f, 0.0f, 1.0f);
+			glTexCoord2d(x,     y    ); glVertex3i(tile_id.x,     tile_id.y,     0);
+			glTexCoord2d(x + w, y    ); glVertex3i(tile_id.x + 1, tile_id.y,     0);
+			glTexCoord2d(x + w, y + w); glVertex3i(tile_id.x + 1, tile_id.y + 1, 0);
+			glTexCoord2d(x,     y + w); glVertex3i(tile_id.x,     tile_id.y + 1, 0);
 		glEnd();
 
 		check_gl_error();
@@ -461,14 +495,6 @@ wxCartographer::tile::ptr wxCartographer::get_tile(const tile::id &tile_id)
 	//	return tile::ptr();
 
 	tile::ptr tile_ptr = find_tile(tile_id);
-
-	/*-
-	if (tile_ptr && tile_ptr->state() == tile::texture_generating)
-	{
-		GLuint id = load_texture(tile_ptr->image());
-		tile_ptr->set_texture_id(id);
-	}
-	-*/
 
 	return tile_ptr;
 }
@@ -1197,12 +1223,20 @@ void wxCartographer::repaint(wxPaintDC &dc)
 		Рисуем
 	*/
 
-	/* Настройка проекций OpenGL */
-
-	glViewport(0, 0, width_i, height_i);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); /* Пока не разобрался - зачем */
-
+	/* Настройка OpenGL */
 	{
+		SetCurrent(gl_context_);
+
+		glEnable(GL_TEXTURE_2D);
+		glShadeModel(GL_SMOOTH);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClearDepth(1.0);
+
+		glEnable(GL_BLEND);
+
+		glViewport(0, 0, width_i, height_i);
+		glClear(GL_COLOR_BUFFER_BIT);
+
 		/* Уровень GL_PROJECTION */
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
@@ -1224,7 +1258,7 @@ void wxCartographer::repaint(wxPaintDC &dc)
 	}
 
 	/* Выводим нижний слой */
-	if (dz > 0.01)
+	//if (dz > 0.01)
 	{
 		/* Тайлы заднего фона меньше в два раза */
 		glScaled(0.5, 0.5, 1.0);
@@ -1259,13 +1293,19 @@ void wxCartographer::repaint(wxPaintDC &dc)
 
 	/* Картинка пользователя */
 	{
+		magic_exec();
+
 		glColor4d(1.0, 1.0, 1.0, 1.0);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+
+		glOrtho(0.0, width_d, -height_d, 0.0, -1.0, 2.0);
+		glScaled(1.0, -1.0, 1.0);
+
 		glMatrixMode(GL_MODELVIEW);
 	    glLoadIdentity();
-		glScaled(1.0 / (256.0 * (1.0 + dz)), 1.0 / (256.0 * (1.0 + dz)), 1.0);
-		glTranslated(-fix_scr_x, -fix_scr_y, 0.0);
 
 		//wxMemoryDC dc;
         //dc.SelectObject(buffer_);
@@ -1296,6 +1336,7 @@ void wxCartographer::repaint(wxPaintDC &dc)
 	glFlush();
     SwapBuffers();
     check_gl_error();
+
 	paint_debug_info(dc, width_i, height_i);
 
 	/* Перестраиваем очереди загрузки тайлов. Чтобы загрузка
