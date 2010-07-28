@@ -238,12 +238,16 @@ private:
 
 	typedef std::list<GLuint> texture_id_list;
 	wxGLContext gl_context_;
+	GLuint magic_id_;
 	int load_texture_debug_counter_;
 	texture_id_list delete_texture_queue_;
 	mutex delete_texture_mutex_;
 	int delete_texture_debug_counter_;
 
-	void init_gl();
+	void magic_init();
+	void magic_deinit();
+	void magic_exec();
+
 	static void check_gl_error();
 	static raw_image* convert_to_raw(const wxImage &src);
 	void paint_tile(const tile::id &tile_id, int level = 0);
