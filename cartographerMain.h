@@ -30,11 +30,8 @@ class cartographerFrame: public wxFrame
 		virtual ~cartographerFrame();
 
 	private:
-		typedef std::vector<wxCartographer::map> maps_list;
-
-		wxCartographer *cartographer_;
-		maps_list maps_;
-		raw_image test_image_;
+		cgr::Cartographer *cartographer_;
+		int test_image_id_;
 
 		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
 

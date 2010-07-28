@@ -52,35 +52,184 @@
 
 extern my::log main_log;
 
-class wxCartographer : public wxGLCanvas, my::employer
+namespace cgr
 {
-public:
-	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> on_paint_proc_t;
 
-	
-	/*
-		Описание карты
-	*/
-	struct map
+/* Описание карты */
+struct map_info
+{
+	enum projection_t {unknown, spheroid /*Google*/, ellipsoid /*Yandex*/};
+	std::wstring sid;
+	std::wstring name;
+	bool is_layer;
+	std::wstring tile_type;
+	std::wstring ext;
+	projection_t projection;
+
+	map_info() : is_layer(false), projection(unknown) {}
+};
+
+/* Точка */
+struct point
+{
+	union
 	{
-		enum projection_t {spheroid /*Google*/, ellipsoid /*Yandex*/};
-		std::wstring sid;
-		std::wstring name;
-		bool is_layer;
-		std::wstring tile_type;
-		std::wstring ext;
-		projection_t projection;
+		double x;
+		double lon;
+	};
+	union
+	{
+		double y;
+		double lat;
 	};
 
+	point() : x(0), y(0) {}
+	point(double x, double y) : x(x), y(y) {}
+};
+
+/* Размер */
+struct size
+{
+	double width;
+	double height;
+
+	size() : width(0), height(0) {}
+	size(double w, double h) : width(w), height(h) {}
+};
+
+double DegreesToGeo(double deg, double min, double sec);
+//#define FROM_DEG(d,m,s) cgr::DegreesToGeo(d,m,s)
+
+void GeoToDegrees(double lat_or_lon, int *pdeg, int *pmin, double *psec);
+//#define TO_DEG(l,d,m,s) cgr::GeoToDegrees(l,d,m,s)
+
+class Cartographer : public wxGLCanvas, my::employer
+{
+public:
+	/* Тип обработчика */
+	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> on_paint_proc_t;
+
+	/* Конструктор */
+	Cartographer(wxWindow *parent, const std::wstring &server_addr,
+		const std::wstring &server_port, std::size_t cache_size,
+		std::wstring cache_path, bool only_cache,
+		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
+		on_paint_proc_t on_paint_proc,
+		int anim_period = 0, int def_min_anim_steps = 0);
 	
+	~Cartographer();
+
+	void Stop();
+	void Update();
+	
+	/* Карты */
+	int GetMapsCount();
+	map_info GetMapInfo(int index);
+	map_info GetActiveMapInfo();
+	bool SetActiveMapByIndex(int index);
+	bool SetActiveMapByName(const std::wstring &map_name);
+
+	point ll_to_xy(double lat, double lon);
+	point xy_to_ll(double x, double y);
+	
+	double GetActiveZ();
+	void SetActiveZ(int z);
+
+	point GetActiveGeoPos();
+	point GetActiveScrPos();
+	void MoveTo(int z, double lat, double lon);
+
+	/* Работа с изображениями */
+	int LoadImageFromFile(const std::wstring &filename);
+	int LoadImageFromMem(const void *data, std::size_t size);
+	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
+	void SetImageCenter(int image_id, double x, double y);
+	point GetImageCenter(int image_id);
+	size GetImageSize(int image_id);
+	void DeleteImage(int image_id);
+	void DrawImage(int image_id, double x, double y, double w, double h,
+		bool calc_size = false);
+	void DrawImage(int image_id, double x, double y)
+		{ DrawImage(image_id, x, y, 0.0, 0.0, true); }
+
+	DECLARE_EVENT_TABLE()
+
+
+private:
+	
+	
+	/*
+		Изображение
+	*/
+	class image
+	{
+	protected:
+		Cartographer &cartographer_;
+		raw_image raw_;
+		GLuint texture_id_;
+
+	public:
+		image(Cartographer &cartographer)
+			: cartographer_(cartographer)
+			, texture_id_(0) {}
+
+		~image()
+		{
+			if (texture_id_)
+				cartographer_.delete_texture_later(texture_id_);
+		}
+
+		bool convert_from(const wxImage &src);
+		bool load_from_file(const std::wstring &filename);
+		bool load_from_mem(const void *data, std::size_t size);
+		void load_from_raw(const unsigned char *data,
+			int width, int height, bool with_alpha);
+
+		raw_image& raw()
+			{ return raw_; }
+		
+		GLuint texture_id()
+			{ return texture_id_; }
+
+		void set_texture_id(GLuint texture_id)
+			{ texture_id_ = texture_id; }
+
+		bool ok()
+			{ return raw_.data() != 0; }
+	};
+
+
+	/*
+		Спрайт - изображение со смещённым центром
+	*/
+	class sprite : public image
+	{
+	private:
+		double center_kx_;
+		double center_ky_;
+
+	public:
+		sprite(Cartographer &cartographer)
+			: image(cartographer)
+			, center_kx_(0.5)
+			, center_ky_(0.5) {}
+
+		void set_center(double kx, double ky)
+			{ center_kx_ = kx, center_ky_ = ky; }
+		
+		point center()
+			{ return point(center_kx_, center_ky_); }
+	};
+
+
 	/*
 		Тайл
 	*/
-	class tile
+	class tile : public image
 	{
 	public:
 		typedef shared_ptr<tile> ptr;
-		enum state_t {fail, empty, file_loading, server_loading, texture_generating, absent, ready};
+		enum step_t {unknown, file_loading, server_loading, ready};
 
 		/* Идентификатор тайла */
 		struct id
@@ -131,84 +280,40 @@ public:
 		}; /* struct tile::id */
 
 	private:
-		friend class wxCartographer;
-		wxCartographer &cartographer_;
-		state_t state_;
-		raw_image image_;
-		GLuint texture_id_;
+		step_t step_;
 
 	public:
-		tile(wxCartographer &cartographer, state_t state = empty)
-			: cartographer_(cartographer)
-			, state_(state)
-			, texture_id_(0)
+		tile(Cartographer &cartographer, step_t step = unknown)
+			: image(cartographer)
+			, step_(step)
 		{
-		}
-
-		~tile()
-		{
-			clear();
 		}
 
 		void clear()
 		{
-			state_ = empty;
+			step_ = unknown;
 
-			image_.clear();
+			raw_.clear();
 
 			if (texture_id_)
 			{
-				cartographer_.post_delete_texture(texture_id_);
+				cartographer_.delete_texture_later(texture_id_);
 				texture_id_ = 0;
 			}
 		}
 
-		/* Загрузка из файла */
-		inline bool load_from_file(const std::wstring &filename)
-		{
-			clear();
-			bool res = wxCartographer::load_raw_from_file(filename, image_);
-			if (res)
-				state_ = texture_generating;
-			return res;
-		}
+		inline void set_step(step_t step)
+			{ step_ = step; }
 
-		/* Загрузка из памяти */
-		bool load_from_mem(const void *data, std::size_t size)
-		{
-			clear();
-			bool res = wxCartographer::load_raw_from_mem(data, size, image_);
-			if (res)
-				state_ = texture_generating;
-			return res;
-		}
-
-		inline void set_texture_id(GLuint texture_id)
-		{
-			clear();
-			texture_id_ = texture_id;
-			if (texture_id_)
-				state_ = ready;
-		}
-
-		inline void set_state(state_t state)
-			{ state_ = state; }
-
-		inline state_t state()
-			{ return state_; }
-
-		inline raw_image& image()
-			{ return image_; }
-	
-		inline GLuint texture_id()
-			{ return texture_id_; }
+		inline step_t step()
+			{ return step_; }
 
 	}; /* class tile */
 
-private:
-	typedef std::map<int, map> maps_list;
+	typedef std::map<int, map_info> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
+	typedef boost::unordered_map<int, sprite> sprites_list;
 
 
 	/*
@@ -231,7 +336,7 @@ private:
 	void paint_tile(const tile::id &tile_id, int level = 0);
 	GLuint load_texture(raw_image &image);
 	void load_textures();
-	void post_delete_texture(GLuint texture_id);
+	void delete_texture_later(GLuint texture_id);
 	void delete_texture(GLuint id);
 	void delete_textures();
 
@@ -369,6 +474,7 @@ private:
 	template<class DC>
 	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
 
+	boost::thread::id paint_thread_id_;
 	void repaint(wxPaintDC &dc);
 
 	/* Размеры рабочей области */
@@ -411,24 +517,24 @@ private:
 	/* Градусы -> тайловые координаты */
 	static inline double lon_to_tile_x(double lon, double z);
 	static inline double lat_to_tile_y(double lat, double z,
-		map::projection_t projection);
+		map_info::projection_t projection);
 
 	/* Градусы -> экранные координаты */
 	static inline double lon_to_scr_x(double lon, double z,
 		double fix_lon, double fix_scr_x);
 	static inline double lat_to_scr_y(double lat, double z,
-		map::projection_t projection, double fix_lat, double fix_scr_y);
+		map_info::projection_t projection, double fix_lat, double fix_scr_y);
 
 	/* Тайловые координаты -> градусы */
 	static inline double tile_x_to_lon(double x, double z);
 	static inline double tile_y_to_lat(double y, double z,
-		map::projection_t projection);
+		map_info::projection_t projection);
 
 	/* Экранные координаты -> градусы */
 	static inline double scr_x_to_lon(double x, double z,
 		double fix_lon, double fix_scr_x);
 	static inline double scr_y_to_lat(double y, double z,
-		map::projection_t projection, double fix_lat, double fix_scr_y);
+		map_info::projection_t projection, double fix_lat, double fix_scr_y);
 
 
 	/*
@@ -450,103 +556,17 @@ private:
 	/*
 		Работа с изображениями
 	*/
-
-	/* Преобразование из wxImage в raw_image */
-	static bool convert_to_raw(const wxImage &src, raw_image &dest);
-
-	/* Загрузка из файла в raw_image */
-	static bool load_raw_from_file(const std::wstring &filename,
-		raw_image &image);
-
-	/* Загрузка из памяти в raw_image */
-	static bool load_raw_from_mem(const void *data, std::size_t size,
-		raw_image &image);
+	int sprites_index_;
+	sprites_list sprites_;
+	shared_mutex sprites_mutex_;
 
 	/* Загрузка raw_image в текстуру OpenGL */
 	static GLuint load_raw_to_gl(raw_image &image);
 
 	/* Вызгрузка текстуры OpenGL */
-	static void unload_from_gl(GLuint texture_id);
-
-public:
-	wxCartographer(wxWindow *parent, const std::wstring &server_addr,
-		const std::wstring &server_port, std::size_t cache_size,
-		std::wstring cache_path, bool only_cache,
-		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
-		on_paint_proc_t on_paint_proc,
-		int anim_period = 0, int def_min_anim_steps = 1);
-	~wxCartographer();
-
-	struct point
-	{
-		union
-		{
-			double x;
-			double lon;
-		};
-		union
-		{
-			double y;
-			double lat;
-		};
-
-		point() {}
-		point(double x, double y) : x(x), y(y) {}
-	};
-
-	void stop();
-
-	void refresh();
-	void get_maps(std::vector<map> &maps);
-	wxCartographer::map get_active_map();
-	bool set_active_map(const std::wstring &map_name);
-
-	wxCartographer::point ll_to_xy(double lat, double lon);
-	wxCartographer::point xy_to_ll(double x, double y);
-
-	double get_current_z();
-	void set_current_z(int z);
-
-	wxCartographer::point get_fix_ll();
-	wxCartographer::point get_fix_xy();
-	void move_to(int z, double lat, double lon);
-
-	static inline double dms_to_l(double deg, double min, double sec)
-	{
-		return deg + min / 60.0 + sec / 3600.0;
-	}
-
-	static inline void l_to_dms(double lat_or_lon, int *pdeg, int *pmin, double *psec)
-	{
-		int d = (int)lat_or_lon;
-		double m_d = (lat_or_lon - d) * 60.0;
-		int m = (int)m_d;
-		double s = (m_d - (double)m) * 60.0;
-
-		*pdeg = d;
-		*pmin = m;
-		*psec = s;
-	}
-	
-	/* Загрузка изображения из файла */
-	bool load_image(const std::wstring &filename, raw_image &image, bool clear = true);
-
-	/* Удаление изображения */
-	void unload_image(raw_image &image);
-
-	void draw_image(const raw_image &image, double x, double y, double w, double h);
-	void draw_image(const raw_image &image, double x, double y)
-	{
-		double w = image.width();
-		double h = image.height();
-		draw_image(image, x, y, w, h);
-	}
-
-	DECLARE_EVENT_TABLE()
+	//static void unload_from_gl(GLuint texture_id);
 };
 
-#define FROM_DEG(d,m,s) wxCartographer::dms_to_l(d,m,s)
-#define TO_DEG(l,d,m,s) wxCartographer::l_to_dms(l,d,m,s)
-
+} /* namespace cgr */
 
 #endif
