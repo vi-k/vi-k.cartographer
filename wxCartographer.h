@@ -50,15 +50,12 @@
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 #include <wx/glcanvas.h> /* OpenGL */
 
-wxDECLARE_EVENT(WXCART_LOAD_TEXTURE_EVENT, wxCommandEvent);
-wxDECLARE_EVENT(WXCART_DELETE_TEXTURE_EVENT, wxCommandEvent);
-
 extern my::log main_log;
 
 class wxCartographer : public wxGLCanvas, my::employer
 {
 public:
-	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> OnPaintProc_t;
+	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> on_paint_proc_t;
 
 	
 	/*
@@ -137,14 +134,13 @@ public:
 		friend class wxCartographer;
 		wxCartographer &cartographer_;
 		state_t state_;
-		raw_image *image_;
+		raw_image image_;
 		GLuint texture_id_;
 
 	public:
 		tile(wxCartographer &cartographer, state_t state = empty)
 			: cartographer_(cartographer)
 			, state_(state)
-			, image_(0)
 			, texture_id_(0)
 		{
 		}
@@ -158,11 +154,7 @@ public:
 		{
 			state_ = empty;
 
-			if (image_)
-			{
-				delete image_;
-				image_ = 0;
-			}
+			image_.clear();
 
 			if (texture_id_)
 			{
@@ -172,36 +164,23 @@ public:
 		}
 
 		/* Загрузка из файла */
-		bool load_from_file(const std::wstring &filename)
+		inline bool load_from_file(const std::wstring &filename)
 		{
 			clear();
-
-			wxImage wx_image(filename);
-			if (wx_image.IsOk())
-			{
-				image_ = wxCartographer::convert_to_raw(wx_image);
-				if (image_)
-					state_ = texture_generating;
-			}
-
-			return image_ != 0;
+			bool res = wxCartographer::load_raw_from_file(filename, image_);
+			if (res)
+				state_ = texture_generating;
+			return res;
 		}
 
 		/* Загрузка из памяти */
 		bool load_from_mem(const void *data, std::size_t size)
 		{
 			clear();
-
-			wxImage wx_image;
-			wxMemoryInputStream stream(data, size);
-			if (wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) )
-			{
-				image_ = wxCartographer::convert_to_raw(wx_image);
-				if (image_)
-					state_ = texture_generating;
-			}
-
-			return image_ != 0;
+			bool res = wxCartographer::load_raw_from_mem(data, size, image_);
+			if (res)
+				state_ = texture_generating;
+			return res;
 		}
 
 		inline void set_texture_id(GLuint texture_id)
@@ -218,7 +197,7 @@ public:
 		inline state_t state()
 			{ return state_; }
 
-		inline raw_image* image()
+		inline raw_image& image()
 			{ return image_; }
 	
 		inline GLuint texture_id()
@@ -249,9 +228,8 @@ private:
 	void magic_exec();
 
 	static void check_gl_error();
-	static raw_image* convert_to_raw(const wxImage &src);
 	void paint_tile(const tile::id &tile_id, int level = 0);
-	GLuint load_texture(raw_image *image);
+	GLuint load_texture(raw_image &image);
 	void load_textures();
 	void post_delete_texture(GLuint texture_id);
 	void delete_texture(GLuint id);
@@ -457,7 +435,7 @@ private:
 		Обработчики событий окна
 	*/
 
-	OnPaintProc_t on_paint_;
+	on_paint_proc_t on_paint_handler_;
 
 	void on_paint(wxPaintEvent& event);
 	void on_erase_background(wxEraseEvent& event);
@@ -468,50 +446,107 @@ private:
 	void on_mouse_move(wxMouseEvent& event);
 	void on_mouse_wheel(wxMouseEvent& event);
 
+
+	/*
+		Работа с изображениями
+	*/
+
+	/* Преобразование из wxImage в raw_image */
+	static bool convert_to_raw(const wxImage &src, raw_image &dest);
+
+	/* Загрузка из файла в raw_image */
+	static bool load_raw_from_file(const std::wstring &filename,
+		raw_image &image);
+
+	/* Загрузка из памяти в raw_image */
+	static bool load_raw_from_mem(const void *data, std::size_t size,
+		raw_image &image);
+
+	/* Загрузка raw_image в текстуру OpenGL */
+	static GLuint load_raw_to_gl(raw_image &image);
+
+	/* Вызгрузка текстуры OpenGL */
+	static void unload_from_gl(GLuint texture_id);
+
 public:
-	wxCartographer(wxWindow *parent, const std::wstring &serverAddr,
-		const std::wstring &serverPort, std::size_t cacheSize,
-		std::wstring cachePath, bool onlyCache,
-		const std::wstring &initMap, int initZ, double initLat, double initLon,
-		OnPaintProc_t onPaintProc,
-		int animPeriod = 0, int defMinAnimSteps = 1);
+	wxCartographer(wxWindow *parent, const std::wstring &server_addr,
+		const std::wstring &server_port, std::size_t cache_size,
+		std::wstring cache_path, bool only_cache,
+		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
+		on_paint_proc_t on_paint_proc,
+		int anim_period = 0, int def_min_anim_steps = 1);
 	~wxCartographer();
 
-	void Stop();
+	struct point
+	{
+		union
+		{
+			double x;
+			double lon;
+		};
+		union
+		{
+			double y;
+			double lat;
+		};
 
-	void Repaint();
-	void GetMaps(std::vector<map> &Maps);
-	wxCartographer::map GetActiveMap();
-	bool SetActiveMap(const std::wstring &MapName);
+		point() {}
+		point(double x, double y) : x(x), y(y) {}
+	};
 
-	wxCoord LatToY(double Lat);
-	wxCoord LonToX(double Lon);
+	void stop();
 
-	int GetZ();
-	void SetZ(int z);
+	void refresh();
+	void get_maps(std::vector<map> &maps);
+	wxCartographer::map get_active_map();
+	bool set_active_map(const std::wstring &map_name);
 
-	double GetLat();
-	double GetLon();
-	void MoveTo(int z, double lat, double lon);
+	wxCartographer::point ll_to_xy(double lat, double lon);
+	wxCartographer::point xy_to_ll(double x, double y);
 
-	static inline double DegreesToCoord(double deg, double min, double sec)
+	double get_current_z();
+	void set_current_z(int z);
+
+	wxCartographer::point get_fix_ll();
+	wxCartographer::point get_fix_xy();
+	void move_to(int z, double lat, double lon);
+
+	static inline double dms_to_l(double deg, double min, double sec)
 	{
 		return deg + min / 60.0 + sec / 3600.0;
 	}
 
-	static inline void CoordToDegrees(double coord, int &deg, int &min, double &sec)
+	static inline void l_to_dms(double lat_or_lon, int *pdeg, int *pmin, double *psec)
 	{
-		deg = (int)coord;
-		double m = (coord - deg) * 60.0;
-		min = (int)m;
-		sec = (m - min) * 60.0;
+		int d = (int)lat_or_lon;
+		double m_d = (lat_or_lon - d) * 60.0;
+		int m = (int)m_d;
+		double s = (m_d - (double)m) * 60.0;
+
+		*pdeg = d;
+		*pmin = m;
+		*psec = s;
+	}
+	
+	/* Загрузка изображения из файла */
+	bool load_image(const std::wstring &filename, raw_image &image, bool clear = true);
+
+	/* Удаление изображения */
+	void unload_image(raw_image &image);
+
+	void draw_image(const raw_image &image, double x, double y, double w, double h);
+	void draw_image(const raw_image &image, double x, double y)
+	{
+		double w = image.width();
+		double h = image.height();
+		draw_image(image, x, y, w, h);
 	}
 
 	DECLARE_EVENT_TABLE()
 };
 
-#define FROM_DEG(d,m,s) wxCartographer::DegreesToCoord(d,m,s)
-#define TO_DEG(c,d,m,s) wxCartographer::CoordToDegrees(c,d,m,s)
+#define FROM_DEG(d,m,s) wxCartographer::dms_to_l(d,m,s)
+#define TO_DEG(l,d,m,s) wxCartographer::l_to_dms(l,d,m,s)
 
 
 #endif

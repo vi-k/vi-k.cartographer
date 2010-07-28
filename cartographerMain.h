@@ -24,17 +24,17 @@
 
 class cartographerFrame: public wxFrame
 {
-    public:
+	public:
 
-        cartographerFrame(wxWindow* parent,wxWindowID id = -1);
-        virtual ~cartographerFrame();
+		cartographerFrame(wxWindow* parent,wxWindowID id = -1);
+		virtual ~cartographerFrame();
 
-    private:
+	private:
 		typedef std::vector<wxCartographer::map> maps_list;
 
 		wxCartographer *cartographer_;
 		maps_list maps_;
-		wxBitmap bitmap_;
+		raw_image test_image_;
 
 		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
 
@@ -43,12 +43,12 @@ class cartographerFrame: public wxFrame
 			const wxFont &font, const wxColour &color,
 			const wxPen &back_pen, const wxBrush &back_brush );
 
-        //(*Handlers(cartographerFrame)
-        void OnQuit(wxCommandEvent& event);
-        void OnAbout(wxCommandEvent& event);
+		//(*Handlers(cartographerFrame)
+		void OnQuit(wxCommandEvent& event);
+		void OnAbout(wxCommandEvent& event);
 		void OnComboBox1Select(wxCommandEvent& event);
 		void OnChoice1Select(wxCommandEvent& event);
-        //*)
+		//*)
 
 		//(*Identifiers(cartographerFrame)
 		static const long ID_COMBOBOX1;
@@ -56,18 +56,18 @@ class cartographerFrame: public wxFrame
 		static const long ID_PANEL2;
 		static const long ID_MENU_QUIT;
 		static const long ID_MENU_ABOUT;
-        static const long ID_STATUSBAR1;
-        //*)
+		static const long ID_STATUSBAR1;
+		//*)
 
 		//(*Declarations(wx_MainFrame)
-        wxStatusBar* StatusBar1;
-        wxComboBox* ComboBox1;
-        wxPanel* Panel2;
-        wxFlexGridSizer* FlexGridSizer1;
-        wxChoice* Choice1;
-        //*)
+		wxStatusBar* StatusBar1;
+		wxComboBox* ComboBox1;
+		wxPanel* Panel2;
+		wxFlexGridSizer* FlexGridSizer1;
+		wxChoice* Choice1;
+		//*)
 
-        DECLARE_EVENT_TABLE()
+		DECLARE_EVENT_TABLE()
 };
 
 #endif // CARTOGRAPHERMAIN_H

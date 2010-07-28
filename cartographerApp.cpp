@@ -37,9 +37,9 @@ IMPLEMENT_APP(cartographerApp);
 
 bool cartographerApp::OnInit()
 {
-    #if wxUSE_ON_FATAL_EXCEPTION
-    wxHandleFatalExceptions(true);
-    #endif
+	#if wxUSE_ON_FATAL_EXCEPTION
+	wxHandleFatalExceptions(true);
+	#endif
 
 	/* Открываем лог */
 	bool log_exists = fs::exists("main.log");
@@ -57,17 +57,17 @@ bool cartographerApp::OnInit()
 	main_log << L"Start" << main_log;
 
 
-    //(*AppInitialize
-    bool wxsOK = true;
-    wxInitAllImageHandlers();
-    if ( wxsOK )
-    {
-    cartographerFrame* Frame = new cartographerFrame(0);
-    Frame->Show();
-    SetTopWindow(Frame);
-    }
-    //*)
-    return wxsOK;
+	//(*AppInitialize
+	bool wxsOK = true;
+	wxInitAllImageHandlers();
+	if ( wxsOK )
+	{
+	cartographerFrame* Frame = new cartographerFrame(0);
+	Frame->Show();
+	SetTopWindow(Frame);
+	}
+	//*)
+	return wxsOK;
 
 }
 

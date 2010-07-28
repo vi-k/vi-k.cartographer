@@ -224,6 +224,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\raw_image.h"
+				>
+			</File>
+			<File
 				RelativePath=".\stdafx.h"
 				>
 				<FileConfiguration
