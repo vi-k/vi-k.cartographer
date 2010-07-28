@@ -115,7 +115,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
-/*-
 	test_image_id_ = cartographer_->LoadImageFromFile(L"test.png");
 	cartographer_->SetImageCenter(test_image_id_, 0.5, 1.0);
 
@@ -130,7 +129,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	map = cartographer_->GetActiveMapInfo();
 	ComboBox1->SetValue(map.name);
--*/
+
 	Choice1->Append(L"Хабаровск");
 	Choice1->Append(L"Владивосток");
 	Choice1->Append(L"Магадан");
@@ -190,7 +189,6 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
-/*-
 	cgr::point pt = cartographer_->ll_to_xy(48.47259794, 135.04954039);
 
 	double z = cartographer_->GetActiveZ();
@@ -207,7 +205,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 
 	glColor4d(1.0, 1.0, 1.0, 1.0);
 	cartographer_->DrawImage(test_image_id_, pt.x, pt.y, img_sz.width, img_sz.height);
--*/
+
 	/*-
 	wxString str;
 	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
