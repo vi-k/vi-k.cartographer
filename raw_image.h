@@ -47,13 +47,14 @@ public:
 		data_ = new unsigned char[ width * height * (bpp / 8) ];
 	}
 
-	void clear(bool only_image = false)
+	void clear(bool with_init = true)
 	{
 		delete[] data_;
-		if (only_image)
-			data_ = 0;
-		else
+
+		if (with_init)
 			init();
+		else
+			data_ = 0;
 	}
 
 	inline int width() const

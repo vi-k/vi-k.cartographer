@@ -93,7 +93,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	SetClientSize(400, 400);
 	Show(true);
 
-	cartographer_ = new wxCartographer(
+	cartographer_ = new cgr::Cartographer(
 		this
 		, L"127.0.0.1" /* ServerAddr - адрес сервера */
 		, L"27543" /* ServerPort - порт сервера */
@@ -115,18 +115,22 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
-	cartographer_->load_image(L"test.png", test_image_);
+/*-
+	test_image_id_ = cartographer_->LoadImageFromFile(L"test.png");
+	cartographer_->SetImageCenter(test_image_id_, 0.5, 1.0);
 
-	cartographer_->get_maps(maps_);
+	int maps_count = cartographer_->GetMapsCount();
+	cgr::map_info map;
 
-	for( maps_list::iterator iter = maps_.begin();
-		iter != maps_.end(); ++iter )
+	for( int i = 0; i < maps_count; ++i)
 	{
-		ComboBox1->Append(iter->name);
+		map = cartographer_->GetMapInfo(i);
+		ComboBox1->Append(map.name);
 	}
 
-	ComboBox1->SetValue( cartographer_->get_active_map().name );
-
+	map = cartographer_->GetActiveMapInfo();
+	ComboBox1->SetValue(map.name);
+-*/
 	Choice1->Append(L"Хабаровск");
 	Choice1->Append(L"Владивосток");
 	Choice1->Append(L"Магадан");
@@ -139,7 +143,7 @@ cartographerFrame::~cartographerFrame()
 {
 	/* Остановка картографера обязательно должна быть выполнена
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
-	cartographer_->stop();
+	cartographer_->Stop();
 
 	//(*Destroy(cartographerFrame)
 	//*)
@@ -158,7 +162,7 @@ void cartographerFrame::OnAbout(wxCommandEvent& event)
 void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 {
 	std::wstring str = (const wchar_t *)ComboBox1->GetValue().c_str();
-	cartographer_->set_active_map(str);
+	cartographer_->SetActiveMapByName(str);
 }
 
 wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
@@ -186,27 +190,24 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
-	wxCartographer::point pt = cartographer_->ll_to_xy(48.47259794, 135.04954039);
+/*-
+	cgr::point pt = cartographer_->ll_to_xy(48.47259794, 135.04954039);
 
-	double z = cartographer_->get_current_z();
+	double z = cartographer_->GetActiveZ();
 
 	pt = cartographer_->ll_to_xy(48.48021475, 135.0719556);
 
-	double img_w = test_image_.width();
-	double img_h = test_image_.height();
+	cgr::size img_sz = cartographer_->GetImageSize(test_image_id_);
 
 	if (z < 6.0)
 	{
-		img_w = img_w / 6.0 * z;
-		img_h = img_h / 6.0 * z;
+		img_sz.width *= z / 6.0;
+		img_sz.height *= z / 6.0;
 	}
 
-	double img_x = pt.x - img_w / 2;
-	double img_y = pt.y - img_h;
-
 	glColor4d(1.0, 1.0, 1.0, 1.0);
-	cartographer_->draw_image(test_image_, img_x, img_y, img_w, img_h);
-
+	cartographer_->DrawImage(test_image_id_, pt.x, pt.y, img_sz.width, img_sz.height);
+-*/
 	/*-
 	wxString str;
 	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
@@ -255,27 +256,32 @@ void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 	switch (Choice1->GetCurrentSelection())
 	{
 		case 0: /* Хабаровск */
-			cartographer_->move_to(12, 48.48021475, 135.0719556);
+			cartographer_->MoveTo(12, 48.48021475, 135.0719556);
 			break;
 
 		case 1: /* Владивосток */
-			cartographer_->move_to(13, FROM_DEG(43,7,17.95), FROM_DEG(131,55,34.4));
+			cartographer_->MoveTo(13,
+				cgr::DegreesToGeo(43,7,17.95), cgr::DegreesToGeo(131,55,34.4));
 			break;
 
 		case 2: /* Магадан */
-			cartographer_->move_to(12, FROM_DEG(59,33,41.79), FROM_DEG(150,50,19.87));
+			cartographer_->MoveTo(12,
+				cgr::DegreesToGeo(59,33,41.79), cgr::DegreesToGeo(150,50,19.87));
 			break;
 
 		case 3: /* Якутск */
-			cartographer_->move_to(10, FROM_DEG(62,4,30.33), FROM_DEG(129,45,24.39));
+			cartographer_->MoveTo(10,
+				cgr::DegreesToGeo(62,4,30.33), cgr::DegreesToGeo(129,45,24.39));
 			break;
 
 		case 4: /* Южно-Сахалинск */
-			cartographer_->move_to(12, FROM_DEG(46,57,34.28), FROM_DEG(142,44,18.58));
+			cartographer_->MoveTo(12,
+				cgr::DegreesToGeo(46,57,34.28), cgr::DegreesToGeo(142,44,18.58));
 			break;
 
 		case 5: /* Петропавлоск-Камчатский */
-			cartographer_->move_to(13, FROM_DEG(53,4,11.14), FROM_DEG(158,37,9.24));
+			cartographer_->MoveTo(13,
+				cgr::DegreesToGeo(53,4,11.14), cgr::DegreesToGeo(158,37,9.24));
 			break;
 	}
 }

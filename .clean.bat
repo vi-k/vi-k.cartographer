@@ -8,10 +8,10 @@ rmdir /S /Q obj
 del *.depend 2>nul
 del *.layout 2>nul
 del main.log 2>nul
+rmdir /S /Q Debug
+rmdir /S /Q Release
 call :vc_clean bin\Debug %1
 call :vc_clean bin\Release %1
-call :vc_clean Debug %1
-call :vc_clean Release %1
 goto :eof
 
 :vc_clean
