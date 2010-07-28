@@ -33,65 +33,65 @@ const long cartographerFrame::ID_STATUSBAR1 = wxNewId();
 //*)
 
 BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
-    //(*EventTable(cartographerFrame)
-    //*)
+	//(*EventTable(cartographerFrame)
+	//*)
 END_EVENT_TABLE()
 
 cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	: cartographer_(0)
 {
-    //(*Initialize(cartographerFrame)
-    wxMenuItem* MenuItem2;
-    wxMenuItem* MenuItem1;
-    wxMenu* Menu1;
-    wxMenuBar* MenuBar1;
-    wxMenu* Menu2;
+	//(*Initialize(cartographerFrame)
+	wxMenuItem* MenuItem2;
+	wxMenuItem* MenuItem1;
+	wxMenu* Menu1;
+	wxMenuBar* MenuBar1;
+	wxMenu* Menu2;
 
-    Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
-    SetClientSize(wxSize(626,293));
-    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
-    {
-    wxIcon FrameIcon;
-    FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
-    SetIcon(FrameIcon);
-    }
-    FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
-    FlexGridSizer1->AddGrowableCol(0);
-    FlexGridSizer1->AddGrowableRow(1);
-    Panel2 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
-    ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
-    Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
-    FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
+	SetClientSize(wxSize(626,293));
+	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
+	{
+	wxIcon FrameIcon;
+	FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
+	SetIcon(FrameIcon);
+	}
+	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
+	FlexGridSizer1->AddGrowableCol(0);
+	FlexGridSizer1->AddGrowableRow(1);
+	Panel2 = new wxPanel(this, ID_PANEL2, wxDefaultPosition, wxSize(616,61), wxTAB_TRAVERSAL, _T("ID_PANEL2"));
+	ComboBox1 = new wxComboBox(Panel2, ID_COMBOBOX1, wxEmptyString, wxPoint(8,8), wxSize(208,24), 0, 0, wxCB_READONLY|wxCB_DROPDOWN, wxDefaultValidator, _T("ID_COMBOBOX1"));
+	Choice1 = new wxChoice(Panel2, ID_CHOICE1, wxPoint(232,8), wxSize(192,24), 0, 0, 0, wxDefaultValidator, _T("ID_CHOICE1"));
+	FlexGridSizer1->Add(Panel2, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 
 	//Panel1 = new wxPanel(this, ID_PANEL1, wxDefaultPosition, wxSize(616,331), wxTAB_TRAVERSAL, _T("ID_PANEL1"));
 	//FlexGridSizer1->Add(Panel1, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 
-    MenuBar1 = new wxMenuBar();
-    Menu1 = new wxMenu();
-    MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _(L"Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
-    Menu1->Append(MenuItem1);
-    MenuBar1->Append(Menu1, _(L"Файл"));
-    Menu2 = new wxMenu();
-    MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _(L"О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
-    Menu2->Append(MenuItem2);
-    MenuBar1->Append(Menu2, _(L"Помощь"));
-    SetMenuBar(MenuBar1);
-    StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
-    int __wxStatusBarWidths_1[1] = { -1 };
-    int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
-    StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
-    StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
-    SetStatusBar(StatusBar1);
-    FlexGridSizer1->SetSizeHints(this);
+	MenuBar1 = new wxMenuBar();
+	Menu1 = new wxMenu();
+	MenuItem1 = new wxMenuItem(Menu1, ID_MENU_QUIT, _(L"Выход\tAlt-F4"), wxEmptyString, wxITEM_NORMAL);
+	Menu1->Append(MenuItem1);
+	MenuBar1->Append(Menu1, _(L"Файл"));
+	Menu2 = new wxMenu();
+	MenuItem2 = new wxMenuItem(Menu2, ID_MENU_ABOUT, _(L"О программе...\tF1"), wxEmptyString, wxITEM_NORMAL);
+	Menu2->Append(MenuItem2);
+	MenuBar1->Append(Menu2, _(L"Помощь"));
+	SetMenuBar(MenuBar1);
+	StatusBar1 = new wxStatusBar(this, ID_STATUSBAR1, 0, _T("ID_STATUSBAR1"));
+	int __wxStatusBarWidths_1[1] = { -1 };
+	int __wxStatusBarStyles_1[1] = { wxSB_NORMAL };
+	StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
+	StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
+	SetStatusBar(StatusBar1);
+	FlexGridSizer1->SetSizeHints(this);
 
-    Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
-    Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
-    Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
+	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
+	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
+	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
 	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
-    //*)
+	//*)
 
-    SetClientSize(400, 400);
-    Show(true);
+	SetClientSize(400, 400);
+	Show(true);
 
 	cartographer_ = new wxCartographer(
 		this
@@ -110,14 +110,14 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
   	);
 	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 
-    SetSizer(FlexGridSizer1);
+	SetSizer(FlexGridSizer1);
 
 	/* Очень обязательная вещь! */
 	//setlocale(LC_ALL, "");
 
-	bitmap_.LoadFile(L"test.png", wxBITMAP_TYPE_ANY);
+	cartographer_->load_image(L"test.png", test_image_);
 
-	cartographer_->GetMaps(maps_);
+	cartographer_->get_maps(maps_);
 
 	for( maps_list::iterator iter = maps_.begin();
 		iter != maps_.end(); ++iter )
@@ -125,7 +125,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		ComboBox1->Append(iter->name);
 	}
 
-	ComboBox1->SetValue( cartographer_->GetActiveMap().name );
+	ComboBox1->SetValue( cartographer_->get_active_map().name );
 
 	Choice1->Append(L"Хабаровск");
 	Choice1->Append(L"Владивосток");
@@ -139,15 +139,15 @@ cartographerFrame::~cartographerFrame()
 {
 	/* Остановка картографера обязательно должна быть выполнена
 		до удаления всех объектов, использующихся в обработчике OnMapPaint */
-	cartographer_->Stop();
+	cartographer_->stop();
 
-    //(*Destroy(cartographerFrame)
-    //*)
+	//(*Destroy(cartographerFrame)
+	//*)
 }
 
 void cartographerFrame::OnQuit(wxCommandEvent& event)
 {
-    Close();
+	Close();
 }
 
 void cartographerFrame::OnAbout(wxCommandEvent& event)
@@ -158,7 +158,7 @@ void cartographerFrame::OnAbout(wxCommandEvent& event)
 void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 {
 	std::wstring str = (const wchar_t *)ComboBox1->GetValue().c_str();
-	cartographer_->SetActiveMap(str);
+	cartographer_->set_active_map(str);
 }
 
 wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
@@ -186,29 +186,28 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 {
-	wxCoord x = cartographer_->LonToX(135.04954039);
-	wxCoord y = cartographer_->LatToY(48.47259794);
+	wxCartographer::point pt = cartographer_->ll_to_xy(48.47259794, 135.04954039);
 
-	int z = cartographer_->GetZ();
+	double z = cartographer_->get_current_z();
 
-#if 0
-	wxDouble bmp_w = bitmap_.GetWidth();
-	wxDouble bmp_h = bitmap_.GetHeight();
+	pt = cartographer_->ll_to_xy(48.48021475, 135.0719556);
 
-	if (z < 6)
+	double img_w = test_image_.width();
+	double img_h = test_image_.height();
+
+	if (z < 6.0)
 	{
-		bmp_w = bmp_w / 6 * z;
-		bmp_h = bmp_h / 6 * z;
+		img_w = img_w / 6.0 * z;
+		img_h = img_h / 6.0 * z;
 	}
 
-	wxDouble bmp_x = x - bmp_w / 2;
-	wxDouble bmp_y = y - bmp_h;
+	double img_x = pt.x - img_w / 2;
+	double img_y = pt.y - img_h;
 
-	//gc.DrawBitmap(bitmap_, bmp_x, bmp_y);
+	glColor4d(1.0, 1.0, 1.0, 1.0);
+	cartographer_->draw_image(test_image_, img_x, img_y, img_w, img_h);
 
-	gc.GetGraphicsContext()->DrawBitmap(bitmap_,
-		bmp_x, bmp_y, bmp_w, bmp_h);
-
+	/*-
 	wxString str;
 	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
 
@@ -219,11 +218,10 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		wxColour(255, 255, 255),
 		wxPen( wxColor(0, 0, 0), 1 ),
 		wxBrush( wxColor(255, 255, 0, 192) ));
-#endif
+	-*/
 
-	/**/
-
-    glBegin(GL_QUADS);
+	/*
+	glBegin(GL_QUADS);
 		glColor4d(1.0, 0.0, 0.0, 0.5);
 		glVertex3i(100, 100, 0);
 		glVertex3i(200, 100, 0);
@@ -232,7 +230,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		glVertex3i(100, 200, 0);
 	glEnd();
 
-    glBegin(GL_QUADS);
+	glBegin(GL_QUADS);
 		glColor4d(0.0, 1.0, 0.0, 0.5);
 		glVertex3i(200, 200, 0);
 		glVertex3i(300, 200, 0);
@@ -241,7 +239,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		glVertex3i(200, 300, 0);
 	glEnd();
 
-    glBegin(GL_QUADS);
+	glBegin(GL_QUADS);
 		glColor4d(0.0, 0.0, 1.0, 0.5);
 		glVertex3i(300, 300, 0);
 		glVertex3i(400, 300, 0);
@@ -249,44 +247,6 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 		glVertex3i(400, 400, 0);
 		glVertex3i(300, 400, 0);
 	glEnd();
-
-	/*-
-	glLineWidth(1);
-	glBegin(GL_LINES);
-		glColor3d(1,0,0);     // красный цвет
-		glVertex3d(55,130,0); // первая линия
-		glVertex3d(70,130,0);
-		glColor3d(0,1,0);     // зеленый
-		glVertex3d(70,133,0); // вторая линия
-		glVertex3d(60,134,0);
-	glEnd();
-	
-	glLineWidth(3);      // ширина 3
-	glBegin(GL_LINE_STRIP); // см. ниже
-		glColor3d(1,0,0);
-		glVertex3d(73,130,0);
-		glVertex3d(90,130,0);
-		glColor3d(0,1,0);
-		glVertex3d(85,133,0);
-		glColor3d(0,0,1);
-		glVertex3d(90,135,0);
-	glEnd();
-
-	glLineWidth(5);
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_LINE_STIPPLE); // разрешаем рисовать прерывистую линию
-	glLineStipple(2,58360);    // устанавливаем маску
-	glBegin(GL_LINE_LOOP);
-		glColor3d(1,0,0);
-		glVertex3d(110,130,0);
-		glVertex3d(140,130,0);
-		glColor3d(0,1,0);
-		glVertex3d(130,127,0);
-		glColor3d(0,0,1);
-		glVertex3d(125,137,0);
-	glEnd();
-	glDisable(GL_LINE_SMOOTH);
-	glDisable(GL_LINE_STIPPLE);
 	-*/
 }
 
@@ -295,27 +255,27 @@ void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 	switch (Choice1->GetCurrentSelection())
 	{
 		case 0: /* Хабаровск */
-			cartographer_->MoveTo(12, 48.48021475, 135.0719556);
+			cartographer_->move_to(12, 48.48021475, 135.0719556);
 			break;
 
 		case 1: /* Владивосток */
-			cartographer_->MoveTo(13, FROM_DEG(43,7,17.95), FROM_DEG(131,55,34.4));
+			cartographer_->move_to(13, FROM_DEG(43,7,17.95), FROM_DEG(131,55,34.4));
 			break;
 
 		case 2: /* Магадан */
-			cartographer_->MoveTo(12, FROM_DEG(59,33,41.79), FROM_DEG(150,50,19.87));
+			cartographer_->move_to(12, FROM_DEG(59,33,41.79), FROM_DEG(150,50,19.87));
 			break;
 
 		case 3: /* Якутск */
-			cartographer_->MoveTo(10, FROM_DEG(62,4,30.33), FROM_DEG(129,45,24.39));
+			cartographer_->move_to(10, FROM_DEG(62,4,30.33), FROM_DEG(129,45,24.39));
 			break;
 
 		case 4: /* Южно-Сахалинск */
-			cartographer_->MoveTo(12, FROM_DEG(46,57,34.28), FROM_DEG(142,44,18.58));
+			cartographer_->move_to(12, FROM_DEG(46,57,34.28), FROM_DEG(142,44,18.58));
 			break;
 
 		case 5: /* Петропавлоск-Камчатский */
-			cartographer_->MoveTo(13, FROM_DEG(53,4,11.14), FROM_DEG(158,37,9.24));
+			cartographer_->move_to(13, FROM_DEG(53,4,11.14), FROM_DEG(158,37,9.24));
 			break;
 	}
 }

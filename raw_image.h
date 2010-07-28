@@ -7,7 +7,7 @@ private:
 	int width_;
 	int height_;
 	int bpp_;
-	int type_;
+	int tag_;
 	unsigned char *data_;
 
 	void init()
@@ -15,7 +15,7 @@ private:
 		width_ = 0;
 		height_ = 0;
 		bpp_ = 0;
-		type_ = 0;
+		tag_ = 0;
 		data_ = 0;
 	}
 
@@ -25,26 +25,35 @@ public:
 		init();
 	}
 
-	raw_image(int width, int height, int bpp, int type = 0)
+	raw_image(int width, int height, int bpp, int tag = 0)
 	{
 		init();
-		create(width, height, bpp, type);
+		create(width, height, bpp, tag);
 	}
 
 	~raw_image()
 	{
-		delete[] data_;
+		clear();
 	}
 
-	void create(int width, int height, int bpp, int type = 0)
+	void create(int width, int height, int bpp, int tag = 0)
 	{
-		delete[] data_;
+		clear();
 
 		width_ = width;
 		height_ = height;
 		bpp_ = bpp;
-		type_ = type;
+		tag_ = tag;
 		data_ = new unsigned char[ width * height * (bpp / 8) ];
+	}
+
+	void clear(bool only_image = false)
+	{
+		delete[] data_;
+		if (only_image)
+			data_ = 0;
+		else
+			init();
 	}
 
 	inline int width() const
@@ -56,8 +65,11 @@ public:
 	inline int bpp() const
 		{ return bpp_; }
 
-	inline int type() const
-		{ return type_; }
+	inline void set_tag(int tag)
+		{ tag_ = tag; }
+
+	inline int tag() const
+		{ return tag_; }
 
 	inline unsigned char* data()
 		{ return data_; }
