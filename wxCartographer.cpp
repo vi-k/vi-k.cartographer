@@ -243,6 +243,7 @@ Cartographer::~Cartographer()
 	cache_.clear();
 	delete_textures();
 	magic_deinit();
+	sprites_.clear();
 
 	assert( load_texture_debug_counter_ == delete_texture_debug_counter_ );
 }
@@ -656,7 +657,7 @@ void Cartographer::load_textures()
 
 	int count = 0;
 
-	while (iter != cache_.end() /*&& ++count <= cache_active_tiles_*/)
+	while (iter != cache_.end() && ++count <= cache_active_tiles_)
 	{
 		tile::ptr tile_ptr = iter->value();
 
@@ -1480,19 +1481,30 @@ void Cartographer::repaint(wxPaintDC &dc)
 					tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
 					tiles_cache::iterator iter = cache_.find(tile_id);
 					
+					tile::ptr tile_ptr;
+
 					if (iter == cache_.end())
-						cache_[ tile_id ] = tile::ptr(new tile(*this, tile::file_loading));
+						tile_ptr = tile::ptr(new tile(*this, tile::file_loading));
 					else
-						cache_.up(tile_id);
+						tile_ptr = iter->value();
+
+					cache_.insert(tile_id, tile_ptr);
 
 					++tiles_count;
 				}
 			}
 
 			--basis_z;
+
 			basis_tile_x1 >>= 1;
 			basis_tile_y1 >>= 1;
+
+			if (basis_tile_x2 & 1)
+				++basis_tile_x2;
 			basis_tile_x2 >>= 1;
+
+			if (basis_tile_y2 & 1)
+				++basis_tile_y2;
 			basis_tile_y2 >>= 1;
 		}
 
@@ -1505,6 +1517,36 @@ void Cartographer::repaint(wxPaintDC &dc)
 		wake_up(server_loader_);
 
 		cache_active_tiles_ = tiles_count;
+
+		/*-
+		wchar_t buf[200];
+		std::wstring str;
+		int z = 0;
+		int count1 = 0;
+		int count2 = 0;
+
+		for (tiles_cache::iterator iter = cache_.begin();
+			iter != cache_.end(); ++iter)
+		{
+			tile::id tile_id = iter->key();
+			tile &ti = *(iter->value().get());
+			tile_id = tile_id;
+			if (z != tile_id.z && z != 0)
+			{
+				__swprintf(buf, sizeof(buf)/sizeof(*buf), L" %d:(%d,%d)",
+					z, count1, count2);
+				str += buf;
+				count2 = 0;
+			}
+			z = tile_id.z;
+			++count1;
+			++count2;
+		}
+		__swprintf(buf, sizeof(buf)/sizeof(*buf), L" %d:(%d,%d)",
+			z, count1, count2);
+		str += buf;
+		str = str;
+		-*/
 	}
 
 	
