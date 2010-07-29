@@ -57,6 +57,7 @@ class cartographerFrame: public wxFrame
 		static const long ID_COMBOBOX1;
 		static const long ID_CHOICE1;
 		static const long ID_PANEL2;
+		static const long ID_PANEL1;
 		static const long ID_MENU_QUIT;
 		static const long ID_MENU_ABOUT;
 		static const long ID_STATUSBAR1;
@@ -66,6 +67,7 @@ class cartographerFrame: public wxFrame
 		wxStatusBar* StatusBar1;
 		wxComboBox* ComboBox1;
 		wxPanel* Panel2;
+		wxPanel* Panel1;
 		wxFlexGridSizer* FlexGridSizer1;
 		wxChoice* Choice1;
 		//*)
