@@ -330,7 +330,7 @@ bool Cartographer::SetActiveMapByName(const std::wstring &map_name)
 	return true;
 }
 
-point Cartographer::ll_to_xy(double lat, double lon)
+point Cartographer::GeoToScr(double lat, double lon)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
@@ -344,16 +344,16 @@ point Cartographer::ll_to_xy(double lat, double lon)
 	return pt;
 }
 
-point Cartographer::xy_to_ll(double x, double y)
+coord Cartographer::ScrToGeo(double x, double y)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
 	double w, h;
 	get_viewport_size(&w, &h);
 
-	point pt;
-	pt.lon = scr_x_to_lon(x, z_, fix_lon_, w * fix_kx_);
+	coord pt;
 	pt.lat = scr_y_to_lat(y, z_, maps_[active_map_id_].projection, fix_lat_, h * fix_ky_);
+	pt.lon = scr_x_to_lon(x, z_, fix_lon_, w * fix_kx_);
 
 	return pt;
 }
@@ -374,15 +374,11 @@ void Cartographer::SetActiveZ(int z)
 	Update();
 }
 
-point Cartographer::GetActiveGeoPos()
+coord Cartographer::GetActiveGeoPos()
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
-	point pt;
-	pt.lat = fix_lat_;
-	pt.lon = fix_lon_;
-
-	return pt;
+	return coord(fix_lat_, fix_lon_);
 }
 
 point Cartographer::GetActiveScrPos()
@@ -392,11 +388,7 @@ point Cartographer::GetActiveScrPos()
 	double w, h;
 	get_viewport_size(&w, &h);
 
-	point pt;
-	pt.x = w * fix_kx_;
-	pt.y = h * fix_ky_;
-
-	return pt;
+	return point(w * fix_kx_, h * fix_ky_);
 }
 
 void Cartographer::MoveTo(int z, double lat, double lon)
@@ -491,13 +483,10 @@ int Cartographer::LoadImageFromRaw(const unsigned char *data,
 	return sprites_index_;
 }
 
-void Cartographer::SetImageCenter(int image_id, double x, double y)
+void Cartographer::DeleteImage(int image_id)
 {
 	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-	if (iter != sprites_.end())
-		iter->second.set_center(x, y);
+	sprites_.erase(image_id);
 }
 
 point Cartographer::GetImageCenter(int image_id)
@@ -511,6 +500,15 @@ point Cartographer::GetImageCenter(int image_id)
 		pt = iter->second.center();
 
 	return pt;
+}
+
+void Cartographer::SetImageCenter(int image_id, double kx, double ky)
+{
+	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+
+	sprites_list::iterator iter = sprites_.find(image_id);
+	if (iter != sprites_.end())
+		iter->second.set_center(kx, ky);
 }
 
 size Cartographer::GetImageSize(int image_id)
@@ -530,10 +528,28 @@ size Cartographer::GetImageSize(int image_id)
 	return sz;
 }
 
-void Cartographer::DeleteImage(int image_id)
+size Cartographer::GetImageScale(int image_id)
 {
 	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
-	sprites_.erase(image_id);
+
+	sprites_list::iterator iter = sprites_.find(image_id);
+	size scale;
+
+	if (iter != sprites_.end())
+		scale = iter->second.scale();
+
+	return scale;
+}
+
+void Cartographer::SetImageScale(int image_id, const size &scale)
+{
+	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+
+	sprites_list::iterator iter = sprites_.find(image_id);
+	size sz;
+
+	if (iter != sprites_.end())
+		iter->second.set_scale(scale);
 }
 
 void Cartographer::DrawImage(int image_id, double x, double y, double w, double h,
@@ -561,6 +577,9 @@ void Cartographer::DrawImage(int image_id, double x, double y, double w, double 
 			w = spr.raw().width();
 			h = spr.raw().height();
 		}
+
+		w *= spr.scale().width;
+		h *= spr.scale().height;
 
 		point center = spr.center();
 		x -= w * center.x;
@@ -1244,8 +1263,7 @@ bool Cartographer::sort_by_dist( tile::id fix_tile,
 }
 #endif
 
-void Cartographer::paint_debug_info(wxDC &gc,
-	wxCoord width, wxCoord height)
+void Cartographer::paint_debug_info(wxDC &gc, int width, int height)
 {
 	/* Отладочная информация */
 	//gc.SetPen(*wxWHITE_PEN);
@@ -1259,8 +1277,7 @@ void Cartographer::paint_debug_info(wxDC &gc,
 	paint_debug_info_int(gc, width, height);
 }
 
-void Cartographer::paint_debug_info(wxGraphicsContext &gc,
-	wxCoord width, wxCoord height)
+void Cartographer::paint_debug_info(wxGraphicsContext &gc, int width, int height)
 {
 	/* Отладочная информация */
 	gc.SetPen(*wxWHITE_PEN);
@@ -1274,8 +1291,7 @@ void Cartographer::paint_debug_info(wxGraphicsContext &gc,
 }
 
 template<class DC>
-void Cartographer::paint_debug_info_int(DC &gc,
-	wxCoord width, wxCoord height)
+void Cartographer::paint_debug_info_int(DC &gc, int width, int height)
 {
 	wxCoord x = 8;
 	wxCoord y = 8;
@@ -1560,7 +1576,7 @@ void Cartographer::repaint(wxPaintDC &dc)
 
 		glEnable(GL_TEXTURE_2D);
 		glShadeModel(GL_SMOOTH);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClearColor(0.0f, 0.2f, 0.5f, 1.0f);
 		glClearDepth(1.0);
 
 		glEnable(GL_BLEND);
@@ -1822,14 +1838,14 @@ GLuint Cartographer::load_texture(raw_image &image)
 
 	glBindTexture(GL_TEXTURE_2D, id);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F); /* GL_CLAMP_TO_EDGE */
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F); /* GL_CLAMP_TO_EDGE */
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(),

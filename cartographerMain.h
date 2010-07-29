@@ -31,9 +31,15 @@ class cartographerFrame: public wxFrame
 
 	private:
 		cgr::Cartographer *cartographer_;
-		int test_image_id_;
+		static const int count_ = 8; //9;
+		int images_[count_];
+		wxString names_[count_];
+		int z_[count_];
+		cgr::coord coords_[count_];
 
-		void OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height);
+		void OnMapPaint(wxGCDC &gc, int width, int height);
+
+		void DrawImage(int id, const cgr::coord &pt);
 
 		static wxCoord DrawTextInBox( wxGCDC &gc,
 			const wxString &str, wxCoord x, wxCoord y,
