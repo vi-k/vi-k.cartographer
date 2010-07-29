@@ -368,6 +368,12 @@ void Cartographer::SetActiveZ(int z)
 {
 	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
 
+	if (z < 1)
+		z = 1;
+	
+	if (z > 30)
+		z = 30;
+
 	new_z_ = z;
 	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
 
