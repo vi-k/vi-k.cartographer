@@ -72,19 +72,21 @@ struct map_info
 /* Точка */
 struct point
 {
-	union
-	{
-		double x;
-		double lon;
-	};
-	union
-	{
-		double y;
-		double lat;
-	};
+	double x;
+	double y;
 
 	point() : x(0), y(0) {}
 	point(double x, double y) : x(x), y(y) {}
+};
+
+/* Координаты */
+struct coord
+{
+	double lat;
+	double lon;
+
+	coord() : lat(0), lon(0) {}
+	coord(double lat, double lon) : lat(lat), lon(lon) {}
 };
 
 /* Размер */
@@ -98,16 +100,21 @@ struct size
 };
 
 double DegreesToGeo(double deg, double min, double sec);
-//#define FROM_DEG(d,m,s) cgr::DegreesToGeo(d,m,s)
+inline coord DegreesToGeo(
+	double lat_deg, double lat_min, double lat_sec,
+	double lon_deg, double lon_min, double lon_sec)
+{
+	return coord( DegreesToGeo(lat_deg, lat_min, lat_sec),
+		DegreesToGeo(lon_deg, lon_min, lon_sec) );
+}
 
 void GeoToDegrees(double lat_or_lon, int *pdeg, int *pmin, double *psec);
-//#define TO_DEG(l,d,m,s) cgr::GeoToDegrees(l,d,m,s)
 
 class Cartographer : public wxGLCanvas, my::employer
 {
 public:
 	/* Тип обработчика */
-	typedef boost::function<void (wxGCDC &gc, wxCoord width, wxCoord height)> on_paint_proc_t;
+	typedef boost::function<void (wxGCDC &gc, int width, int height)> on_paint_proc_t;
 
 	/* Конструктор */
 	Cartographer(wxWindow *parent, const std::wstring &server_addr,
@@ -129,28 +136,52 @@ public:
 	bool SetActiveMapByIndex(int index);
 	bool SetActiveMapByName(const std::wstring &map_name);
 
-	point ll_to_xy(double lat, double lon);
-	point xy_to_ll(double x, double y);
+	point GeoToScr(double lat, double lon);
+	point GeoToScr(const coord &pt)
+		{ return GeoToScr(pt.lat, pt.lon); }
+
+	coord ScrToGeo(double x, double y);
+	coord ScrToGeo(const point &pt)
+		{ return ScrToGeo(pt.x, pt.y); }
 	
 	double GetActiveZ();
 	void SetActiveZ(int z);
 
-	point GetActiveGeoPos();
+	coord GetActiveGeoPos();
 	point GetActiveScrPos();
 	void MoveTo(int z, double lat, double lon);
+	void MoveTo(int z, const coord &pt)
+		{ MoveTo(z, pt.lat, pt.lon); }
 
-	/* Работа с изображениями */
+	
+	/*
+		Работа с изображениями
+	*/
 	int LoadImageFromFile(const std::wstring &filename);
 	int LoadImageFromMem(const void *data, std::size_t size);
 	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
-	void SetImageCenter(int image_id, double x, double y);
-	point GetImageCenter(int image_id);
-	size GetImageSize(int image_id);
 	void DeleteImage(int image_id);
+
+	/* Центр изображения (0.0 ... 1.0). По умолчанию: 0.5, 0.5 */
+	point GetImageCenter(int image_id);
+	void SetImageCenter(int image_id, double kx, double ky);
+
+	/* Размеры изображения */
+	size GetImageSize(int image_id);
+	size GetImageScale(int image_id);
+	void SetImageScale(int image_id, const size &scale);
+	void SetImageScale(int image_id, double scale_w, double scale_h)
+		{ SetImageScale( image_id, size(scale_w, scale_h) ); }
+
+	/* Вывод изображения */
 	void DrawImage(int image_id, double x, double y, double w, double h,
 		bool calc_size = false);
+	void DrawImage(int image_id, const point &pos, const size &sz)
+		{ DrawImage(image_id, pos.x, pos.y, sz.width, sz.height, false); }
 	void DrawImage(int image_id, double x, double y)
 		{ DrawImage(image_id, x, y, 0.0, 0.0, true); }
+	void DrawImage(int image_id, const point &pos)
+		{ DrawImage(image_id, pos.x, pos.y, 0.0, 0.0, true); }
 
 	DECLARE_EVENT_TABLE()
 
@@ -167,11 +198,13 @@ private:
 		Cartographer &cartographer_;
 		raw_image raw_;
 		GLuint texture_id_;
+		size scale_;
 
 	public:
 		image(Cartographer &cartographer)
 			: cartographer_(cartographer)
-			, texture_id_(0) {}
+			, texture_id_(0)
+			, scale_(1.0, 1.0) {}
 
 		~image()
 		{
@@ -193,6 +226,12 @@ private:
 
 		void set_texture_id(GLuint texture_id)
 			{ texture_id_ = texture_id; }
+
+		size scale()
+			{ return scale_; }
+		
+		void set_scale(const size &scale)
+			{ scale_ = scale; }
 
 		bool ok()
 			{ return raw_.data() != 0; }
@@ -468,11 +507,11 @@ private:
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
 
-	void paint_debug_info(wxDC &gc, wxCoord width, wxCoord height);
-	void paint_debug_info(wxGraphicsContext &gc, wxCoord width, wxCoord height);
+	void paint_debug_info(wxDC &gc, int width, int height);
+	void paint_debug_info(wxGraphicsContext &gc, int width, int height);
 
 	template<class DC>
-	void paint_debug_info_int(DC &gc, wxCoord width, wxCoord height);
+	void paint_debug_info_int(DC &gc, int width, int height);
 
 	boost::thread::id paint_thread_id_;
 	void repaint(wxPaintDC &dc);

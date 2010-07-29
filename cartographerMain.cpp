@@ -93,6 +93,11 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	SetClientSize(400, 400);
 	Show(true);
 
+	/* Обязательно обнуляем, а то получим ошибку, т.к. картинки начнут
+		использоваться ещё до того, как мы успеем их загрузить */
+	for (int i = 0; i < count_; ++i)
+		images_[i]= 0;
+
 	cartographer_ = new cgr::Cartographer(
 		this
 		, L"127.0.0.1" /* ServerAddr - адрес сервера */
@@ -109,15 +114,9 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		, 50, 5 /* 0 - нет анимации */
   	);
 	FlexGridSizer1->Add(cartographer_, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-
 	SetSizer(FlexGridSizer1);
 
-	/* Очень обязательная вещь! */
-	//setlocale(LC_ALL, "");
-
-	test_image_id_ = cartographer_->LoadImageFromFile(L"test.png");
-	cartographer_->SetImageCenter(test_image_id_, 0.5, 1.0);
-
+	/* Список карт */
 	int maps_count = cartographer_->GetMapsCount();
 	cgr::map_info map;
 
@@ -130,12 +129,81 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	map = cartographer_->GetActiveMapInfo();
 	ComboBox1->SetValue(map.name);
 
-	Choice1->Append(L"Хабаровск");
-	Choice1->Append(L"Владивосток");
-	Choice1->Append(L"Магадан");
-	Choice1->Append(L"Якутск");
-	Choice1->Append(L"Южно-Сахалинск");
-	Choice1->Append(L"Петропавлоск-Камчатский");
+	
+	/* Метки - не забыть (!) изменить размер массива (images_[9]),
+		когда надо будет добавить ещё */
+	images_[0] = cartographer_->LoadImageFromFile(L"images/blu-blank.png");
+	cartographer_->SetImageCenter(images_[0], 0.5, 1.0);
+
+	images_[1] = cartographer_->LoadImageFromFile(L"images/Back.png");
+	cartographer_->SetImageCenter(images_[1], 0.0, 0.5);
+
+	images_[2] = cartographer_->LoadImageFromFile(L"images/Forward.png");
+	cartographer_->SetImageCenter(images_[2], 1.0, 0.5);
+
+	images_[3] = cartographer_->LoadImageFromFile(L"images/Up.png");
+	cartographer_->SetImageCenter(images_[3], 0.5, 0.0);
+
+	images_[4] = cartographer_->LoadImageFromFile(L"images/Down.png");
+	cartographer_->SetImageCenter(images_[4], 0.5, 1.0);
+
+	images_[5] = cartographer_->LoadImageFromFile(L"images/Flag.png");
+	cartographer_->SetImageCenter(images_[5], 0.14, 1.0);
+
+	images_[6] = cartographer_->LoadImageFromFile(L"images/write.png");
+	cartographer_->SetImageCenter(images_[6], 0.0, 1.0);
+
+	images_[7] = cartographer_->LoadImageFromFile(L"images/ylw-pushpin.png");
+	cartographer_->SetImageCenter(images_[7], 0.29, 1.0);
+	cartographer_->SetImageScale(images_[7], 0.5, 0.5);
+
+	/*-
+	images_[8] = cartographer_->LoadImageFromFile(L"images/wifi.png");
+	cartographer_->SetImageCenter(images_[8], 0.5, 0.95);
+	-*/
+
+
+	/* Места для быстрого перехода */
+	names_[0] = L"Хабаровск";
+	z_[0] = 12;
+	coords_[0] = cgr::coord(48.48021475, 135.0719556);
+
+	names_[1] = L"Владивосток";
+	z_[1] = 13;
+	coords_[1] = cgr::DegreesToGeo( 43,7,17.95, 131,55,34.4 );
+
+	names_[2] = L"Магадан";
+	z_[2] = 12;
+	coords_[2] = cgr::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
+
+	names_[3] = L"Якутск";
+	z_[3] = 10;
+	coords_[3] = cgr::DegreesToGeo( 62,4,30.33, 129,45,24.39 );
+
+	names_[4] = L"Южно-Сахалинск";
+	z_[4] = 12;
+	coords_[4] = cgr::DegreesToGeo( 46,57,34.28, 142,44,18.58 );
+
+	names_[5] = L"Петропавловск-Камчатский";
+	z_[5] = 13;
+	coords_[5] = cgr::DegreesToGeo( 53,4,11.14, 158,37,9.24 );
+
+	names_[6] = L"Бикин";
+	z_[6] = 11;
+	coords_[6] = cgr::DegreesToGeo( 46,48,47.59, 134,14,55.71 );
+
+	names_[7] = L"Благовещенск";
+	z_[7] = 14;
+	coords_[7] = cgr::DegreesToGeo( 50,16,55.96, 127,31,46.09 );
+
+	/*-
+	names_[8] = L"Биробиджан";
+	z_[8] = 14;
+	coords_[8] = cgr::DegreesToGeo( 48,47,52.55, 132,55,5.13 );
+	-*/
+
+	for (int i = 0; i < count_; ++i)
+		Choice1->Append(names_[i]);
 }
 
 cartographerFrame::~cartographerFrame()
@@ -187,24 +255,29 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 	return h;
 }
 
-void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
+void cartographerFrame::DrawImage(int id, const cgr::coord &pt)
 {
-	cgr::point pt = cartographer_->ll_to_xy(48.47259794, 135.04954039);
+	if (id == 0)
+		return;
 
+	cgr::point pos = cartographer_->GeoToScr(pt);
+	cgr::size size = cartographer_->GetImageSize(id);
 	double z = cartographer_->GetActiveZ();
-
-	pt = cartographer_->ll_to_xy(48.48021475, 135.0719556);
-
-	cgr::size img_sz = cartographer_->GetImageSize(test_image_id_);
 
 	if (z < 6.0)
 	{
-		img_sz.width *= z / 6.0;
-		img_sz.height *= z / 6.0;
+		size.width *= z / 6.0;
+		size.height *= z / 6.0;
 	}
 
 	glColor4d(1.0, 1.0, 1.0, 1.0);
-	cartographer_->DrawImage(test_image_id_, pt.x, pt.y, img_sz.width, img_sz.height);
+	cartographer_->DrawImage(id, pos, size);
+}
+
+void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
+{
+	for (int i = 0; i < count_; ++i)
+		DrawImage(images_[i], coords_[i]);
 
 	/*-
 	wxString str;
@@ -251,35 +324,6 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, wxCoord width, wxCoord height)
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 {
-	switch (Choice1->GetCurrentSelection())
-	{
-		case 0: /* Хабаровск */
-			cartographer_->MoveTo(12, 48.48021475, 135.0719556);
-			break;
-
-		case 1: /* Владивосток */
-			cartographer_->MoveTo(13,
-				cgr::DegreesToGeo(43,7,17.95), cgr::DegreesToGeo(131,55,34.4));
-			break;
-
-		case 2: /* Магадан */
-			cartographer_->MoveTo(12,
-				cgr::DegreesToGeo(59,33,41.79), cgr::DegreesToGeo(150,50,19.87));
-			break;
-
-		case 3: /* Якутск */
-			cartographer_->MoveTo(10,
-				cgr::DegreesToGeo(62,4,30.33), cgr::DegreesToGeo(129,45,24.39));
-			break;
-
-		case 4: /* Южно-Сахалинск */
-			cartographer_->MoveTo(12,
-				cgr::DegreesToGeo(46,57,34.28), cgr::DegreesToGeo(142,44,18.58));
-			break;
-
-		case 5: /* Петропавлоск-Камчатский */
-			cartographer_->MoveTo(13,
-				cgr::DegreesToGeo(53,4,11.14), cgr::DegreesToGeo(158,37,9.24));
-			break;
-	}
+	int i = Choice1->GetCurrentSelection();
+	cartographer_->MoveTo(z_[i], coords_[i].lat, coords_[i].lon);
 }
