@@ -62,5 +62,26 @@
 			<widths>-1</widths>
 			<styles>wxSB_NORMAL</styles>
 		</object>
+		<object class="wxToolBar" name="ID_TOOLBAR1" variable="ToolBar1" member="yes">
+			<object class="tool" name="ID_ZOOMIN" variable="ToolBarItem1" member="yes">
+				<label>ZoomIn</label>
+				<bitmap>images/zoom-in-32.png</bitmap>
+				<tooltip>Увеличить</tooltip>
+				<handler function="OnZoomInButtonClick" entry="EVT_TOOL" />
+			</object>
+			<object class="tool" name="ID_ZOOMOUT" variable="ToolBarItem2" member="yes">
+				<label>ZoomOut</label>
+				<bitmap>images/zoom-out-32.png</bitmap>
+				<tooltip>Уменьшить</tooltip>
+				<handler function="OnZoomOutButtonClick" entry="EVT_TOOL" />
+			</object>
+			<object class="tool" name="ID_ANCHOR" variable="ToolBarItem3" member="yes">
+				<label>Anchor</label>
+				<bitmap>images\Flag.png</bitmap>
+				<tooltip>Следить</tooltip>
+				<handler function="OnAnchorButtonClick" entry="EVT_TOOL" />
+				<check>1</check>
+			</object>
+		</object>
 	</object>
 </wxsmith>

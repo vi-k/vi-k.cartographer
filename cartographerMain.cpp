@@ -31,6 +31,10 @@ const long cartographerFrame::ID_PANEL1 = wxNewId();
 const long cartographerFrame::ID_MENU_QUIT = wxNewId();
 const long cartographerFrame::ID_MENU_ABOUT = wxNewId();
 const long cartographerFrame::ID_STATUSBAR1 = wxNewId();
+const long cartographerFrame::ID_ZOOMIN = wxNewId();
+const long cartographerFrame::ID_ZOOMOUT = wxNewId();
+const long cartographerFrame::ID_ANCHOR = wxNewId();
+const long cartographerFrame::ID_TOOLBAR1 = wxNewId();
 //*)
 
 BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
@@ -47,7 +51,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	wxMenu* Menu1;
 	wxMenuBar* MenuBar1;
 	wxMenu* Menu2;
-	
+
 	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
 	SetClientSize(wxSize(626,293));
 	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
@@ -82,12 +86,21 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	StatusBar1->SetFieldsCount(1,__wxStatusBarWidths_1);
 	StatusBar1->SetStatusStyles(1,__wxStatusBarStyles_1);
 	SetStatusBar(StatusBar1);
+	ToolBar1 = new wxToolBar(this, ID_TOOLBAR1, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL|wxNO_BORDER, _T("ID_TOOLBAR1"));
+	ToolBarItem1 = ToolBar1->AddTool(ID_ZOOMIN, _("ZoomIn"), wxBitmap(wxImage(_T("images/zoom-in-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Увеличить"), wxEmptyString);
+	ToolBarItem2 = ToolBar1->AddTool(ID_ZOOMOUT, _("ZoomOut"), wxBitmap(wxImage(_T("images/zoom-out-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Уменьшить"), wxEmptyString);
+	ToolBarItem3 = ToolBar1->AddTool(ID_ANCHOR, _("Anchor"), wxBitmap(wxImage(_T("images\\Flag.png"))), wxNullBitmap, wxITEM_CHECK, _("Следить"), wxEmptyString);
+	ToolBar1->Realize();
+	SetToolBar(ToolBar1);
 	FlexGridSizer1->SetSizeHints(this);
-	
+
 	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
 	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
 	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
 	Connect(ID_MENU_ABOUT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnAbout);
+	Connect(ID_ZOOMIN,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnZoomInButtonClick);
+	Connect(ID_ZOOMOUT,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnZoomOutButtonClick);
+	Connect(ID_ANCHOR,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnAnchorButtonClick);
 	//*)
 
 	SetClientSize(400, 400);
@@ -130,7 +143,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	map = cartographer_->GetActiveMapInfo();
 	ComboBox1->SetValue(map.name);
 
-	
+
 	/* Метки - не забыть (!) изменить размер массива (images_[9]),
 		когда надо будет добавить ещё */
 	images_[0] = cartographer_->LoadImageFromFile(L"images/blu-blank.png");
@@ -327,4 +340,19 @@ void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 {
 	int i = Choice1->GetCurrentSelection();
 	cartographer_->MoveTo(z_[i], coords_[i].lat, coords_[i].lon);
+}
+
+void cartographerFrame::OnZoomInButtonClick(wxCommandEvent& event)
+{
+	cartographer_->SetActiveZ( cartographer_->GetActiveZ() + 1.0);
+}
+
+void cartographerFrame::OnZoomOutButtonClick(wxCommandEvent& event)
+{
+	cartographer_->SetActiveZ( cartographer_->GetActiveZ() - 1.0);
+}
+
+void cartographerFrame::OnAnchorButtonClick(wxCommandEvent& event)
+{
+	//AnchorButton->SetValue( !AnchorButton->GetValue() );
 }
