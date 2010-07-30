@@ -103,6 +103,8 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 	, fix_ky_(0.5)
 	, fix_lat_(init_lat)
 	, fix_lon_(init_lon)
+	, fix_step_(0)
+	, fix_alpha_(0.0)
 	, painter_debug_counter_(0)
 	, move_mode_(false)
 	, force_repaint_(false)
@@ -378,6 +380,18 @@ void Cartographer::SetActiveZ(int z)
 	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
 
 	Update();
+}
+
+void Cartographer::ZoomIn()
+{
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	SetActiveZ( new_z_ + 1.0 );
+}
+
+void Cartographer::ZoomOut()
+{
+	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	SetActiveZ( new_z_ - 1.0 );
 }
 
 coord Cartographer::GetActiveGeoPos()
@@ -1640,9 +1654,9 @@ void Cartographer::repaint(wxPaintDC &dc)
 		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
 			paint_tile( tile::id(map_id, z_i, x, y) );
 
-	/* Картинка пользователя */
+	/* Меняем проекцию на проекцию экрана: 0..width, 0..height */
 	{
-		magic_exec();
+		magic_exec();	
 
 		glColor4d(1.0, 1.0, 1.0, 1.0);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -1655,7 +1669,54 @@ void Cartographer::repaint(wxPaintDC &dc)
 
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
+	}
 
+	/* Показываем fix-точку при изменении масштаба */
+	if (fix_step_ || dz > 0.1)
+	{
+		if (fix_step_ == 0)
+		{
+			fix_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
+			fix_alpha_ = 1.0;
+		}
+		else
+		{
+			fix_alpha_ -= fix_alpha_ / fix_step_;
+			--fix_step_;
+		}
+
+		glLineWidth(3);
+		//glEnable(GL_LINE_SMOOTH);
+		glColor4d( 1.0, 0.0, 0.0, fix_alpha_ );
+
+		glBegin(GL_LINES);
+			glVertex3d( fix_scr_x - 8, fix_scr_y - 8, 0.0 );
+			glVertex3d( fix_scr_x + 8, fix_scr_y + 8, 0.0 );
+			glVertex3d( fix_scr_x - 8, fix_scr_y + 8, 0.0 );
+			glVertex3d( fix_scr_x + 8, fix_scr_y - 8, 0.0 );
+		glEnd();
+
+		/*-
+		glBegin(GL_LINES);
+			glVertex3d( fix_scr_x, fix_scr_y - 8, 0.0 );
+			glVertex3d( fix_scr_x, fix_scr_y + 8, 0.0 );
+			glVertex3d( fix_scr_x - 8, fix_scr_y, 0.0 );
+			glVertex3d( fix_scr_x + 8, fix_scr_y, 0.0 );
+		glEnd();
+		-*/
+
+		/*-
+		glBegin(GL_LINE_LOOP);
+			glVertex3d( fix_scr_x - 10, fix_scr_y - 10, 0.0 );
+			glVertex3d( fix_scr_x + 10, fix_scr_y - 10, 0.0 );
+			glVertex3d( fix_scr_x + 10, fix_scr_y + 10, 0.0 );
+			glVertex3d( fix_scr_x - 10, fix_scr_y + 10, 0.0 );
+		glEnd();
+		-*/
+	}
+
+	/* Картинка пользователя */
+	{
 		//wxMemoryDC dc;
 		//dc.SelectObject(buffer_);
 
@@ -1792,7 +1853,7 @@ void Cartographer::on_left_up(wxMouseEvent& event)
 		double w, h;
 		get_viewport_size(&w, &h);
 
-		set_fix_to_scr_xy( w/2.0, h/2.0 );
+		//set_fix_to_scr_xy( w/2.0, h/2.0 );
 		move_mode_ = false;
 
 		#ifdef BOOST_WINDOWS

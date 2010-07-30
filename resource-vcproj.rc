@@ -1,5 +1,4 @@
 //aaaa ICON "wx/msw/std.ico"
 aaaa ICON "cartographer.ico"
-bbbb FILE "zoom-in-32.png"
 
 //#include "wx/msw/wx.rc"
