@@ -77,7 +77,7 @@
 			</object>
 			<object class="tool" name="ID_ANCHOR" variable="ToolBarItem3" member="yes">
 				<label>Anchor</label>
-				<bitmap>images\Flag.png</bitmap>
+				<bitmap>images\binoculars-32.png</bitmap>
 				<tooltip>Следить</tooltip>
 				<handler function="OnAnchorButtonClick" entry="EVT_TOOL" />
 				<check>1</check>

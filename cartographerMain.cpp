@@ -51,7 +51,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	wxMenu* Menu1;
 	wxMenuBar* MenuBar1;
 	wxMenu* Menu2;
-
+	
 	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
 	SetClientSize(wxSize(626,293));
 	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
@@ -89,11 +89,11 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	ToolBar1 = new wxToolBar(this, ID_TOOLBAR1, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL|wxNO_BORDER, _T("ID_TOOLBAR1"));
 	ToolBarItem1 = ToolBar1->AddTool(ID_ZOOMIN, _("ZoomIn"), wxBitmap(wxImage(_T("images/zoom-in-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Увеличить"), wxEmptyString);
 	ToolBarItem2 = ToolBar1->AddTool(ID_ZOOMOUT, _("ZoomOut"), wxBitmap(wxImage(_T("images/zoom-out-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Уменьшить"), wxEmptyString);
-	ToolBarItem3 = ToolBar1->AddTool(ID_ANCHOR, _("Anchor"), wxBitmap(wxImage(_T("images\\Flag.png"))), wxNullBitmap, wxITEM_CHECK, _("Следить"), wxEmptyString);
+	ToolBarItem3 = ToolBar1->AddTool(ID_ANCHOR, _("Anchor"), wxBitmap(wxImage(_T("images\\binoculars-32.png"))), wxNullBitmap, wxITEM_CHECK, _("Следить"), wxEmptyString);
 	ToolBar1->Realize();
 	SetToolBar(ToolBar1);
 	FlexGridSizer1->SetSizeHints(this);
-
+	
 	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
 	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
 	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
@@ -344,12 +344,12 @@ void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
 
 void cartographerFrame::OnZoomInButtonClick(wxCommandEvent& event)
 {
-	cartographer_->SetActiveZ( cartographer_->GetActiveZ() + 1.0);
+	cartographer_->ZoomIn();
 }
 
 void cartographerFrame::OnZoomOutButtonClick(wxCommandEvent& event)
 {
-	cartographer_->SetActiveZ( cartographer_->GetActiveZ() - 1.0);
+	cartographer_->ZoomOut();
 }
 
 void cartographerFrame::OnAnchorButtonClick(wxCommandEvent& event)

@@ -146,6 +146,8 @@ public:
 	
 	double GetActiveZ();
 	void SetActiveZ(int z);
+	void ZoomIn();
+	void ZoomOut();
 
 	coord GetActiveGeoPos();
 	point GetActiveScrPos();
@@ -503,6 +505,8 @@ private:
 	double fix_ky_; /* остающейся фиксированной при изменении масштаба */
 	double fix_lat_; /* Географические координаты этой точки */
 	double fix_lon_;
+	int fix_step_;
+	double fix_alpha_;
 	int painter_debug_counter_;
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
@@ -598,12 +602,6 @@ private:
 	int sprites_index_;
 	sprites_list sprites_;
 	shared_mutex sprites_mutex_;
-
-	/* Загрузка raw_image в текстуру OpenGL */
-	static GLuint load_raw_to_gl(raw_image &image);
-
-	/* Вызгрузка текстуры OpenGL */
-	//static void unload_from_gl(GLuint texture_id);
 };
 
 } /* namespace cgr */
