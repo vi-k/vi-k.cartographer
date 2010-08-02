@@ -34,7 +34,7 @@ class cartographerFrame: public wxFrame
 
 	private:
 		cart::Cartographer *cartographer_;
-		static const int count_ = 8; //9;
+		static const int count_ = 9;
 		int images_[count_];
 		wxString names_[count_];
 		int z_[count_];

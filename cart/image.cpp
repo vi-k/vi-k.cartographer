@@ -1,9 +1,19 @@
 ﻿#include "image.h"
 
+#include <cstring>
 #include <wx/mstream.h> /* wxMemoryInputStream */
 
 namespace cart
 {
+
+/* Число кратное 2, большее или равное a */
+inline int __p2(int a)
+{
+	int res = 1;
+	while (res < a)
+		res <<= 1;
+	return res;
+}
 
 bool image::convert_from(const wxImage &src)
 {
@@ -13,26 +23,42 @@ bool image::convert_from(const wxImage &src)
 	unsigned char *src_rgb = src.GetData();
 	unsigned char *src_a = src.GetAlpha();
 
-	if (src_a)
-		raw_.create(src.GetWidth(), src.GetHeight(), 32, GL_RGBA);
-	else
-		raw_.create(src.GetWidth(), src.GetHeight(), 24, GL_RGB);
+	width_ = src.GetWidth();
+	height_ = src.GetHeight();
+
+    /* Размеры OpenGL-текстур должны быть кратны 2 */
+	int raw_width = __p2(width_);
+	int raw_height = __p2(height_);
+	int dw = raw_width - width_;
+
+	/* Т.к. возможно понадобится дополнять текстуру прозрачными точками,
+		делаем RGBA-изображение вне зависимости от его исходного bpp */
+	raw_.create(raw_width, raw_height, 32, GL_RGBA);
 
 	unsigned char *ptr = raw_.data();
 	unsigned char *end = raw_.end();
 
-	if (!src_a)
-		memcpy(ptr, src_rgb, end - ptr);
-	else
+	for (int i = 0; i < height_; ++i)
 	{
-		while (ptr != end)
+		for (int j = 0; j < width_; ++j)
 		{
 			*ptr++ = *src_rgb++;
 			*ptr++ = *src_rgb++;
 			*ptr++ = *src_rgb++;
-			*ptr++ = *src_a++;
+			*ptr++ = src_a ? *src_a++ : 255;
+		}
+		
+		/* Дополняем ширину прозрачными точками */
+		if (dw)
+		{
+			unsigned char *line_end = ptr + dw;
+			std::memset(ptr, 0, line_end - ptr);
+			ptr = line_end;
 		}
 	}
+
+	/* Дополняем ширину прозрачными точками */
+	std::memset(ptr, 0, end - ptr);
 
 	return true;
 }
