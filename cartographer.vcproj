@@ -202,6 +202,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\cart\image.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\wxCartographer.cpp"
 				>
 			</File>
@@ -220,11 +224,27 @@
 				>
 			</File>
 			<File
+				RelativePath=".\cart\config.h"
+				>
+			</File>
+			<File
+				RelativePath=".\cart\defs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\cart\font.h"
+				>
+			</File>
+			<File
 				RelativePath=".\handle_exception.h"
 				>
 			</File>
 			<File
-				RelativePath=".\raw_image.h"
+				RelativePath=".\cart\image.h"
+				>
+			</File>
+			<File
+				RelativePath=".\cart\raw_image.h"
 				>
 			</File>
 			<File

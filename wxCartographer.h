@@ -1,39 +1,9 @@
 ﻿#ifndef WX_CARTOGRAPHER_H
 #define WX_CARTOGRAPHER_H
 
-/***** Эта часть не должна изменяться! *****/
-
-	/* syncronize UNICODE options */
-	#if defined(_UNICODE) || defined(UNICODE) || defined(wxUSE_UNICODE)
-		#ifndef _UNICODE
-			#define _UNICODE
-		#endif
-		#ifndef UNICODE
-			#define UNICODE
-		#endif
-		#ifndef wxUSE_UNICODE
-			#define wxUSE_UNICODE
-		#endif
-	#endif
-
-	#include <boost/config/warning_disable.hpp> /* против unsafe в wxWidgets */
-	#include <boost/config.hpp>
-
-	#ifdef BOOST_WINDOWS
-		/* Необходимо для Asio под Windows */
-		#ifndef _WIN32_WINNT
-			#define _WIN32_WINNT 0x0501
-		#endif
-		#define BOOST_ASIO_NO_WIN32_LEAN_AND_MEAN
-	#endif
-
-	#include <boost/asio.hpp> /* Обязательно до включения windows.h */
-	#include <wx/wxprec.h>
-
-/*******************************************/
-
-
-#include "raw_image.h"
+#include "cart/config.h" /* Обязательно первым */
+#include "cart/defs.h" /* cart::point, cart::coord, cart::size */
+#include "cart/image.h" /* cart::image, cart::sprite, cart::tile */
 
 #include <mylib.h>
 
@@ -52,10 +22,12 @@
 
 extern my::log main_log;
 
-namespace cgr
+namespace cart
 {
 
-/* Описание карты */
+/*
+	Описание карты
+*/
 struct map_info
 {
 	enum projection_t {unknown, spheroid /*Google*/, ellipsoid /*Yandex*/};
@@ -69,36 +41,9 @@ struct map_info
 	map_info() : is_layer(false), projection(unknown) {}
 };
 
-/* Точка */
-struct point
-{
-	double x;
-	double y;
-
-	point() : x(0), y(0) {}
-	point(double x, double y) : x(x), y(y) {}
-};
-
-/* Координаты */
-struct coord
-{
-	double lat;
-	double lon;
-
-	coord() : lat(0), lon(0) {}
-	coord(double lat, double lon) : lat(lat), lon(lon) {}
-};
-
-/* Размер */
-struct size
-{
-	double width;
-	double height;
-
-	size() : width(0), height(0) {}
-	size(double w, double h) : width(w), height(h) {}
-};
-
+/*
+	Преобразование градусов, минут, секунд в десятичный вид и обратно
+*/
 double DegreesToGeo(double deg, double min, double sec);
 inline coord DegreesToGeo(
 	double lat_deg, double lat_min, double lat_sec,
@@ -110,6 +55,10 @@ inline coord DegreesToGeo(
 
 void GeoToDegrees(double lat_or_lon, int *pdeg, int *pmin, double *psec);
 
+
+/*
+	Картографер
+*/
 class Cartographer : public wxGLCanvas, my::employer
 {
 public:
@@ -129,26 +78,39 @@ public:
 	void Stop();
 	void Update();
 	
-	/* Карты */
+	
+	/*
+		Карты
+	*/
 	int GetMapsCount();
 	map_info GetMapInfo(int index);
 	map_info GetActiveMapInfo();
 	bool SetActiveMapByIndex(int index);
 	bool SetActiveMapByName(const std::wstring &map_name);
 
+	
+	/*
+		Преобразование координат: географические в экранные и обратно
+	*/
 	point GeoToScr(double lat, double lon);
 	point GeoToScr(const coord &pt)
 		{ return GeoToScr(pt.lat, pt.lon); }
-
 	coord ScrToGeo(double x, double y);
 	coord ScrToGeo(const point &pt)
 		{ return ScrToGeo(pt.x, pt.y); }
 	
+	/*
+		Масштаб
+	*/
 	double GetActiveZ();
 	void SetActiveZ(int z);
 	void ZoomIn();
 	void ZoomOut();
 
+	
+	/*
+		Текущая позиция
+	*/
 	coord GetActiveGeoPos();
 	point GetActiveScrPos();
 	void MoveTo(int z, double lat, double lon);
@@ -189,168 +151,6 @@ public:
 
 
 private:
-	
-	
-	/*
-		Изображение
-	*/
-	class image
-	{
-	protected:
-		Cartographer &cartographer_;
-		raw_image raw_;
-		GLuint texture_id_;
-		size scale_;
-
-	public:
-		image(Cartographer &cartographer)
-			: cartographer_(cartographer)
-			, texture_id_(0)
-			, scale_(1.0, 1.0) {}
-
-		~image()
-		{
-			if (texture_id_)
-				cartographer_.delete_texture_later(texture_id_);
-		}
-
-		bool convert_from(const wxImage &src);
-		bool load_from_file(const std::wstring &filename);
-		bool load_from_mem(const void *data, std::size_t size);
-		void load_from_raw(const unsigned char *data,
-			int width, int height, bool with_alpha);
-
-		raw_image& raw()
-			{ return raw_; }
-		
-		GLuint texture_id()
-			{ return texture_id_; }
-
-		void set_texture_id(GLuint texture_id)
-			{ texture_id_ = texture_id; }
-
-		size scale()
-			{ return scale_; }
-		
-		void set_scale(const size &scale)
-			{ scale_ = scale; }
-
-		bool ok()
-			{ return raw_.data() != 0; }
-	};
-
-
-	/*
-		Спрайт - изображение со смещённым центром
-	*/
-	class sprite : public image
-	{
-	private:
-		double center_kx_;
-		double center_ky_;
-
-	public:
-		sprite(Cartographer &cartographer)
-			: image(cartographer)
-			, center_kx_(0.5)
-			, center_ky_(0.5) {}
-
-		void set_center(double kx, double ky)
-			{ center_kx_ = kx, center_ky_ = ky; }
-		
-		point center()
-			{ return point(center_kx_, center_ky_); }
-	};
-
-
-	/*
-		Тайл
-	*/
-	class tile : public image
-	{
-	public:
-		typedef shared_ptr<tile> ptr;
-		enum step_t {unknown, file_loading, server_loading, ready};
-
-		/* Идентификатор тайла */
-		struct id
-		{
-			int map_id;
-			int z;
-			int x;
-			int y;
-
-			id()
-				: map_id(0), z(0), x(0), y(0) {}
-
-			id(int map_id, int z, int x, int y)
-				: map_id(map_id), z(z), x(x), y(y) {}
-
-			id(const id &other)
-				: map_id(other.map_id)
-				, z(other.z)
-				, x(other.x)
-				, y(other.y) {}
-
-			inline bool operator!() const
-			{
-				return map_id == 0
-					&& z == 0
-					&& x == 0
-					&& y == 0;
-			}
-
-			inline bool operator==(const id &other) const
-			{
-				return map_id == other.map_id
-					&& z == other.z
-					&& x == other.x
-					&& y == other.y;
-			}
-
-			friend std::size_t hash_value(const id &t)
-			{
-				std::size_t seed = 0;
-				boost::hash_combine(seed, t.map_id);
-				boost::hash_combine(seed, t.z);
-				boost::hash_combine(seed, t.x);
-				boost::hash_combine(seed, t.y);
-
-				return seed;
-			}
-		}; /* struct tile::id */
-
-	private:
-		step_t step_;
-
-	public:
-		tile(Cartographer &cartographer, step_t step = unknown)
-			: image(cartographer)
-			, step_(step)
-		{
-		}
-
-		void clear()
-		{
-			step_ = unknown;
-
-			raw_.clear();
-
-			if (texture_id_)
-			{
-				cartographer_.delete_texture_later(texture_id_);
-				texture_id_ = 0;
-			}
-		}
-
-		inline void set_step(step_t step)
-			{ step_ = step; }
-
-		inline step_t step()
-			{ return step_; }
-
-	}; /* class tile */
-
 	typedef std::map<int, map_info> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
@@ -602,8 +402,11 @@ private:
 	int sprites_index_;
 	sprites_list sprites_;
 	shared_mutex sprites_mutex_;
+	image::on_delete_t on_image_delete_;
+
+	void on_image_delete_proc(image &img);
 };
 
-} /* namespace cgr */
+} /* namespace cart */
 
 #endif

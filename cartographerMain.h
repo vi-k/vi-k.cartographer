@@ -33,16 +33,16 @@ class cartographerFrame: public wxFrame
 		virtual ~cartographerFrame();
 
 	private:
-		cgr::Cartographer *cartographer_;
+		cart::Cartographer *cartographer_;
 		static const int count_ = 8; //9;
 		int images_[count_];
 		wxString names_[count_];
 		int z_[count_];
-		cgr::coord coords_[count_];
+		cart::coord coords_[count_];
 
 		void OnMapPaint(wxGCDC &gc, int width, int height);
 
-		void DrawImage(int id, const cgr::coord &pt);
+		void DrawImage(int id, const cart::coord &pt);
 
 		static wxCoord DrawTextInBox( wxGCDC &gc,
 			const wxString &str, wxCoord x, wxCoord y,
