@@ -111,7 +111,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	for (int i = 0; i < count_; ++i)
 		images_[i]= 0;
 
-	cartographer_ = new cgr::Cartographer(
+	cartographer_ = new cart::Cartographer(
 		this
 		, L"127.0.0.1" /* ServerAddr - адрес сервера */
 		, L"27543" /* ServerPort - порт сервера */
@@ -132,7 +132,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	/* Список карт */
 	int maps_count = cartographer_->GetMapsCount();
-	cgr::map_info map;
+	cart::map_info map;
 
 	for( int i = 0; i < maps_count; ++i)
 	{
@@ -180,40 +180,40 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Места для быстрого перехода */
 	names_[0] = L"Хабаровск";
 	z_[0] = 12;
-	coords_[0] = cgr::coord(48.48021475, 135.0719556);
+	coords_[0] = cart::coord(48.48021475, 135.0719556);
 
 	names_[1] = L"Владивосток";
 	z_[1] = 13;
-	coords_[1] = cgr::DegreesToGeo( 43,7,17.95, 131,55,34.4 );
+	coords_[1] = cart::DegreesToGeo( 43,7,17.95, 131,55,34.4 );
 
 	names_[2] = L"Магадан";
 	z_[2] = 12;
-	coords_[2] = cgr::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
+	coords_[2] = cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
 
 	names_[3] = L"Якутск";
 	z_[3] = 10;
-	coords_[3] = cgr::DegreesToGeo( 62,4,30.33, 129,45,24.39 );
+	coords_[3] = cart::DegreesToGeo( 62,4,30.33, 129,45,24.39 );
 
 	names_[4] = L"Южно-Сахалинск";
 	z_[4] = 12;
-	coords_[4] = cgr::DegreesToGeo( 46,57,34.28, 142,44,18.58 );
+	coords_[4] = cart::DegreesToGeo( 46,57,34.28, 142,44,18.58 );
 
 	names_[5] = L"Петропавловск-Камчатский";
 	z_[5] = 13;
-	coords_[5] = cgr::DegreesToGeo( 53,4,11.14, 158,37,9.24 );
+	coords_[5] = cart::DegreesToGeo( 53,4,11.14, 158,37,9.24 );
 
 	names_[6] = L"Бикин";
 	z_[6] = 11;
-	coords_[6] = cgr::DegreesToGeo( 46,48,47.59, 134,14,55.71 );
+	coords_[6] = cart::DegreesToGeo( 46,48,47.59, 134,14,55.71 );
 
 	names_[7] = L"Благовещенск";
 	z_[7] = 14;
-	coords_[7] = cgr::DegreesToGeo( 50,16,55.96, 127,31,46.09 );
+	coords_[7] = cart::DegreesToGeo( 50,16,55.96, 127,31,46.09 );
 
 	/*-
 	names_[8] = L"Биробиджан";
 	z_[8] = 14;
-	coords_[8] = cgr::DegreesToGeo( 48,47,52.55, 132,55,5.13 );
+	coords_[8] = cart::DegreesToGeo( 48,47,52.55, 132,55,5.13 );
 	-*/
 
 	for (int i = 0; i < count_; ++i)
@@ -269,13 +269,13 @@ wxCoord cartographerFrame::DrawTextInBox(wxGCDC &gc,
 	return h;
 }
 
-void cartographerFrame::DrawImage(int id, const cgr::coord &pt)
+void cartographerFrame::DrawImage(int id, const cart::coord &pt)
 {
 	if (id == 0)
 		return;
 
-	cgr::point pos = cartographer_->GeoToScr(pt);
-	cgr::size size = cartographer_->GetImageSize(id);
+	cart::point pos = cartographer_->GeoToScr(pt);
+	cart::size size = cartographer_->GetImageSize(id);
 	double z = cartographer_->GetActiveZ();
 
 	if (z < 6.0)

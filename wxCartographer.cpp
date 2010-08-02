@@ -26,7 +26,7 @@ Real atanh(Real x)
 	return 0.5 * log( (1.0 + x) / (1.0 - x) );
 }
 
-namespace cgr
+namespace cart
 {
 
 double DegreesToGeo(double deg, double min, double sec)
@@ -111,6 +111,7 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 	, paint_thread_id_( boost::this_thread::get_id() )
 	, on_paint_handler_(on_paint_proc)
 	, sprites_index_(0)
+	, on_image_delete_( boost::bind(&Cartographer::on_image_delete_proc, this, _1) )
 {
 	try
 	{
@@ -425,7 +426,7 @@ int Cartographer::LoadImageFromFile(const std::wstring &filename)
 	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
 	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(*this)) );
+		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
 	
 	if (!res.second)
 		return 0;
@@ -454,7 +455,7 @@ int Cartographer::LoadImageFromMem(const void *data, std::size_t size)
 	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
 	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(*this)) );
+		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
 	
 	if (!res.second)
 		return 0;
@@ -483,7 +484,7 @@ int Cartographer::LoadImageFromRaw(const unsigned char *data,
 	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
 	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(*this)) );
+		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
 	
 	if (!res.second)
 		return 0;
@@ -756,7 +757,7 @@ bool Cartographer::check_tile_id(const tile::id &tile_id)
 		&& tile_id.y >= 0 && tile_id.y < sz;
 }
 
-Cartographer::tile::ptr Cartographer::find_tile(const tile::id &tile_id)
+tile::ptr Cartographer::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
 	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
@@ -819,7 +820,7 @@ void Cartographer::paint_tile(const tile::id &tile_id, int level)
 	}
 }
 
-Cartographer::tile::ptr Cartographer::get_tile(const tile::id &tile_id)
+tile::ptr Cartographer::get_tile(const tile::id &tile_id)
 {
 	//if ( !check_tile_id(tile_id))
 	//	return tile::ptr();
@@ -1000,10 +1001,10 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 
 				/* При успешной загрузке с сервера, создаём тайл из буфера
 					и сохраняем файл на диске */
-				//if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
-				//	reply.save(path.str() + map.ext);
-				//else
-				//	main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
+				if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
+					reply.save(path.str() + map.ext);
+				else
+					main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
 			}
 		}
 		catch (...)
@@ -1520,7 +1521,8 @@ void Cartographer::repaint(wxPaintDC &dc)
 					tile::ptr tile_ptr;
 
 					if (iter == cache_.end())
-						tile_ptr = tile::ptr(new tile(*this, tile::file_loading));
+						tile_ptr = tile::ptr( new tile(
+							on_image_delete_, tile::file_loading) );
 					else
 						tile_ptr = iter->value();
 
@@ -1925,62 +1927,12 @@ GLuint Cartographer::load_texture(raw_image &image)
 	return id;
 }
 
-bool Cartographer::image::convert_from(const wxImage &src)
+void Cartographer::on_image_delete_proc(image &img)
 {
-	if (!src.IsOk())
-		return false;
-
-	unsigned char *src_rgb = src.GetData();
-	unsigned char *src_a = src.GetAlpha();
-
-	if (src_a)
-		raw_.create(src.GetWidth(), src.GetHeight(), 32, GL_RGBA);
-	else
-		raw_.create(src.GetWidth(), src.GetHeight(), 24, GL_RGB);
-
-	unsigned char *ptr = raw_.data();
-	unsigned char *end = raw_.end();
-
-	if (!src_a)
-		memcpy(ptr, src_rgb, end - ptr);
-	else
-	{
-		while (ptr != end)
-		{
-			*ptr++ = *src_rgb++;
-			*ptr++ = *src_rgb++;
-			*ptr++ = *src_rgb++;
-			*ptr++ = *src_a++;
-		}
-	}
-
-	return true;
+	GLuint texture_id = img.texture_id();
+	if (texture_id)
+		delete_texture_later(texture_id);
 }
 
-bool Cartographer::image::load_from_file(const std::wstring &filename)
-{
-	wxImage wx_image(filename);
-	return convert_from(wx_image);
-}
+} /* namespace cart */
 
-bool Cartographer::image::load_from_mem(const void *data, std::size_t size)
-{
-	wxImage wx_image;
-	wxMemoryInputStream stream(data, size);
-	return wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) && convert_from(wx_image);
-}
-
-void Cartographer::image::load_from_raw(const unsigned char *data,
-	int width, int height, bool with_alpha)
-{
-	if (with_alpha)
-		raw_.create(width, height, 32, GL_RGBA);
-	else
-		raw_.create(width, height, 24, GL_RGB);
-
-	unsigned char *ptr = raw_.data();
-
-	memcpy(ptr, data, raw_.end() - data);
-}
-
-} /* namespace cgr */
