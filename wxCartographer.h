@@ -164,7 +164,7 @@ private:
 	typedef std::map<int, map_info> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
-	typedef boost::unordered_map<int, sprite> sprites_list;
+	typedef boost::unordered_map<int, sprite::ptr> sprites_list;
 
 
 	/*
@@ -414,6 +414,7 @@ private:
 	shared_mutex sprites_mutex_;
 	image::on_delete_t on_image_delete_;
 
+	GLuint load_image_to_texture(image &img);
 	void on_image_delete_proc(image &img);
 };
 

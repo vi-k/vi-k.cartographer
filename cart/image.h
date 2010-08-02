@@ -5,6 +5,8 @@
 #include "defs.h"
 #include "raw_image.h"
 
+#include <my_thread.h> /* shared_mutex */
+
 #include <boost/function.hpp>
 
 #include <wx/image.h> /* wxImage */
@@ -20,11 +22,15 @@ class image
 {
 public:
 	typedef boost::function<void (image&)> on_delete_t;
+	enum {unknown = -1, ready = 0};
 
 	image(on_delete_t on_delete = on_delete_t())
-		: on_delete_(on_delete)
+		: state_(unknown)
+		, width_(0.0)
+		, height_(0.0)
+		, scale_(1.0, 1.0)
 		, texture_id_(0)
-		, scale_(1.0, 1.0) {}
+		, on_delete_(on_delete) {}
 
 	~image()
 	{
@@ -38,40 +44,83 @@ public:
 	void load_from_raw(const unsigned char *data,
 		int width, int height, bool with_alpha);
 
+	
+	inline recursive_mutex& get_mutex()
+		{ return mutex_; }
+
 	inline raw_image& raw()
 		{ return raw_; }
 
-	inline size get_size() const
-		{ return size(width_, height_); }
-
-	inline int width() const
-		{ return width_; }
+	
+	inline int state() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return state_;
+	}
 		
-	inline int height() const
-		{ return height_; }
-		
-	inline GLuint texture_id() const
-		{ return texture_id_; }
-
-	inline void set_texture_id(GLuint texture_id)
-		{ texture_id_ = texture_id; }
-
-	inline size scale() const
-		{ return scale_; }
-		
-	inline void set_scale(const size &scale)
-		{ scale_ = scale; }
+	inline void set_state(int state)
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		state_ = state;
+	}
 
 	inline bool ok() const
-		{ return raw_.data() != 0; }
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return state_ == ready && raw_.data() != 0;
+	}
+
+	inline size get_size() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return size(width_, height_);
+	}
+
+	inline int width() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return width_;
+	}
+		
+	inline int height() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return height_;
+	}
+		
+	inline size scale() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return scale_;
+	}
+		
+	inline void set_scale(const size &scale)
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		scale_ = scale;
+	}
+
+	inline GLuint texture_id() const
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return texture_id_;
+	}
+
+	inline void set_texture_id(GLuint texture_id)
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		texture_id_ = texture_id;
+	}
 
 protected:
-	on_delete_t on_delete_;
+	mutable recursive_mutex mutex_;
 	raw_image raw_;
+	int state_;
 	int width_;
 	int height_;
-	GLuint texture_id_;
 	size scale_;
+	GLuint texture_id_;
+	on_delete_t on_delete_;
 };
 
 
@@ -81,21 +130,36 @@ protected:
 class sprite : public image
 {
 public:
+	typedef shared_ptr<sprite> ptr;
+
 	sprite(on_delete_t on_delete = on_delete_t())
 		: image(on_delete)
 		, offset_(0.0, 0.0) {}
 
+	
 	size offset() const
-		{ return offset_; }
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return offset_;
+	}
 
 	void set_offset(double dx, double dy)
-		{ offset_.width = dx, offset_.height = dy; }
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		offset_.width = dx, offset_.height = dy;
+	}
 
 	point central_point() const
-		{ return point(-offset_.width - 0.5, -offset_.height - 0.5); }
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		return point(-offset_.width - 0.5, -offset_.height - 0.5);
+	}
 
 	void set_central_point(double x, double y)
-		{ offset_.width = -x - 0.5, offset_.height = -y - 0.5; }
+	{
+		unique_lock<recursive_mutex> lock(mutex_);
+		offset_.width = -x - 0.5, offset_.height = -y - 0.5;
+	}
 		
 
 private:
@@ -110,7 +174,7 @@ class tile : public image
 {
 public:
 	typedef shared_ptr<tile> ptr;
-	enum step_t {unknown, file_loading, server_loading, ready};
+	enum {file_loading = 1, server_loading = 2};
 
 	/* Идентификатор тайла */
 	struct id
@@ -161,22 +225,9 @@ public:
 	}; /* struct tile::id */
 
 
-	tile(on_delete_t on_delete = on_delete_t(), step_t step = unknown)
-		: image(on_delete)
-		, step_(step)
-	{
-	}
-
-	inline void set_step(step_t step)
-		{ step_ = step; }
-
-	inline step_t step()
-		{ return step_; }
-
-private:
-	step_t step_;
-
-}; /* class tile */
+	tile(on_delete_t on_delete = on_delete_t())
+		: image(on_delete) {}
+};
 
 } /* namespace cart */
 

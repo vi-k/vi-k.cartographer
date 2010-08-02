@@ -16,8 +16,6 @@
 
 #include <boost/bind.hpp>
 
-MYLOCKINSPECTOR_INIT()
-
 #define EXCT 0.081819790992 /* эксцентриситет эллипса */
 
 template<typename Real>
@@ -298,7 +296,7 @@ map_info Cartographer::GetMapInfo(int index)
 
 map_info Cartographer::GetActiveMapInfo()
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	return maps_[active_map_id_];
 }
 
@@ -312,7 +310,7 @@ bool Cartographer::SetActiveMapByIndex(int index)
 	if (iter == maps_.end())
 		return false;
 
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	active_map_id_ = iter->first;
 	Update();
 
@@ -326,7 +324,7 @@ bool Cartographer::SetActiveMapByName(const std::wstring &map_name)
 	if (iter == maps_name_to_id_.end())
 		return false;
 
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	active_map_id_ = iter->second;
 	Update();
 
@@ -335,7 +333,7 @@ bool Cartographer::SetActiveMapByName(const std::wstring &map_name)
 
 point Cartographer::GeoToScr(double lat, double lon)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	double w, h;
 	get_viewport_size(&w, &h);
@@ -349,7 +347,7 @@ point Cartographer::GeoToScr(double lat, double lon)
 
 coord Cartographer::ScrToGeo(double x, double y)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	double w, h;
 	get_viewport_size(&w, &h);
@@ -363,13 +361,13 @@ coord Cartographer::ScrToGeo(double x, double y)
 
 double Cartographer::GetActiveZ(void)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	return z_;
 }
 
 void Cartographer::SetActiveZ(int z)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	if (z < 1)
 		z = 1;
@@ -385,26 +383,25 @@ void Cartographer::SetActiveZ(int z)
 
 void Cartographer::ZoomIn()
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ + 1.0 );
 }
 
 void Cartographer::ZoomOut()
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ - 1.0 );
 }
 
 coord Cartographer::GetActiveGeoPos()
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
-
+	unique_lock<recursive_mutex> lock(params_mutex_);
 	return coord(fix_lat_, fix_lon_);
 }
 
 point Cartographer::GetActiveScrPos()
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	double w, h;
 	get_viewport_size(&w, &h);
@@ -414,7 +411,7 @@ point Cartographer::GetActiveScrPos()
 
 void Cartographer::MoveTo(int z, double lat, double lon)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	fix_lat_ = lat;
 	fix_lon_ = lon;
@@ -423,203 +420,176 @@ void Cartographer::MoveTo(int z, double lat, double lon)
 
 int Cartographer::LoadImageFromFile(const std::wstring &filename)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	unique_lock<shared_mutex> lock(sprites_mutex_);
 
-	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
-	
-	if (!res.second)
-		return 0;
+	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
+	sprites_[++sprites_index_] = sprite_ptr;
 
-	sprite &spr = res.first->second;
+	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
-	if (!spr.load_from_file(filename))
+	if (!sprite_ptr->load_from_file(filename))
 	{
 		sprites_.erase(sprites_index_--);
 		return 0;
 	}
 
-	/* При успешной загрузке загружаем текстуру */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		GLuint texture_id = load_texture( spr.raw() );
-		spr.raw().clear(false);
-		spr.set_texture_id(texture_id);
-	}
+	/* Загружаем текстуру, если это возможно */
+	load_image_to_texture(*sprite_ptr);
 
 	return sprites_index_;
 }
 
 int Cartographer::LoadImageFromMem(const void *data, std::size_t size)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	unique_lock<shared_mutex> lock(sprites_mutex_);
 
-	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
-	
-	if (!res.second)
-		return 0;
+	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
+	sprites_[++sprites_index_] = sprite_ptr;
 
-	sprite &spr = res.first->second;
+	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
-	if (!spr.load_from_mem(data, size))
+	if (!sprite_ptr->load_from_mem(data, size))
 	{
 		sprites_.erase(sprites_index_--);
 		return 0;
 	}
 
-	/* При успешной загрузке загружаем текстуру */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		GLuint texture_id = load_texture( spr.raw() );
-		spr.raw().clear(false);
-		spr.set_texture_id(texture_id);
-	}
+	/* Загружаем текстуру, если это возможно */
+	load_image_to_texture(*sprite_ptr);
 
 	return sprites_index_;
 }
 int Cartographer::LoadImageFromRaw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	unique_lock<shared_mutex> lock(sprites_mutex_);
 
-	std::pair<sprites_list::iterator, bool> res = sprites_.insert(
-		sprites_list::value_type(++sprites_index_, sprite(on_image_delete_)) );
-	
-	if (!res.second)
-		return 0;
+	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
+	sprites_[++sprites_index_] = sprite_ptr;
 
-	sprite &spr = res.first->second;
+	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
-	spr.load_from_raw(data, width, height, with_alpha);
+	sprite_ptr->load_from_raw(data, width, height, with_alpha);
 
-	/* Загружаем текстуру */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		GLuint texture_id = load_texture( spr.raw() );
-		spr.raw().clear(false);
-		spr.set_texture_id(texture_id);
-	}
+	/* Загружаем текстуру, если это возможно */
+	load_image_to_texture(*sprite_ptr);
 
 	return sprites_index_;
 }
 
 void Cartographer::DeleteImage(int image_id)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	unique_lock<shared_mutex> lock(sprites_mutex_);
 	sprites_.erase(image_id);
 }
 
 size Cartographer::GetImageOffset(int image_id)
 {
-	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	size offset;
 
 	if (iter != sprites_.end())
-		offset = iter->second.offset();
+		offset = iter->second->offset();
 
 	return offset;
 }
 
 void Cartographer::SetImageOffset(int image_id, double dx, double dy)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
+
 	if (iter != sprites_.end())
-		iter->second.set_offset(dx, dy);
+		iter->second->set_offset(dx, dy);
 }
 
 point Cartographer::GetImageCentralPoint(int image_id)
 {
-	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	point pos;
 
 	if (iter != sprites_.end())
-		pos = iter->second.central_point();
+		pos = iter->second->central_point();
 
 	return pos;
 }
 
 void Cartographer::SetImageCentralPoint(int image_id, double x, double y)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
+
 	if (iter != sprites_.end())
-		iter->second.set_central_point(x, y);
+		iter->second->set_central_point(x, y);
 }
 
 size Cartographer::GetImageSize(int image_id)
 {
-	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	size sz;
 
 	if (iter != sprites_.end())
-		sz = iter->second.get_size();
+		sz = iter->second->get_size();
 
 	return sz;
 }
 
 size Cartographer::GetImageScale(int image_id)
 {
-	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	size scale;
 
 	if (iter != sprites_.end())
-		scale = iter->second.scale();
+		scale = iter->second->scale();
 
 	return scale;
 }
 
 void Cartographer::SetImageScale(int image_id, const size &scale)
 {
-	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	size sz;
 
 	if (iter != sprites_.end())
-		iter->second.set_scale(scale);
+		iter->second->set_scale(scale);
 }
 
 void Cartographer::DrawImage(int image_id, double x, double y,
 	double kx = 1.0, double ky = 1.0)
 {
-	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 
 	if (iter != sprites_.end())
 	{
-		sprite &spr = iter->second;
-		GLuint texture_id = spr.texture_id();
+		sprite::ptr sprite_ptr = iter->second;
+		unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
 		/* Загружаем текстуру, если она не была загружена */
-		if (texture_id == 0)
-		{
-			texture_id = load_texture( spr.raw() );
-			spr.raw().clear(false);
-			spr.set_texture_id(texture_id);
-		}
-		
-		double w = spr.raw().width();
-		double h = spr.raw().height();
-		kx *= spr.scale().width;
-		ky *= spr.scale().height;
+		GLuint texture_id = load_image_to_texture(*sprite_ptr);
+
+		double w = sprite_ptr->raw().width();
+		double h = sprite_ptr->raw().height();
+		kx *= sprite_ptr->scale().width;
+		ky *= sprite_ptr->scale().height;
 
 		w *= kx;
 		h *= ky;
 
-		size offset = spr.offset();
+		size offset = sprite_ptr->offset();
 		x += offset.width * kx;
 		y += offset.height * ky;
 
@@ -708,7 +678,7 @@ void Cartographer::check_gl_error()
 
 void Cartographer::load_textures()
 {
-	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(cache_mutex_);
 	
 	tiles_cache::iterator iter = cache_.begin();
 
@@ -718,16 +688,10 @@ void Cartographer::load_textures()
 	{
 		tile::ptr tile_ptr = iter->value();
 
-		if (tile_ptr->step() == tile::ready && tile_ptr->ok())
-		{
-			GLuint texture_id = tile_ptr->texture_id();
-			if (texture_id == 0)
-			{
-				texture_id = load_texture(tile_ptr->raw());
-				tile_ptr->raw().clear(false);
-				tile_ptr->set_texture_id(texture_id);
-			}
-		}
+		unique_lock<recursive_mutex> lock2( tile_ptr->get_mutex() );
+
+		if (tile_ptr->ok())
+			load_image_to_texture(*tile_ptr);
 
 		++iter;
 	}
@@ -741,7 +705,7 @@ void Cartographer::delete_texture_later(GLuint texture_id)
 	}
 	else
 	{
-		my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
+		unique_lock<mutex> lock(delete_texture_mutex_);
 		delete_texture_queue_.push_back(texture_id);
 	}
 }
@@ -755,7 +719,7 @@ void Cartographer::delete_texture(GLuint texture_id)
 
 void Cartographer::delete_textures()
 {
-	my::locker locker( MYLOCKERPARAMS(delete_texture_mutex_, 5, MYCURLINE) );
+	unique_lock<mutex> lock(delete_texture_mutex_);
 		
 	while (delete_texture_queue_.size())
 	{
@@ -777,7 +741,7 @@ bool Cartographer::check_tile_id(const tile::id &tile_id)
 tile::ptr Cartographer::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
-	my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+	shared_lock<shared_mutex> lock(cache_mutex_);
 
 	tiles_cache::iterator iter = cache_.find(tile_id);
 
@@ -859,13 +823,13 @@ void Cartographer::file_loader_proc(my::worker::ptr this_worker)
 
 		/* Ищем в кэше тайл, требующий загрузки */
 		{
-			my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+			shared_lock<shared_mutex> lock(cache_mutex_);
 
 			while (file_iterator_ != cache_.end())
 			{
 				tile_ptr = file_iterator_->value();
 
-				if (tile_ptr->step() == tile::file_loading)
+				if (tile_ptr->state() == tile::file_loading)
 				{
 					tile_id = file_iterator_->key();
 					++file_iterator_;
@@ -884,14 +848,6 @@ void Cartographer::file_loader_proc(my::worker::ptr this_worker)
 		}
 
 		++file_loader_dbg_load_;
-
-		/*-
-		main_log << L"z=" << tile_id.z
-			<< L" x=" << tile_id.x
-			<< L" y=" << tile_id.y
-			<< L" cache=" << cache_.size()
-			<< main_log;
-		-*/
 
 		/* Загружаем тайл с диска */
 		std::wstringstream path;
@@ -914,24 +870,24 @@ void Cartographer::file_loader_proc(my::worker::ptr this_worker)
 			и "висит в воздухе", ожидая удаления, но он так и будет висеть,
 			пока мы его не освободим */
 
-		/* Если файла нет, устанавливаем метку, чтобы загружался с сервера */
+		/* Если файла нет на диске, загружаем с сервера */
 		if (!fs::exists(filename))
 		{
 			/* Но только если нет файла-метки об отсутствии тайла и там */
-			if ( !fs::exists(path.str() + L".tne") )
-				tile_ptr->set_step(tile::server_loading);
+			if ( fs::exists(path.str() + L".tne") )
+				tile_ptr->set_state(tile::ready);
 			else
-				tile_ptr->set_step(tile::ready);
+				tile_ptr->set_state(tile::server_loading);
 		}
 		else
 		{
+			unique_lock<recursive_mutex> lock( tile_ptr->get_mutex() );
+
 			if (!tile_ptr->load_from_file(filename))
+			{
+				tile_ptr->set_state(tile::ready);
 				main_log << L"Ошибка загрузки wxImage: " << filename << main_log;
-			
-			/* Если изменить step до загрузки, как это было раньше,
-				то загрузчик текстур может начать загружать текстуру раньше,
-				чем загрузятся данные, а заодно и удалить данные посреди загрузки */
-			tile_ptr->set_step(tile::ready);
+			}
 		}
 
 	} /* while (!finish()) */
@@ -949,13 +905,13 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 
 		/* Ищем в кэше тайл, требующий загрузки */
 		{
-			my::shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+			shared_lock<shared_mutex> lock(cache_mutex_);
 
 			while (server_iterator_ != cache_.end())
 			{
 				tile_ptr = server_iterator_->value();
 
-				if (tile_ptr->step() == tile::server_loading)
+				if (tile_ptr->state() == tile::server_loading)
 				{
 					tile_id = server_iterator_->key();
 					++server_iterator_;
@@ -963,7 +919,7 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 				}
 
 				/* Не даём обогнать загрузчик файлов */
-				if (tile_ptr->step() == tile::file_loading)
+				if (tile_ptr->state() == tile::file_loading)
 					break;
 
 				++server_iterator_;
@@ -1013,22 +969,22 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 			if (reply.status_code == 404)
 			{
 				/* Тайла нет на сервере - создаём файл-метку */
-				tile_ptr->set_step(tile::ready);
+				tile_ptr->set_state(image::ready);
 				reply.save(path.str() + L".tne");
 			}
 			else if (reply.status_code == 200)
 			{
+				unique_lock<recursive_mutex> lock2( tile_ptr->get_mutex() );
+
 				/* При успешной загрузке с сервера, создаём тайл из буфера
 					и сохраняем файл на диске */
 				if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
 					reply.save(path.str() + map.ext);
 				else
+				{
+					tile_ptr->set_state(tile::ready);
 					main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
-
-				/* Если изменить step до загрузки, как это было раньше,
-					то загрузчик текстур может начать загружать текстуру раньше,
-					чем загрузятся данные, а заодно и удалить данные посреди загрузки */
-				tile_ptr->set_step(tile::ready);
+				}
 			}
 		}
 		catch (...)
@@ -1049,7 +1005,7 @@ void Cartographer::anim_thread_proc(my::worker::ptr this_worker)
 		++animator_debug_counter_;
 
 		{
-			my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+			unique_lock<recursive_mutex> lock(params_mutex_);
 
 			if (z_step_)
 			{
@@ -1072,7 +1028,7 @@ void Cartographer::anim_thread_proc(my::worker::ptr this_worker)
 
 		/* Ждём, пока отрисует прошлое состояние */
 		{
-			my::locker locker( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
+			unique_lock<mutex> lock(paint_mutex_);
 		}
 
 		//Update();
@@ -1251,7 +1207,7 @@ void Cartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 
 	/* Копируем все нужные параметры, обеспечив блокировку */
 	{
-		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+		unique_lock<recursive_mutex> lock(params_mutex_);
 
 		fix_tile.map_id = active_map_id_;
 		fix_tile.z = (int)(z_ + 0.5);
@@ -1268,7 +1224,7 @@ void Cartographer::sort_queue(tiles_queue &queue,
 {
 	if (worker)
 	{
-		my::locker locker( MYLOCKERPARAMS(worker->get_mutex(), 5, MYCURLINE) );
+		unique_lock<mutex> lock(worker->get_mutex());
 
 		queue.sort( boost::bind(
 			&Cartographer::sort_by_dist, fix_tile, _1, _2) );
@@ -1389,8 +1345,8 @@ void Cartographer::paint_debug_info_int(DC &gc, int width, int height)
 
 void Cartographer::repaint(wxPaintDC &dc)
 {
-	my::locker locker1( MYLOCKERPARAMS(paint_mutex_, 5, MYCURLINE) );
-	my::recursive_locker locker2( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<mutex> lock1(paint_mutex_);
+	unique_lock<recursive_mutex> lock2(params_mutex_);
 
 	++painter_debug_counter_;
 
@@ -1517,7 +1473,7 @@ void Cartographer::repaint(wxPaintDC &dc)
 		|| basis_tile_x2_ != basis_tile_x2
 		|| basis_tile_y2_ != basis_tile_y2 )
 	{
-		my::not_shared_locker locker( MYLOCKERPARAMS(cache_mutex_, 5, MYCURLINE) );
+		unique_lock<shared_mutex> lock(cache_mutex_);
 
 		int tiles_count = 0; /* Считаем кол-во тайлов в пирамиде */
 
@@ -1544,11 +1500,13 @@ void Cartographer::repaint(wxPaintDC &dc)
 					
 					tile::ptr tile_ptr;
 
-					if (iter == cache_.end())
-						tile_ptr = tile::ptr( new tile(
-							on_image_delete_, tile::file_loading) );
-					else
+					if (iter != cache_.end())
 						tile_ptr = iter->value();
+					else
+					{
+						tile_ptr = tile::ptr( new tile(on_image_delete_) );
+						tile_ptr->set_state(tile::file_loading);
+					}
 
 					cache_.insert(tile_id, tile_ptr);
 
@@ -1815,7 +1773,7 @@ void Cartographer::repaint(wxPaintDC &dc)
 
 void Cartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	double w, h;
 	get_viewport_size(&w, &h);
@@ -1826,7 +1784,7 @@ void Cartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
 
 void Cartographer::set_fix_to_scr_xy(double scr_x, double scr_y)
 {
-	my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	double w, h;
 	get_viewport_size(&w, &h);
@@ -1907,7 +1865,7 @@ void Cartographer::on_mouse_move(wxMouseEvent& event)
 void Cartographer::on_mouse_wheel(wxMouseEvent& event)
 {
 	{
-		my::recursive_locker locker( MYLOCKERPARAMS(params_mutex_, 5, MYCURLINE) );
+		unique_lock<recursive_mutex> lock(params_mutex_);
 
 		int z = (int)new_z_ + event.GetWheelRotation() / event.GetWheelDelta();
 
@@ -1951,6 +1909,20 @@ GLuint Cartographer::load_texture(raw_image &image)
 	return id;
 }
 
+GLuint Cartographer::load_image_to_texture(image &img)
+{
+	GLuint texture_id = img.texture_id();
+
+	if (texture_id == 0 && boost::this_thread::get_id() == paint_thread_id_)
+	{
+		texture_id = load_texture( img.raw() );
+		img.raw().clear(false);
+		img.set_texture_id(texture_id);
+	}
+
+	return texture_id;
+}
+
 void Cartographer::on_image_delete_proc(image &img)
 {
 	GLuint texture_id = img.texture_id();
@@ -1959,4 +1931,3 @@ void Cartographer::on_image_delete_proc(image &img)
 }
 
 } /* namespace cart */
-
