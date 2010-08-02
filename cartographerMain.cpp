@@ -144,7 +144,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	ComboBox1->SetValue(map.name);
 
 
-	/* Метки - не забыть (!) изменить размер массива (images_[9]),
+	/* Метки - не забыть изменить размер массива (!),
 		когда надо будет добавить ещё */
 	images_[0] = cartographer_->LoadImageFromFile(L"images/blu-blank.png");
 	cartographer_->SetImageCentralPoint(images_[0], 31.5, 64.0);

@@ -20,6 +20,8 @@ bool image::convert_from(const wxImage &src)
 	if (!src.IsOk())
 		return false;
 
+	unique_lock<recursive_mutex> lock(mutex_);
+
 	unsigned char *src_rgb = src.GetData();
 	unsigned char *src_a = src.GetAlpha();
 
@@ -60,6 +62,8 @@ bool image::convert_from(const wxImage &src)
 	/* Дополняем ширину прозрачными точками */
 	std::memset(ptr, 0, end - ptr);
 
+	set_state(ready);
+
 	return true;
 }
 
@@ -73,12 +77,15 @@ bool image::load_from_mem(const void *data, std::size_t size)
 {
 	wxImage wx_image;
 	wxMemoryInputStream stream(data, size);
-	return wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY) && convert_from(wx_image);
+	return wx_image.LoadFile(stream, wxBITMAP_TYPE_ANY)
+		&& convert_from(wx_image);
 }
 
 void image::load_from_raw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
+	unique_lock<recursive_mutex> lock(mutex_);
+
 	if (with_alpha)
 		raw_.create(width, height, 32, GL_RGBA);
 	else
@@ -87,6 +94,8 @@ void image::load_from_raw(const unsigned char *data,
 	unsigned char *ptr = raw_.data();
 
 	memcpy(ptr, data, raw_.end() - data);
+
+	set_state(ready);
 }
 
 } /* namespace cart */
