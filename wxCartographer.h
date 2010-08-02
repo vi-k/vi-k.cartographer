@@ -126,26 +126,36 @@ public:
 	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
 	void DeleteImage(int image_id);
 
-	/* Центр изображения (0.0 ... 1.0). По умолчанию: 0.5, 0.5 */
-	point GetImageCenter(int image_id);
-	void SetImageCenter(int image_id, double kx, double ky);
+	/* Смещение изображения при выводе. По умолчанию: 0.0, 0.0 */
+	size GetImageOffset(int image_id);
+	void SetImageOffset(int image_id, double dx, double dy);
+
+	/* Центральная точка изображения. На деле устанавливает смещение
+		изображения равным -(x + 0.5), -(y + 0.5) */
+	point GetImageCentralPoint(int image_id);
+	void SetImageCentralPoint(int image_id, double x, double y);
 
 	/* Размеры изображения */
 	size GetImageSize(int image_id);
 	size GetImageScale(int image_id);
 	void SetImageScale(int image_id, const size &scale);
-	void SetImageScale(int image_id, double scale_w, double scale_h)
+	inline void SetImageScale(int image_id, double scale_w, double scale_h)
 		{ SetImageScale( image_id, size(scale_w, scale_h) ); }
 
 	/* Вывод изображения */
-	void DrawImage(int image_id, double x, double y, double w, double h,
-		bool calc_size = false);
-	void DrawImage(int image_id, const point &pos, const size &sz)
-		{ DrawImage(image_id, pos.x, pos.y, sz.width, sz.height, false); }
-	void DrawImage(int image_id, double x, double y)
-		{ DrawImage(image_id, x, y, 0.0, 0.0, true); }
-	void DrawImage(int image_id, const point &pos)
-		{ DrawImage(image_id, pos.x, pos.y, 0.0, 0.0, true); }
+	void DrawImage(int image_id, double x, double y, double kx, double ky);
+	inline void DrawImage(int image_id, double x, double y, double k)
+		{ return DrawImage(image_id, x, y, k, k); }
+	inline void DrawImage(int image_id, double x, double y)
+		{ return DrawImage(image_id, x, y, 1.0, 1.0); }
+	inline void DrawImage(int image_id, const point &pos, double kx, double ky)
+		{ DrawImage(image_id, pos.x, pos.y, kx, ky); }
+	inline void DrawImage(int image_id, const point &pos, double k)
+		{ DrawImage(image_id, pos.x, pos.y, k, k); }
+	inline void DrawImage(int image_id, const point &pos)
+		{ DrawImage(image_id, pos.x, pos.y, 1.0, 1.0); }
+	inline void DrawImage(int image_id, const point &pos, const size &scale)
+		{ DrawImage(image_id, pos.x, pos.y, scale.width, scale.height); }
 
 	DECLARE_EVENT_TABLE()
 

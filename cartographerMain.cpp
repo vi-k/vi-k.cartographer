@@ -147,34 +147,32 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Метки - не забыть (!) изменить размер массива (images_[9]),
 		когда надо будет добавить ещё */
 	images_[0] = cartographer_->LoadImageFromFile(L"images/blu-blank.png");
-	cartographer_->SetImageCenter(images_[0], 0.5, 1.0);
+	cartographer_->SetImageCentralPoint(images_[0], 31.5, 64.0);
 
 	images_[1] = cartographer_->LoadImageFromFile(L"images/Back.png");
-	cartographer_->SetImageCenter(images_[1], 0.0, 0.5);
+	cartographer_->SetImageCentralPoint(images_[1], -1.0, 15.5);
 
 	images_[2] = cartographer_->LoadImageFromFile(L"images/Forward.png");
-	cartographer_->SetImageCenter(images_[2], 1.0, 0.5);
+	cartographer_->SetImageCentralPoint(images_[2], 32.0, 15.5);
 
 	images_[3] = cartographer_->LoadImageFromFile(L"images/Up.png");
-	cartographer_->SetImageCenter(images_[3], 0.5, 0.0);
+	cartographer_->SetImageCentralPoint(images_[3], 15.5, -1.0);
 
 	images_[4] = cartographer_->LoadImageFromFile(L"images/Down.png");
-	cartographer_->SetImageCenter(images_[4], 0.5, 1.0);
+	cartographer_->SetImageCentralPoint(images_[4], 15.5, 31.0);
 
 	images_[5] = cartographer_->LoadImageFromFile(L"images/Flag.png");
-	cartographer_->SetImageCenter(images_[5], 0.14, 1.0);
+	cartographer_->SetImageCentralPoint(images_[5], 3.5, 31.0);
 
 	images_[6] = cartographer_->LoadImageFromFile(L"images/write.png");
-	cartographer_->SetImageCenter(images_[6], 0.0, 1.0);
+	cartographer_->SetImageCentralPoint(images_[6], 1.0, 31.0);
 
 	images_[7] = cartographer_->LoadImageFromFile(L"images/ylw-pushpin.png");
-	cartographer_->SetImageCenter(images_[7], 0.29, 1.0);
+	cartographer_->SetImageCentralPoint(images_[7], 18.0, 63.0);
 	cartographer_->SetImageScale(images_[7], 0.5, 0.5);
 
-	/*-
 	images_[8] = cartographer_->LoadImageFromFile(L"images/wifi.png");
-	cartographer_->SetImageCenter(images_[8], 0.5, 0.95);
-	-*/
+	cartographer_->SetImageCentralPoint(images_[8], 15.5, 35.0);
 
 
 	/* Места для быстрого перехода */
@@ -210,11 +208,9 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	z_[7] = 14;
 	coords_[7] = cart::DegreesToGeo( 50,16,55.96, 127,31,46.09 );
 
-	/*-
 	names_[8] = L"Биробиджан";
 	z_[8] = 14;
 	coords_[8] = cart::DegreesToGeo( 48,47,52.55, 132,55,5.13 );
-	-*/
 
 	for (int i = 0; i < count_; ++i)
 		Choice1->Append(names_[i]);
@@ -275,17 +271,10 @@ void cartographerFrame::DrawImage(int id, const cart::coord &pt)
 		return;
 
 	cart::point pos = cartographer_->GeoToScr(pt);
-	cart::size size = cartographer_->GetImageSize(id);
 	double z = cartographer_->GetActiveZ();
 
-	if (z < 6.0)
-	{
-		size.width *= z / 6.0;
-		size.height *= z / 6.0;
-	}
-
 	glColor4d(1.0, 1.0, 1.0, 1.0);
-	cartographer_->DrawImage(id, pos, size);
+	cartographer_->DrawImage(id, pos, z < 6.0 ? z / 6.0 : 1.0);
 }
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)

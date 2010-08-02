@@ -510,26 +510,48 @@ void Cartographer::DeleteImage(int image_id)
 	sprites_.erase(image_id);
 }
 
-point Cartographer::GetImageCenter(int image_id)
+size Cartographer::GetImageOffset(int image_id)
 {
 	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	point pt;
+	size offset;
 
 	if (iter != sprites_.end())
-		pt = iter->second.center();
+		offset = iter->second.offset();
 
-	return pt;
+	return offset;
 }
 
-void Cartographer::SetImageCenter(int image_id, double kx, double ky)
+void Cartographer::SetImageOffset(int image_id, double dx, double dy)
 {
 	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 	if (iter != sprites_.end())
-		iter->second.set_center(kx, ky);
+		iter->second.set_offset(dx, dy);
+}
+
+point Cartographer::GetImageCentralPoint(int image_id)
+{
+	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+
+	sprites_list::iterator iter = sprites_.find(image_id);
+	point pos;
+
+	if (iter != sprites_.end())
+		pos = iter->second.central_point();
+
+	return pos;
+}
+
+void Cartographer::SetImageCentralPoint(int image_id, double x, double y)
+{
+	my::not_shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
+
+	sprites_list::iterator iter = sprites_.find(image_id);
+	if (iter != sprites_.end())
+		iter->second.set_central_point(x, y);
 }
 
 size Cartographer::GetImageSize(int image_id)
@@ -540,11 +562,7 @@ size Cartographer::GetImageSize(int image_id)
 	size sz;
 
 	if (iter != sprites_.end())
-	{
-		raw_image &img = iter->second.raw();
-		sz.width = img.width();
-		sz.height = img.height();
-	}
+		sz = iter->second.get_size();
 
 	return sz;
 }
@@ -573,8 +591,8 @@ void Cartographer::SetImageScale(int image_id, const size &scale)
 		iter->second.set_scale(scale);
 }
 
-void Cartographer::DrawImage(int image_id, double x, double y, double w, double h,
-	bool calc_size)
+void Cartographer::DrawImage(int image_id, double x, double y,
+	double kx = 1.0, double ky = 1.0)
 {
 	my::shared_locker locker( MYLOCKERPARAMS(sprites_mutex_, 5, MYCURLINE) );
 
@@ -593,18 +611,17 @@ void Cartographer::DrawImage(int image_id, double x, double y, double w, double 
 			spr.set_texture_id(texture_id);
 		}
 		
-		if (calc_size)
-		{
-			w = spr.raw().width();
-			h = spr.raw().height();
-		}
+		double w = spr.raw().width();
+		double h = spr.raw().height();
+		kx *= spr.scale().width;
+		ky *= spr.scale().height;
 
-		w *= spr.scale().width;
-		h *= spr.scale().height;
+		w *= kx;
+		h *= ky;
 
-		point center = spr.center();
-		x -= w * center.x;
-		y -= h * center.y;
+		size offset = spr.offset();
+		x += offset.width * kx;
+		y += offset.height * ky;
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 		glBegin(GL_QUADS);
@@ -701,7 +718,7 @@ void Cartographer::load_textures()
 	{
 		tile::ptr tile_ptr = iter->value();
 
-		if (tile_ptr->ok())
+		if (tile_ptr->step() == tile::ready && tile_ptr->ok())
 		{
 			GLuint texture_id = tile_ptr->texture_id();
 			if (texture_id == 0)
@@ -908,9 +925,13 @@ void Cartographer::file_loader_proc(my::worker::ptr this_worker)
 		}
 		else
 		{
-			tile_ptr->set_step(tile::ready);
 			if (!tile_ptr->load_from_file(filename))
 				main_log << L"Ошибка загрузки wxImage: " << filename << main_log;
+			
+			/* Если изменить step до загрузки, как это было раньше,
+				то загрузчик текстур может начать загружать текстуру раньше,
+				чем загрузятся данные, а заодно и удалить данные посреди загрузки */
+			tile_ptr->set_step(tile::ready);
 		}
 
 	} /* while (!finish()) */
@@ -997,14 +1018,17 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 			}
 			else if (reply.status_code == 200)
 			{
-				tile_ptr->set_step(tile::ready);
-
 				/* При успешной загрузке с сервера, создаём тайл из буфера
 					и сохраняем файл на диске */
 				if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
 					reply.save(path.str() + map.ext);
 				else
 					main_log << L"Ошибка загрузки wxImage: " << request.str() << main_log;
+
+				/* Если изменить step до загрузки, как это было раньше,
+					то загрузчик текстур может начать загружать текстуру раньше,
+					чем загрузятся данные, а заодно и удалить данные посреди загрузки */
+				tile_ptr->set_step(tile::ready);
 			}
 		}
 		catch (...)

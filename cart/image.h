@@ -40,25 +40,36 @@ public:
 
 	inline raw_image& raw()
 		{ return raw_; }
+
+	inline size get_size() const
+		{ return size(width_, height_); }
+
+	inline int width() const
+		{ return width_; }
 		
-	inline GLuint texture_id()
+	inline int height() const
+		{ return height_; }
+		
+	inline GLuint texture_id() const
 		{ return texture_id_; }
 
 	inline void set_texture_id(GLuint texture_id)
 		{ texture_id_ = texture_id; }
 
-	inline size scale()
+	inline size scale() const
 		{ return scale_; }
 		
 	inline void set_scale(const size &scale)
 		{ scale_ = scale; }
 
-	inline bool ok()
+	inline bool ok() const
 		{ return raw_.data() != 0; }
 
 protected:
 	on_delete_t on_delete_;
 	raw_image raw_;
+	int width_;
+	int height_;
 	GLuint texture_id_;
 	size scale_;
 };
@@ -72,18 +83,23 @@ class sprite : public image
 public:
 	sprite(on_delete_t on_delete = on_delete_t())
 		: image(on_delete)
-		, center_kx_(0.5)
-		, center_ky_(0.5) {}
+		, offset_(0.0, 0.0) {}
 
-	void set_center(double kx, double ky)
-		{ center_kx_ = kx, center_ky_ = ky; }
+	size offset() const
+		{ return offset_; }
+
+	void set_offset(double dx, double dy)
+		{ offset_.width = dx, offset_.height = dy; }
+
+	point central_point() const
+		{ return point(-offset_.width - 0.5, -offset_.height - 0.5); }
+
+	void set_central_point(double x, double y)
+		{ offset_.width = -x - 0.5, offset_.height = -y - 0.5; }
 		
-	point center()
-		{ return point(center_kx_, center_ky_); }
 
 private:
-	double center_kx_;
-	double center_ky_;
+	size offset_;
 };
 
 
@@ -150,21 +166,6 @@ public:
 		, step_(step)
 	{
 	}
-
-	/*-
-	void clear()
-	{
-		step_ = unknown;
-
-		raw_.clear();
-
-		if (texture_id_)
-		{
-			cartographer_.delete_texture_later(texture_id_);
-			texture_id_ = 0;
-		}
-	}
-    -*/
 
 	inline void set_step(step_t step)
 		{ step_ = step; }

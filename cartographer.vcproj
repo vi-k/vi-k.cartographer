@@ -232,10 +232,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\cart\font.h"
-				>
-			</File>
-			<File
 				RelativePath=".\handle_exception.h"
 				>
 			</File>
