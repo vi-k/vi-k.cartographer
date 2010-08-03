@@ -42,6 +42,52 @@ BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
 	//*)
 END_EVENT_TABLE()
 
+const double c_PI = M_PI;
+const double c_A = 6378137;
+const double c_a = 1/298.257223563;
+const double c_e2 = 2*c_a - c_a*c_a;
+
+struct point_t {
+	// Longitude and latitude, in degrees.
+	float x, y;
+
+	point_t () {}
+	point_t (float _x, float _y) : x (_x), y (_y) {}
+
+	bool operator == (const point_t & _other) const {return x == _other.x && y == _other.y;}
+};
+
+float Distance (const point_t & _1, const point_t & _2) {
+	const double fSinB1 = ::sin (_1.y*c_PI/180);
+	const double fCosB1 = ::cos (_1.y*c_PI/180);
+	const double fSinL1 = ::sin (_1.x*c_PI/180);
+	const double fCosL1 = ::cos (_1.x*c_PI/180);
+
+	const double N1 = c_A/::sqrt (1 - c_e2*fSinB1*fSinB1);
+
+	const double X1 = N1*fCosB1*fCosL1;
+	const double Y1 = N1*fCosB1*fSinL1;
+	const double Z1 = (1 - c_e2)*N1*fSinB1;
+
+	const double fSinB2 = ::sin (_2.y*c_PI/180);
+	const double fCosB2 = ::cos (_2.y*c_PI/180);
+	const double fSinL2 = ::sin (_2.x*c_PI/180);
+	const double fCosL2 = ::cos (_2.x*c_PI/180);
+
+	const double N2 = c_A/::sqrt (1 - c_e2*fSinB2*fSinB2);
+
+	const double X2 = N2*fCosB2*fCosL2;
+	const double Y2 = N2*fCosB2*fSinL2;
+	const double Z2 = (1 - c_e2)*N2*fSinB2;
+
+	const double D = ::sqrt ((X1 - X2)*(X1 - X2) + (Y1 - Y2)*(Y1 - Y2) + (Z1 - Z2)*(Z1 - Z2));
+
+	const double R = N1;
+	const double D2 = 2*R*::asin (.5f*D/R);
+
+	return D2;
+}
+
 cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	: cartographer_(0)
 {
@@ -178,7 +224,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Места для быстрого перехода */
 	names_[0] = L"Хабаровск";
 	z_[0] = 12;
-	coords_[0] = cart::coord(48.48021475, 135.0719556);
+	coords_[0] = cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 );
 
 	names_[1] = L"Владивосток";
 	z_[1] = 13;
@@ -214,6 +260,96 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	for (int i = 0; i < count_; ++i)
 		Choice1->Append(names_[i]);
+
+	double kd = M_PI / 180.0;
+	double B1 = coords_[0].lat * kd;
+	double L1 = coords_[0].lon * kd;
+	double B2 = coords_[2].lat * kd;
+	double L2 = coords_[2].lon * kd;
+
+	double s;
+
+	{
+		// 1.
+		double _n = sin(B1) * sin(B1);
+		double _n2 = 0.0066934216;
+		_n *= _n2;
+
+		double W1 = sqrt( 1 - 0.0066934216 * sin(B1) * sin(B1) );
+		double W2 = sqrt( 1 - 0.0066934216 * sin(B2) * sin(B2) );
+		double sin_mu1 = sin(B1) * sqrt(1 - 0.0066934216) / W1;
+		double sin_mu2 = sin(B2) * sqrt(1 - 0.0066934216) / W2;
+		double cos_mu1 = cos(B1) / W1;
+		double cos_mu2 = cos(B2) / W2;
+		double l = L2 - L1;
+		double a1 = sin_mu1 * sin_mu2;
+		double a2 = cos_mu1 * cos_mu2;
+		double b1 = cos_mu1 * sin_mu2;
+		double b2 = sin_mu1 * cos_mu2;
+
+		// 2.
+		double delta = 0.0;
+
+		while (1) {
+			double lambda = l + delta;
+			double p = cos_mu2 * sin(lambda);
+			double q = b1 - b2 * cos(lambda);
+			double A1 = abs( atan(p / q) );
+
+			// 2.А
+			if (p < 0.0)
+			{
+				if (q < 0.0)
+					A1 = M_PI + A1;
+				else
+					A1 = 2 * M_PI - A1;
+			}
+			else if (q < 0.0)
+			{
+				A1 = M_PI - A1;
+			}
+
+			// 2.Б
+			double sin_sigma = p * sin(A1) + q * cos(A1);
+			double cos_sigma = a1 + a2 * cos(lambda);
+			double sigma = abs( atan( sin_sigma / cos_sigma ) );
+
+			// 2.В
+			if (cos_sigma < 0.0)
+				sigma = M_PI - sigma;
+
+			double sin_A0 = cos_mu1 * sin(A1);
+			double cos_A0 = cos( asin(sin_A0) ); /*!*/
+			double x = 2 * a1 - cos_A0 * cos_A0 * cos_sigma;
+		
+			double alpha = (33523299 - (28189 - 70 * cos_A0 * cos_A0) * cos_A0 * cos_A0) * 0.0000000001;
+			double beta = (28189 - 94 * cos_A0 * cos_A0) * 0.0000000001;
+		
+			double old_delta = delta;
+			delta = (alpha * sigma - beta * x * sin_sigma) * sin_A0;
+			
+			if (abs(old_delta - delta) < 0.0000000001)
+			{
+				// 3.
+				double A = 6356836.020 + (10708.949 - 13.474 * cos_A0 * cos_A0) * cos_A0 * cos_A0;
+				double B_ = 10708.938 - 17.956 * cos_A0 * cos_A0;
+				double C_ = 4.487;
+
+				double y = (cos_A0 * cos_A0 * cos_A0 * cos_A0 - 2 * x * x) * cos_sigma;
+				s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
+				//A2 = 
+				break;
+			}
+		}
+	}
+
+	point_t pt1( coords_[0].lon, coords_[0].lat );
+	point_t pt2( coords_[2].lon, coords_[2].lat );
+	float f = Distance(pt1, pt2);
+
+	double d = sin(B1) * sin(B2) + cos(B1) * cos(B2) * cos(L2 - L1);
+	d = acos(d) * 1852.0 * 3600.0;
+	d = d;
 }
 
 cartographerFrame::~cartographerFrame()
