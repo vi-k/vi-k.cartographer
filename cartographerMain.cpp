@@ -225,6 +225,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	names_[0] = L"Хабаровск";
 	z_[0] = 12;
 	coords_[0] = cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 );
+	//coords_[0] = cart::DegreesToGeo( 55,45,15.0, 37,37,23.0 );
 
 	names_[1] = L"Владивосток";
 	z_[1] = 13;
@@ -232,7 +233,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	names_[2] = L"Магадан";
 	z_[2] = 12;
-	coords_[2] = cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
+	//coords_[2] = cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
+	coords_[2] = cart::DegreesToGeo( -54,-39,-28.39, -65,-7,-50.48 );
 
 	names_[3] = L"Якутск";
 	z_[3] = 10;
@@ -271,21 +273,24 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	{
 		// 1.
-		double _n = sin(B1) * sin(B1);
-		double _n2 = 0.0066934216;
-		_n *= _n2;
+		const double e2 = 0.0066934216;
 
-		double W1 = sqrt( 1 - 0.0066934216 * sin(B1) * sin(B1) );
-		double W2 = sqrt( 1 - 0.0066934216 * sin(B2) * sin(B2) );
-		double sin_mu1 = sin(B1) * sqrt(1 - 0.0066934216) / W1;
-		double sin_mu2 = sin(B2) * sqrt(1 - 0.0066934216) / W2;
-		double cos_mu1 = cos(B1) / W1;
-		double cos_mu2 = cos(B2) / W2;
-		double l = L2 - L1;
-		double a1 = sin_mu1 * sin_mu2;
-		double a2 = cos_mu1 * cos_mu2;
-		double b1 = cos_mu1 * sin_mu2;
-		double b2 = sin_mu1 * cos_mu2;
+		const double sin_B1 = sin(B1);
+		const double cos_B1 = cos(B1);
+		const double sin_B2 = sin(B2);
+		const double cos_B2 = cos(B2);
+
+		const double W1 = sqrt(1 - e2 * sin_B1 * sin_B1);
+		const double W2 = sqrt(1 - e2 * sin_B2 * sin_B2);
+		const double sin_mu1 = sin_B1 * sqrt(1 - e2) / W1;
+		const double sin_mu2 = sin_B2 * sqrt(1 - e2) / W2;
+		const double cos_mu1 = cos_B1 / W1;
+		const double cos_mu2 = cos_B2 / W2;
+		const double l = L2 - L1;
+		const double a1 = sin_mu1 * sin_mu2;
+		const double a2 = cos_mu1 * cos_mu2;
+		const double b1 = cos_mu1 * sin_mu2;
+		const double b2 = sin_mu1 * cos_mu2;
 
 		// 2.
 		double delta = 0.0;
@@ -295,6 +300,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 			double p = cos_mu2 * sin(lambda);
 			double q = b1 - b2 * cos(lambda);
 			double A1 = abs( atan(p / q) );
+			//double A1 = atan(p / q);
 
 			// 2.А
 			if (p < 0.0)
@@ -313,6 +319,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 			double sin_sigma = p * sin(A1) + q * cos(A1);
 			double cos_sigma = a1 + a2 * cos(lambda);
 			double sigma = abs( atan( sin_sigma / cos_sigma ) );
+			//double sigma = atan( sin_sigma / cos_sigma );
 
 			// 2.В
 			if (cos_sigma < 0.0)
@@ -328,10 +335,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 			double old_delta = delta;
 			delta = (alpha * sigma - beta * x * sin_sigma) * sin_A0;
 			
-			if (abs(old_delta - delta) < 0.0000000001)
+			if (abs(old_delta - delta) < 0.0001)
 			{
 				// 3.
-				double A = 6356836.020 + (10708.949 - 13.474 * cos_A0 * cos_A0) * cos_A0 * cos_A0;
+				double A = 6356863.020 + (10708.949 - 13.474 * cos_A0 * cos_A0) * cos_A0 * cos_A0;
 				double B_ = 10708.938 - 17.956 * cos_A0 * cos_A0;
 				double C_ = 4.487;
 
@@ -343,13 +350,12 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		}
 	}
 
-	point_t pt1( coords_[0].lon, coords_[0].lat );
-	point_t pt2( coords_[2].lon, coords_[2].lat );
+	point_t pt1( coords_[2].lon, coords_[2].lat );
+	point_t pt2( coords_[0].lon, coords_[0].lat );
 	float f = Distance(pt1, pt2);
 
-	double d = sin(B1) * sin(B2) + cos(B1) * cos(B2) * cos(L2 - L1);
-	d = acos(d) * 1852.0 * 3600.0;
-	d = d;
+	double dd = cartographer_->Distance( coords_[2], coords_[0] );
+	dd = dd;
 }
 
 cartographerFrame::~cartographerFrame()

@@ -7,8 +7,8 @@
 #define __swprintf snwprintf
 #endif
 
-#include <cmath> /* std::sin, std::sqrt */
-#include <cwchar> /* swprintf */
+#include <math.h> /* sin, sqrt */
+#include <wchar.h> /* swprintf */
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -16,7 +16,12 @@
 
 #include <boost/bind.hpp>
 
-#define EXCT 0.081819790992 /* эксцентриситет эллипса */
+/* Эллипсоид Красовского */
+const double c_a  = 6378245.0; /* большая полуось */
+const double c_alpha = 1 / 298.3; /* сжатие */
+const double c_b  = c_a * (1.0 - c_alpha); /* большая полуось */
+const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса */
+const double c_e2 = c_e * c_e; /* квадрат эксцентриситета эллипса */
 
 template<typename Real>
 Real atanh(Real x)
@@ -1107,7 +1112,7 @@ double Cartographer::lon_to_tile_x(double lon, double z)
 double Cartographer::lat_to_tile_y(double lat, double z,
 	map_info::projection_t projection)
 {
-	double s = std::sin( lat / 180.0 * M_PI );
+	double s = sin( lat / 180.0 * M_PI );
 	double y;
 
 	switch (projection)
@@ -1117,7 +1122,10 @@ double Cartographer::lat_to_tile_y(double lat, double z,
 			break;
 
 		case map_info::ellipsoid:
-			y = (0.5 - (atanh(s) - EXCT*atanh(EXCT*s)) / (2*M_PI)) * size_for_z_d(z);
+			// q - изометрическая широта
+			// q = 1/2 * ln( (1 + sin B) / (1 - sin B) )
+			//	- e / 2 * ln( (1 + e * sin B) / (1 - e * sin B) )
+			y = (0.5 - (atanh(s) - c_e * atanh(c_e*s)) / (2*M_PI)) * size_for_z_d(z);
 			break;
 
 		default:
@@ -1154,7 +1162,7 @@ double Cartographer::tile_y_to_lat(double y, double z,
 {
 	double lat;
 	double sz = size_for_z_d(z);
-	double tmp = std::atan( std::exp( (0.5 - y / sz) * (2 * M_PI) ) );
+	double tmp = atan( exp( (0.5 - y / sz) * (2 * M_PI) ) );
 
 	switch (projection)
 	{
@@ -1170,9 +1178,9 @@ double Cartographer::tile_y_to_lat(double y, double z,
 			do
 			{
 				tmp2 = tmp;
-				tmp = std::asin(1.0 - ((1.0 + std::sin(tmp))*std::pow(1.0-EXCT*std::sin(tmp),EXCT)) / (exp((2.0*yy)/-(sz/(2.0*M_PI)))*std::pow(1.0+EXCT*std::sin(tmp),EXCT)) );
+				tmp = asin(1.0 - ((1.0 + sin(tmp))*pow(1.0-c_e*sin(tmp),c_e)) / (exp((2.0*yy)/-(sz/(2.0*M_PI)))*pow(1.0+c_e*sin(tmp),c_e)) );
 
-			} while( std::abs(tmp - tmp2) > 0.00000001 );
+			} while( abs(tmp - tmp2) > 0.00000001 );
 
 			lat = tmp * 180.0 / M_PI;
 		}
@@ -1198,6 +1206,119 @@ double Cartographer::scr_y_to_lat(double y, double z,
 {
 	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
+}
+
+double Cartographer::Distance(const coord &pt1, const coord &pt2)
+{
+	double dist;
+	double A1;
+
+	/* Расчёт расстояния и азимута между двумя точками */
+
+	/* Обратная геодезическая задача по способу Бесселя.
+		"Курс сфероидической геодезии" В.П.Морозова сс.133-135 */
+
+	/*
+		B1,L1,B2,L2 - геодезические широта и долгота точек, выраженные в радианах
+		c_e2 - квадрат эксцентриситета эллипса Земли (c_e - эксцентриситет эллипса)
+		V,W - основные сфероидические функции (V = W / sqrt(1.0 - c_e2))
+		u - приведённая широта точки
+		A - азимут точки
+		А0 - азимут геодезической линии в точке пересения с экватором
+		sigma - сферическое расстояние (дина дуги большого круга,
+			выраженная в частях радиуса шара) (с.97)
+		lambda - разница долгот (с.97)
+	*/
+
+	/* 1. Подготовительные вычисления */
+	const double sin_B1 = sin(pt1.lat * M_PI / 180.0);
+	const double sin_B2 = sin(pt2.lat * M_PI / 180.0);
+	const double cos_B1 = cos(pt1.lat * M_PI / 180.0);
+	const double cos_B2 = cos(pt2.lat * M_PI / 180.0);
+
+	const double l = (pt2.lon - pt1.lon) * M_PI / 180.0;
+
+	const double W1 = sqrt(1 - c_e2 * sin_B1 * sin_B1);
+	const double W2 = sqrt(1 - c_e2 * sin_B2 * sin_B2);
+	const double sin_u1 = sin_B1 / W1 * sqrt(1.0 - c_e2);
+	const double sin_u2 = sin_B2 / W2 * sqrt(1.0 - c_e2);
+	const double cos_u1 = cos_B1 / W1;
+	const double cos_u2 = cos_B2 / W2;
+	const double a1 = sin_u1 * sin_u2;
+	const double a2 = cos_u1 * cos_u2;
+	const double b1 = cos_u1 * sin_u2;
+	const double b2 = sin_u1 * cos_u2;
+
+	/* 2. Последовательные приближения */
+	double delta = 0.0;
+
+	int count = 0;
+	while (1)
+	{
+		++count;
+
+		const double lambda = l + delta;
+		const double p = cos_u2 * sin(lambda);
+		const double q = b1 - b2 * cos(lambda);
+		
+		/* Начальный азимут */
+		A1 = atan(p / q);
+
+		if (p < 0.0)
+		{
+			if (q < 0.0)
+				A1 = M_PI + abs(A1);
+			else
+				A1 = 2 * M_PI - abs(A1);
+		}
+		else
+		{
+			if (q < 0.0)
+				A1 = M_PI - abs(A1);
+			else
+				A1 = abs(A1);
+		}
+
+		/* Сферическое расстояние */
+		const double sin_sigma = p * sin(A1) + q * cos(A1);
+		const double cos_sigma = a1 + a2 * cos(lambda);
+		double sigma = abs( atan( sin_sigma / cos_sigma ) );
+	double s_sigma = asin(sin_sigma);
+
+		//double sigma = atan( sin_sigma / cos_sigma );
+
+		if (cos_sigma < 0.0)
+			sigma = M_PI - sigma;
+
+		/* */
+		const double sin_A0 = cos_u1 * sin(A1);
+		double cos2_A0 = cos( asin(sin_A0) );
+			cos2_A0 *= cos2_A0; /*!*/
+
+		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
+		
+		const double alpha = (33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
+		const double beta = (28189 - 94 * cos2_A0) * 0.0000000001;
+		
+		const double old_delta = delta;
+		delta = (alpha * sigma - beta * x * sin_sigma) * sin_A0;
+			
+		if (abs(old_delta - delta) < 0.0001)
+		{
+			// 3.
+			const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+			const double B_ = 10708.938 - 17.956 * cos2_A0;
+			const double C_ = 4.487;
+
+			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
+			dist = A * sigma + (B_ * x + C_ * y) * sin_sigma;
+			//A2 = 
+			break;
+		}
+	}
+
+	A1 *= 180.0 / M_PI;
+	return dist;
 }
 
 #if 0
@@ -1244,8 +1365,8 @@ bool Cartographer::sort_by_dist( tile::id fix_tile,
 
 	/* Вперёд тайлы близкие по масштабу */
 	if (first_id.z != second_id.z)
-		return std::abs(first_id.z - fix_tile.z)
-			< std::abs(second_id.z - fix_tile.z);
+		return abs(first_id.z - fix_tile.z)
+			< abs(second_id.z - fix_tile.z);
 
 	/* Дальше остаются тайлы на одной карте, с одним масштабом */
 
@@ -1259,8 +1380,8 @@ bool Cartographer::sort_by_dist( tile::id fix_tile,
 	int dy1 = first_id.y - fix_tile.y;
 	int dx2 = second_id.x - fix_tile.x;
 	int dy2 = second_id.y - fix_tile.y;
-	return std::sqrt( (double)(dx1*dx1 + dy1*dy1) )
-		< std::sqrt( (double)(dx2*dx2 + dy2*dy2) );
+	return sqrt( (double)(dx1*dx1 + dy1*dy1) )
+		< sqrt( (double)(dx2*dx2 + dy2*dy2) );
 }
 #endif
 
