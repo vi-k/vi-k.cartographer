@@ -157,6 +157,12 @@ public:
 	inline void DrawImage(int image_id, const point &pos, const size &scale)
 		{ DrawImage(image_id, pos.x, pos.y, scale.width, scale.height); }
 
+
+	/* Рассчёты */
+
+	/* Рассчёты расстояния между двумя точками */
+	static double Distance(const coord &pt1, const coord &pt2);
+
 	DECLARE_EVENT_TABLE()
 
 
