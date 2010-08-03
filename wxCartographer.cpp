@@ -17,11 +17,23 @@
 #include <boost/bind.hpp>
 
 /* Эллипсоид Красовского */
-const double c_a  = 6378245.0; /* большая полуось */
-const double c_alpha = 1 / 298.3; /* сжатие */
-const double c_b  = c_a * (1.0 - c_alpha); /* большая полуось */
-const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса */
+//const double c_a  = 6378245.0; /* большая полуось */
+//const double c_f = 1.0 / 298.3; /* flattening / сжатие */
+
+/* Эллипсоид WGS84 */
+const double c_a  = 6378137.0; /* большая полуось */
+const double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
+
+const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
+const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
 const double c_e2 = c_e * c_e; /* квадрат эксцентриситета эллипса */
+const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
+const double c_eb2 = c_eb * c_eb;
+const double c_k = 1.0 - c_f; /*
+	= c_b / c_a
+	= sqrt(1.0 - c_e2)
+	= 1 / sqrt(1.0 + c_eb2)
+	= c_e / c_eb */
 
 template<typename Real>
 Real atanh(Real x)
@@ -1221,11 +1233,11 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 	/*
 		B1,L1,B2,L2 - геодезические широта и долгота точек, выраженные в радианах
 		c_e2 - квадрат эксцентриситета эллипса Земли (c_e - эксцентриситет эллипса)
-		V,W - основные сфероидические функции (V = W / sqrt(1.0 - c_e2))
-		u - приведённая широта точки
+		V,W - основные сфероидические функции (V = W / c_k)
+		u - приведённая широта точки (с.11)
 		A - азимут точки
 		А0 - азимут геодезической линии в точке пересения с экватором
-		sigma - сферическое расстояние (дина дуги большого круга,
+		sigma - сферическое расстояние (длина дуги большого круга,
 			выраженная в частях радиуса шара) (с.97)
 		lambda - разница долгот (с.97)
 	*/
@@ -1240,8 +1252,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 
 	const double W1 = sqrt(1 - c_e2 * sin_B1 * sin_B1);
 	const double W2 = sqrt(1 - c_e2 * sin_B2 * sin_B2);
-	const double sin_u1 = sin_B1 / W1 * sqrt(1.0 - c_e2);
-	const double sin_u2 = sin_B2 / W2 * sqrt(1.0 - c_e2);
+	const double sin_u1 = sin_B1 / W1 * c_k; /* sin_B1 / V1 */
+	const double sin_u2 = sin_B2 / W2 * c_k; /* sin_B2 / V2 */
 	const double cos_u1 = cos_B1 / W1;
 	const double cos_u2 = cos_B2 / W2;
 	const double a1 = sin_u1 * sin_u2;
@@ -1262,38 +1274,29 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 		const double q = b1 - b2 * cos(lambda);
 		
 		/* Начальный азимут */
-		A1 = atan(p / q);
+		A1 = abs( atan(p / q) );
 
 		if (p < 0.0)
 		{
 			if (q < 0.0)
-				A1 = M_PI + abs(A1);
+				A1 = M_PI + A1;
 			else
-				A1 = 2 * M_PI - abs(A1);
+				A1 = 2 * M_PI - A1;
 		}
-		else
-		{
-			if (q < 0.0)
-				A1 = M_PI - abs(A1);
-			else
-				A1 = abs(A1);
-		}
+		else if (q < 0.0)
+			A1 = M_PI - A1;
 
 		/* Сферическое расстояние */
 		const double sin_sigma = p * sin(A1) + q * cos(A1);
 		const double cos_sigma = a1 + a2 * cos(lambda);
-		double sigma = abs( atan( sin_sigma / cos_sigma ) );
-	double s_sigma = asin(sin_sigma);
-
-		//double sigma = atan( sin_sigma / cos_sigma );
-
+		//double sigma = atan(sin_sigma / cos_sigma);
+		double sigma = abs( asin(sin_sigma) );
 		if (cos_sigma < 0.0)
 			sigma = M_PI - sigma;
 
-		/* */
+		/* Азимут линии на экваторе */
 		const double sin_A0 = cos_u1 * sin(A1);
-		double cos2_A0 = cos( asin(sin_A0) );
-			cos2_A0 *= cos2_A0; /*!*/
+		const double cos2_A0 = 1.0 - sin_A0 * sin_A0;
 
 		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
 		
@@ -1306,7 +1309,14 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 		if (abs(old_delta - delta) < 0.0001)
 		{
 			// 3.
-			const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+			//const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+
+			/* A = c_b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 ... )
+				где k^2 = e'^2 * cos^2(A0)
+				Экономизация - точность обещана 0.005 м */
+			const double A = c_b + (c_b * c_eb2 / 4.0
+				- c_b * c_eb2 * c_eb2 * 3.0 / 64.0 * cos2_A0) * cos2_A0;
+
 			const double B_ = 10708.938 - 17.956 * cos2_A0;
 			const double C_ = 4.487;
 
