@@ -1225,14 +1225,14 @@ double Cartographer::scr_y_to_lat(double y, double z,
 }
 
 double Cartographer::Distance(const coord &pt1, const coord &pt2,
-	double *p_azi1, double *p_azi2, double accuracy_in_mm)
+	double *p_azi1, double *p_azi2, double accuracy_in_m)
 {
 	double s; /* Вычисленное расстояние */
 	double A1; /* Начальный азимут (в радианах) */
 	double A2; /* Обратный азимут (в радианах) */
 
 	/* Переводим точность из мм (по экватору) в радианы */
-	const double accuracy = accuracy_in_mm / c_a;
+	const double accuracy = accuracy_in_m / c_a;
 
 	/* Расчёт расстояния и азимута между двумя точками */
 
@@ -1246,9 +1246,9 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 		u - приведённая широта точки (с.11)
 		A - азимут точки
 		А0 - азимут геодезической линии в точке пересения с экватором
+		lambda - разница долгот (с.97)
 		sigma - сферическое расстояние (длина дуги большого круга,
 			выраженная в частях радиуса шара) (с.97)
-		lambda - разница долгот (с.97)
 	*/
 
 	/* 1. Подготовительные вычисления */
@@ -1261,8 +1261,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 
 	const double W1 = sqrt(1 - c_e2 * sin_B1 * sin_B1);
 	const double W2 = sqrt(1 - c_e2 * sin_B2 * sin_B2);
-	const double sin_u1 = sin_B1 / W1 * c_k; /* sin_B1 / V1 */
-	const double sin_u2 = sin_B2 / W2 * c_k; /* sin_B2 / V2 */
+	const double sin_u1 = sin_B1 / W1 * c_k; /* = sin_B1 / V1 */
+	const double sin_u2 = sin_B2 / W2 * c_k; /* = sin_B2 / V2 */
 	const double cos_u1 = cos_B1 / W1;
 	const double cos_u2 = cos_B2 / W2;
 	const double a1 = sin_u1 * sin_u2;
@@ -1274,6 +1274,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 	double delta = 0.0;
 
 	int count = 0;
+	bool antipodal = false;
+
 	while (1)
 	{
 		++count;
@@ -1283,32 +1285,20 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 		const double sin_lambda = sin(lambda);
 		const double cos_lambda = cos(lambda);
 		
+		/* Начальный азимут */
 		const double p = cos_u2 * sin_lambda;
 		const double q = b1 - b2 * cos_lambda;
-		
-		/* Начальный азимут */
-		A1 = abs( atan(p / q) );
-		if (p < 0.0)
-		{
-			if (q < 0.0)
-				A1 = M_PI + A1;
-			else
-				A1 = 2.0 * M_PI - A1;
-		}
-		else if (q < 0.0)
-			A1 = M_PI - A1;
+		A1 = atan2(p, q);
+		if (A1 < 0.0)
+			A1 += 2.0 * M_PI;
+
+		if (antipodal)
+			A1 = 0.0;
 
 		/* Сферическое расстояние */
 		const double sin_sigma = p * sin(A1) + q * cos(A1);
 		const double cos_sigma = a1 + a2 * cos_lambda;
-
-		/* Идея использовать в следующей строке asin() вместо atan() не прошла,
-			т.к. из-за погрешностей вычислений попался случай, когда
-			sin_sigma = 1.0000..02 и asin() вернул INF.
-			Чем делать лишнюю проверку, лучше оставить atan() */
-		double sigma = abs( atan(sin_sigma / cos_sigma) );
-		if (cos_sigma < 0.0)
-			sigma = M_PI - sigma;
+		double sigma = atan2(sin_sigma, cos_sigma);
 
 		/* Азимут линии на экваторе */
 		const double sin_A0 = cos_u1 * sin(A1);
@@ -1350,8 +1340,13 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 			
 		const double dd = delta - prev_delta;
 
-		if (abs(delta - prev_delta) < accuracy)
+		if (delta < 0.0 && prev_delta > 0.0 || delta > 0.0 && prev_delta < 0.0)
+			antipodal = true;
+
+		if (abs(delta - prev_delta) < accuracy || count >= 10)
 		{
+			const double k2 = c_eb2 * cos2_A0;
+
 			/*
 				A = b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 - ...)
 					= b * (1 + k^2 * (1/4 - 3/64 * k^2 + 5/256 * k^4 - ...))
@@ -1370,7 +1365,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 				Для эллипсоида Красовского (из учебника):
 				const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
 			*/
-			const double A = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
+			//const double A = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
+			const double A = c_b * (1.0 + k2 * (1 / 4.0 - 3.0 / 64.0 * k2 + 5.0 / 256.0 * k2 * k2) );
 
 			/*
 				B' = 2B / Cos^2(A0)
@@ -1389,7 +1385,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 				Для эллипсоида Красовского (из учебника):
 				const double B_ = 10708.938 - 17.956 * cos2_A0;
 			*/
-			const double B_ = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
+			//const double B_ = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
+			const double B_ = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0 + 15.0 / 512.0 * k2 * k2);
 
 			/*
 				C' = 2C / Cos^4(A0)
@@ -1407,7 +1404,8 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 				Для эллипсоида Красовского (из учебника):
 				const double C_ = 4.487;
 			*/
-			const double C_ = 0.015625 * c_b_eb4;
+			//const double C_ = 0.015625 * c_b_eb4;
+			const double C_ = c_b * c_eb2 * c_eb2 * (1.0 / 64.0 - 3.0 / 256.0 * k2);
 
 			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
 			s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
@@ -1420,16 +1418,10 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2,
 			const double p2 = - cos_u1 * sin_lambda;
 			const double q2 = b2 - b1 * cos_lambda;
 
-			A2 = abs( atan(p2 / q2) );
-			if (p2 < 0.0)
-			{
-				if (q2 < 0.0)
-					A2 = M_PI + A2;
-				else
-					A2 = 2.0 * M_PI - A2;
-			}
-			else if (q2 < 0.0)
-				A2 = M_PI - A2;
+			A2 = atan2(p2, q2);
+			if (A2 < 0.0)
+				A2 += 2.0 * M_PI;
+
 
 			break;
 		}
