@@ -264,92 +264,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	for (int i = 0; i < count_; ++i)
 		Choice1->Append(names_[i]);
 
-	double kd = M_PI / 180.0;
-	double B1 = coords_[0].lat * kd;
-	double L1 = coords_[0].lon * kd;
-	double B2 = coords_[2].lat * kd;
-	double L2 = coords_[2].lon * kd;
-
-	double s;
-
-	{
-		// 1.
-		const double e2 = 0.0066934216;
-
-		const double sin_B1 = sin(B1);
-		const double cos_B1 = cos(B1);
-		const double sin_B2 = sin(B2);
-		const double cos_B2 = cos(B2);
-
-		const double W1 = sqrt(1 - e2 * sin_B1 * sin_B1);
-		const double W2 = sqrt(1 - e2 * sin_B2 * sin_B2);
-		const double sin_mu1 = sin_B1 * sqrt(1 - e2) / W1;
-		const double sin_mu2 = sin_B2 * sqrt(1 - e2) / W2;
-		const double cos_mu1 = cos_B1 / W1;
-		const double cos_mu2 = cos_B2 / W2;
-		const double l = L2 - L1;
-		const double a1 = sin_mu1 * sin_mu2;
-		const double a2 = cos_mu1 * cos_mu2;
-		const double b1 = cos_mu1 * sin_mu2;
-		const double b2 = sin_mu1 * cos_mu2;
-
-		// 2.
-		double delta = 0.0;
-
-		while (1) {
-			double lambda = l + delta;
-			double p = cos_mu2 * sin(lambda);
-			double q = b1 - b2 * cos(lambda);
-			double A1 = abs( atan(p / q) );
-			//double A1 = atan(p / q);
-
-			// 2.А
-			if (p < 0.0)
-			{
-				if (q < 0.0)
-					A1 = M_PI + A1;
-				else
-					A1 = 2 * M_PI - A1;
-			}
-			else if (q < 0.0)
-			{
-				A1 = M_PI - A1;
-			}
-
-			// 2.Б
-			double sin_sigma = p * sin(A1) + q * cos(A1);
-			double cos_sigma = a1 + a2 * cos(lambda);
-			double sigma = abs( atan( sin_sigma / cos_sigma ) );
-			//double sigma = atan( sin_sigma / cos_sigma );
-
-			// 2.В
-			if (cos_sigma < 0.0)
-				sigma = M_PI - sigma;
-
-			double sin_A0 = cos_mu1 * sin(A1);
-			double cos_A0 = cos( asin(sin_A0) ); /*!*/
-			double x = 2 * a1 - cos_A0 * cos_A0 * cos_sigma;
-		
-			double alpha = (33523299 - (28189 - 70 * cos_A0 * cos_A0) * cos_A0 * cos_A0) * 0.0000000001;
-			double beta = (28189 - 94 * cos_A0 * cos_A0) * 0.0000000001;
-		
-			double old_delta = delta;
-			delta = (alpha * sigma - beta * x * sin_sigma) * sin_A0;
-			
-			if (abs(old_delta - delta) < 0.0001)
-			{
-				// 3.
-				double A = 6356863.020 + (10708.949 - 13.474 * cos_A0 * cos_A0) * cos_A0 * cos_A0;
-				double B_ = 10708.938 - 17.956 * cos_A0 * cos_A0;
-				double C_ = 4.487;
-
-				double y = (cos_A0 * cos_A0 * cos_A0 * cos_A0 - 2 * x * x) * cos_sigma;
-				s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-				//A2 = 
-				break;
-			}
-		}
-	}
 
 	point_t pt1( coords_[2].lon, coords_[2].lat );
 	point_t pt2( coords_[0].lon, coords_[0].lat );
@@ -358,15 +272,19 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	double a1, a2;
 	const double accuracy_in_mm = 0.1;
 
+	/* Точки-антиподы */
+	//double dA = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_mm );
+	double dB = cartographer_->Distance( cart::coord(-90.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_mm );
+	double dC = cartographer_->Distance( cart::coord(45.0, 135.0), cart::coord(-45.0, -45.0), &a1, &a2, accuracy_in_mm );
+
 	double d1 = cartographer_->Distance( coords_[2], coords_[0], &a1, &a2, accuracy_in_mm );
 	double d2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_mm );
-	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.0), &a1, &a2, accuracy_in_mm );
-	//double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_mm );
-	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_mm );
-	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d9 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_mm );
+	double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.0), &a1, &a2, accuracy_in_mm );
+	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_mm );
+	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_mm );
 	
 	return;
 }
