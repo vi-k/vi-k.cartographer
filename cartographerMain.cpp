@@ -45,43 +45,34 @@ const double c_A = 6378137;
 const double c_a = 1/298.257223563;
 const double c_e2 = 2*c_a - c_a*c_a;
 
-struct point_t {
-	// Longitude and latitude, in degrees.
-	float x, y;
+double Distance(const cart::coord &pt1, const cart::coord &pt2)
+{
+	const double fSinB1 = sin(pt1.lat * M_PI / 180);
+	const double fCosB1 = cos(pt1.lat * M_PI / 180);
+	const double fSinL1 = sin(pt1.lon * M_PI / 180);
+	const double fCosL1 = cos(pt1.lon * M_PI / 180);
 
-	point_t () {}
-	point_t (float _x, float _y) : x (_x), y (_y) {}
+	const double N1 = c_A / sqrt(1 - c_e2 * fSinB1 * fSinB1);
 
-	bool operator == (const point_t & _other) const {return x == _other.x && y == _other.y;}
-};
+	const double X1 = N1 * fCosB1 * fCosL1;
+	const double Y1 = N1 * fCosB1 * fSinL1;
+	const double Z1 = (1 - c_e2) * N1 * fSinB1;
 
-float Distance (const point_t & _1, const point_t & _2) {
-	const double fSinB1 = ::sin (_1.y*c_PI/180);
-	const double fCosB1 = ::cos (_1.y*c_PI/180);
-	const double fSinL1 = ::sin (_1.x*c_PI/180);
-	const double fCosL1 = ::cos (_1.x*c_PI/180);
+	const double fSinB2 = sin(pt2.lat * M_PI / 180);
+	const double fCosB2 = cos(pt2.lat * M_PI / 180);
+	const double fSinL2 = sin(pt2.lon * M_PI / 180);
+	const double fCosL2 = cos(pt2.lon * M_PI / 180);
 
-	const double N1 = c_A/::sqrt (1 - c_e2*fSinB1*fSinB1);
+	const double N2 = c_A / sqrt(1 - c_e2 * fSinB2 * fSinB2);
 
-	const double X1 = N1*fCosB1*fCosL1;
-	const double Y1 = N1*fCosB1*fSinL1;
-	const double Z1 = (1 - c_e2)*N1*fSinB1;
+	const double X2 = N2 * fCosB2 * fCosL2;
+	const double Y2 = N2 * fCosB2 * fSinL2;
+	const double Z2 = (1 - c_e2) * N2 * fSinB2;
 
-	const double fSinB2 = ::sin (_2.y*c_PI/180);
-	const double fCosB2 = ::cos (_2.y*c_PI/180);
-	const double fSinL2 = ::sin (_2.x*c_PI/180);
-	const double fCosL2 = ::cos (_2.x*c_PI/180);
-
-	const double N2 = c_A/::sqrt (1 - c_e2*fSinB2*fSinB2);
-
-	const double X2 = N2*fCosB2*fCosL2;
-	const double Y2 = N2*fCosB2*fSinL2;
-	const double Z2 = (1 - c_e2)*N2*fSinB2;
-
-	const double D = ::sqrt ((X1 - X2)*(X1 - X2) + (Y1 - Y2)*(Y1 - Y2) + (Z1 - Z2)*(Z1 - Z2));
+	const double D = sqrt((X1 - X2)*(X1 - X2) + (Y1 - Y2)*(Y1 - Y2) + (Z1 - Z2)*(Z1 - Z2));
 
 	const double R = N1;
-	const double D2 = 2*R*::asin (.5f*D/R);
+	const double D2 = 2 * R * asin(0.5 * D / R);
 
 	return D2;
 }
@@ -265,26 +256,27 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		Choice1->Append(names_[i]);
 
 
-	point_t pt1( coords_[2].lon, coords_[2].lat );
-	point_t pt2( coords_[0].lon, coords_[0].lat );
-	float f = Distance(pt1, pt2);
-
 	double a1, a2;
-	const double accuracy_in_mm = 0.1;
+	const double accuracy_in_m = 0.000000001;
 
 	/* Точки-антиподы */
-	//double dA = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_mm );
-	double dB = cartographer_->Distance( cart::coord(-90.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_mm );
-	double dC = cartographer_->Distance( cart::coord(45.0, 135.0), cart::coord(-45.0, -45.0), &a1, &a2, accuracy_in_mm );
+	double d_0 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(1.0, 180.0), &a1, &a2, accuracy_in_m );
+	double d_1 = cartographer_->Distance( cart::coord(1.0, 180.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	double d180_1 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	double d180_2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, -180.0), &a1, &a2, accuracy_in_m );
 
-	double d1 = cartographer_->Distance( coords_[2], coords_[0], &a1, &a2, accuracy_in_mm );
-	double d2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_mm );
-	double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.0), &a1, &a2, accuracy_in_mm );
-	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_mm );
-	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_mm );
-	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_mm );
+	//double dB = cartographer_->Distance( cart::coord(-90.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
+	//double dC = cartographer_->Distance( cart::coord(45.0, 135.0), cart::coord(-45.0, -45.0), &a1, &a2, accuracy_in_m );
+
+	double d1 = cartographer_->Distance( coords_[2], coords_[0], &a1, &a2, accuracy_in_m );
+	double d2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
+	double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3964), &a1, &a2, accuracy_in_m );
+	double d3a= cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3965), &a1, &a2, accuracy_in_m );
+	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_m );
+	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_m );
 	
 	return;
 }

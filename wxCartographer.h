@@ -162,7 +162,7 @@ public:
 
 	/* Рассчёты расстояния между двумя точками */
 	static double Distance(const coord &pt1, const coord &pt2,
-		double *p_azi1 = NULL, double *p_azi2 = NULL, double accuracy_in_mm = 1000.0);
+		double *p_azi1 = NULL, double *p_azi2 = NULL, double accuracy_in_m = 1.0);
 
 	DECLARE_EVENT_TABLE()
 
