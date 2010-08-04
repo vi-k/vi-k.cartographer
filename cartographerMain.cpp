@@ -12,9 +12,7 @@
 #include <string>
 
 //(*InternalHeaders(cartographerFrame)
-#include <wx/artprov.h>
 #include <wx/bitmap.h>
-#include <wx/icon.h>
 #include <wx/settings.h>
 #include <wx/intl.h>
 #include <wx/image.h>
@@ -101,11 +99,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
 	SetClientSize(wxSize(626,293));
 	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
-	{
-	wxIcon FrameIcon;
-	FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
-	SetIcon(FrameIcon);
-	}
 	FlexGridSizer1 = new wxFlexGridSizer(2, 1, 0, 0);
 	FlexGridSizer1->AddGrowableCol(0);
 	FlexGridSizer1->AddGrowableRow(1);
@@ -148,6 +141,14 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	Connect(ID_ZOOMOUT,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnZoomOutButtonClick);
 	Connect(ID_ANCHOR,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnAnchorButtonClick);
 	//*)
+
+	/*-
+	{
+	wxIcon FrameIcon;
+	FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
+	SetIcon(FrameIcon);
+	}
+	-*/
 
 	SetClientSize(400, 400);
 	Show(true);
@@ -354,8 +355,20 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	point_t pt2( coords_[0].lon, coords_[0].lat );
 	float f = Distance(pt1, pt2);
 
-	double dd = cartographer_->Distance( coords_[2], coords_[0] );
-	dd = dd;
+	double a1, a2;
+	const double accuracy_in_mm = 0.1;
+
+	double d1 = cartographer_->Distance( coords_[2], coords_[0], &a1, &a2, accuracy_in_mm );
+	double d2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_mm );
+	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.0), &a1, &a2, accuracy_in_mm );
+	//double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_mm );
+	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_mm );
+	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_mm );
+	double d9 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_mm );
+	
+	return;
 }
 
 cartographerFrame::~cartographerFrame()
