@@ -2,7 +2,6 @@
 <wxsmith>
 	<object class="wxFrame" name="cartographerFrame">
 		<title>MainFrame</title>
-		<icon stock_id="wxART_TIP" />
 		<size>626,293</size>
 		<bg>wxSYS_COLOUR_BTNFACE</bg>
 		<id_arg>0</id_arg>

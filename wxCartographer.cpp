@@ -26,14 +26,18 @@ const double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
 
 const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
 const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
-const double c_e2 = c_e * c_e; /* квадрат эксцентриситета эллипса */
-const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
-const double c_eb2 = c_eb * c_eb;
+const double c_e2 = c_e * c_e;
+const double c_e4 = c_e2 * c_e2;
+const double c_e6 = c_e2 * c_e2 * c_e2;
 const double c_k = 1.0 - c_f; /*
 	= c_b / c_a
 	= sqrt(1.0 - c_e2)
 	= 1 / sqrt(1.0 + c_eb2)
 	= c_e / c_eb */
+const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
+const double c_eb2 = c_eb * c_eb;
+const double c_b_eb2 = c_b * c_eb2;
+const double c_b_eb4 = c_b * c_eb2 * c_eb2;
 
 template<typename Real>
 Real atanh(Real x)
@@ -1220,10 +1224,15 @@ double Cartographer::scr_y_to_lat(double y, double z,
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
 }
 
-double Cartographer::Distance(const coord &pt1, const coord &pt2)
+double Cartographer::Distance(const coord &pt1, const coord &pt2,
+	double *p_azi1, double *p_azi2, double accuracy_in_mm)
 {
-	double dist;
-	double A1;
+	double s; /* Вычисленное расстояние */
+	double A1; /* Начальный азимут (в радианах) */
+	double A2; /* Обратный азимут (в радианах) */
+
+	/* Переводим точность из мм (по экватору) в радианы */
+	const double accuracy = accuracy_in_mm / c_a;
 
 	/* Расчёт расстояния и азимута между двумя точками */
 
@@ -1269,28 +1278,35 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 	{
 		++count;
 
+		/* Разница долгот */
 		const double lambda = l + delta;
-		const double p = cos_u2 * sin(lambda);
-		const double q = b1 - b2 * cos(lambda);
+		const double sin_lambda = sin(lambda);
+		const double cos_lambda = cos(lambda);
+		
+		const double p = cos_u2 * sin_lambda;
+		const double q = b1 - b2 * cos_lambda;
 		
 		/* Начальный азимут */
 		A1 = abs( atan(p / q) );
-
 		if (p < 0.0)
 		{
 			if (q < 0.0)
 				A1 = M_PI + A1;
 			else
-				A1 = 2 * M_PI - A1;
+				A1 = 2.0 * M_PI - A1;
 		}
 		else if (q < 0.0)
 			A1 = M_PI - A1;
 
 		/* Сферическое расстояние */
 		const double sin_sigma = p * sin(A1) + q * cos(A1);
-		const double cos_sigma = a1 + a2 * cos(lambda);
-		//double sigma = atan(sin_sigma / cos_sigma);
-		double sigma = abs( asin(sin_sigma) );
+		const double cos_sigma = a1 + a2 * cos_lambda;
+
+		/* Идея использовать в следующей строке asin() вместо atan() не прошла,
+			т.к. из-за погрешностей вычислений попался случай, когда
+			sin_sigma = 1.0000..02 и asin() вернул INF.
+			Чем делать лишнюю проверку, лучше оставить atan() */
+		double sigma = abs( atan(sin_sigma / cos_sigma) );
 		if (cos_sigma < 0.0)
 			sigma = M_PI - sigma;
 
@@ -1300,35 +1316,132 @@ double Cartographer::Distance(const coord &pt1, const coord &pt2)
 
 		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
 		
-		const double alpha = (33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
-		const double beta = (28189 - 94 * cos2_A0) * 0.0000000001;
-		
-		const double old_delta = delta;
-		delta = (alpha * sigma - beta * x * sin_sigma) * sin_A0;
+		/*
+			alpha = (1/2 * e^2 + 1/8 * e^4 + 1/16 * e^6 + ...)
+				- (1/16 * e^4 + 1/16 * e^6 + ...) * cos^2(A0)
+				+ (3/128 * e^6 + ...) * cos^4(A0)
+				- ...
 			
-		if (abs(old_delta - delta) < 0.0001)
+			Для эллипсоида Красовского (из учебника):
+			const double alpha =
+				(33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
+		*/
+		const double alpha =
+			(0.5 * c_e2 + 0.125 * c_e4 + 0.0625 * c_e6)
+			- (0.0625 * (c_e4 + c_e6) - 0.0234375 * c_e6 * cos2_A0) * cos2_A0;
+
+		/*
+			beta' = 2beta / Cos^2(A0)
+			beta = (1/32 * e^4 + 1/32 * e^6 + ...) * cos^2(A0)
+				- (1/64 * e^6 + ...) * cos^4(A0)
+				+ ...
+			=> beta' = (1/16 * e^4 + 1/16 * e^6 + ...)
+				- (1/32 * e^6 + ...) * cos^2(A0)
+				+ ...
+			
+			Для эллипсоида Красовского (из учебника):
+			const double beta_ = (28189 - 94 * cos2_A0) * 0.0000000001;
+		*/
+		const double beta_ =
+			0.0625 * (c_e4 + c_e6) - (0.03125 * c_e6) * cos2_A0;
+
+		const double prev_delta = delta;
+		delta = (alpha * sigma - beta_ * x * sin_sigma) * sin_A0;
+			
+		const double dd = delta - prev_delta;
+
+		if (abs(delta - prev_delta) < accuracy)
 		{
-			// 3.
-			//const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+			/*
+				A = b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 - ...)
+					= b * (1 + k^2 * (1/4 - 3/64 * k^2 + 5/256 * k^4 - ...))
+				
+				где k^2 = e'^2 * Cos^2(A0)
+					(const double k2 = c_eb2 * cos2_A0;)
+				
+				Сокращаем до разумных пределов, константы выносим вперёд:
+				A = b + (1/4 * b * e'^2 - 3/64 * b * e'^4 * Cos^2(A0)) * Cos^2(A0)
 
-			/* A = c_b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 ... )
-				где k^2 = e'^2 * cos^2(A0)
-				Экономизация - точность обещана 0.005 м */
-			const double A = c_b + (c_b * c_eb2 / 4.0
-				- c_b * c_eb2 * c_eb2 * 3.0 / 64.0 * cos2_A0) * cos2_A0;
+				Примеры расчётов:
+				const double A_HI = c_b * (1.0 + k2 * (1 / 4.0 - 3.0 / 64.0 * k2 + 5.0 / 256.0 * k2 * k2) );
+				const double A_MI = c_b * (1.0 + k2 * (1 / 4.0 - 3.0 / 64.0 * k2) );
+				const double A_LO = c_b * (1.0 + k2 * (1 / 4.0) );
 
-			const double B_ = 10708.938 - 17.956 * cos2_A0;
-			const double C_ = 4.487;
+				Для эллипсоида Красовского (из учебника):
+				const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+			*/
+			const double A = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
+
+			/*
+				B' = 2B / Cos^2(A0)
+				B = b * (1/8 * k^2 - 1/32 * k^4 + 15/1024 * k^6 - ...)
+					= b * k^2 * (1/8 - 1/32 * k^2 + 15/1024 * k^4 - ...)
+				=> B' = b * e'^2 * (1/4 - 1/16 * k^2 + 15/512 * k^4 - ...)
+
+				Сокращаем до разумных пределов, константы выносим вперёд:
+				B' = 1/4 * b * e'^2 - 1/16 * b * e'^4 * Cos^2(A0)
+
+				Примеры расчётов:
+				const double B_HI = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0 + 15.0 / 512.0 * k2 * k2);
+				const double B_MI = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0);
+				const double B_LO = c_b * c_eb2 * (1.0 / 4.0);
+
+				Для эллипсоида Красовского (из учебника):
+				const double B_ = 10708.938 - 17.956 * cos2_A0;
+			*/
+			const double B_ = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
+
+			/*
+				C' = 2C / Cos^4(A0)
+				C = b * (1/128 * k^4 - 3/512 * k^6 + ...)
+					= b * k^4 * (1/128 - 3/512 * k^2 + ...)
+				=> C' = b * e'^4 * (1/64 - 3/256 * k^2 + ...)
+
+				Сокращаем до разумных пределов - оставляем одну константу:
+				C' = 1/64 * b * e'^4
+
+				Примеры расчётов:
+				const double C_HI = c_b * c_eb2 * c_eb2 * (1.0 / 64.0 - 3.0 / 256.0 * k2);
+				const double C_LO = c_b * c_eb2 * c_eb2 * (1.0 / 64.0);
+
+				Для эллипсоида Красовского (из учебника):
+				const double C_ = 4.487;
+			*/
+			const double C_ = 0.015625 * c_b_eb4;
 
 			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
-			dist = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-			//A2 = 
+			s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
+			
+			/* Обратный азимут.
+				По учебнику обратный азимут - это азимут, с которым мы приходим
+				в конечную точку. Мне показалось более правильным считать такой
+				азимут азимутом, с которым мы будем возвращаться назад - это дело
+				лишь смены знака в выражениях p2 и q2 */
+			const double p2 = - cos_u1 * sin_lambda;
+			const double q2 = b2 - b1 * cos_lambda;
+
+			A2 = abs( atan(p2 / q2) );
+			if (p2 < 0.0)
+			{
+				if (q2 < 0.0)
+					A2 = M_PI + A2;
+				else
+					A2 = 2.0 * M_PI - A2;
+			}
+			else if (q2 < 0.0)
+				A2 = M_PI - A2;
+
 			break;
 		}
-	}
+	} /* while (1) */
 
-	A1 *= 180.0 / M_PI;
-	return dist;
+	if (p_azi1)
+		*p_azi1 = A1 * 180.0 / M_PI;
+
+	if (p_azi2)
+		*p_azi2 = A2 * 180.0 / M_PI;
+
+	return s;
 }
 
 #if 0
