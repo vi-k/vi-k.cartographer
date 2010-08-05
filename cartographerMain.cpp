@@ -309,6 +309,45 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 179.99), &a1, &a2, accuracy_in_m );
 	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
 
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.30), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.31), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.32), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.33), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.34), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.35), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.36), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.37), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.38), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.39), &a1, &a2, accuracy_in_m );
+
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.40), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.41), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.42), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.43), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.44), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.45), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.46), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.47), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.48), &a1, &a2, accuracy_in_m );
+
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.50), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.60), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.70), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.80), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 179.90), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.1, 180.00), &a1, &a2, accuracy_in_m );
+
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.10, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.20, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.30, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.40, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.50, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.60, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.70, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.80, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.90, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(1.00, 179.99), &a1, &a2, accuracy_in_m );
+
 	/* Близкие точки */
 	{
 		double accuracy_in_m = 0.0000000001;
