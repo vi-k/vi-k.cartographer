@@ -362,6 +362,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 			cart::DegreesToGeo( 48,29,41.43, 135,6,4.29 ));
 	}
 
+	cart::coord pt = cartographer_->Point(
+		cart::DegreesToGeo( 48,29,41.65, 135,6,4.73 ),
+		233.04672768896376, 11.303987628995905);
+
 	/* Точки по стране */
 	{
 		double accuracy_in_m = 0.0000001;
@@ -375,6 +379,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		d2 = cartographer_->DistanceFast(
 			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
 			cart::DegreesToGeo( 55,45,15.01, 37,37,12.14 ));
+
+		cart::coord pt = cartographer_->Point(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			317.193349, 6158610.810);
 
 		/* Хабаровск - Магадан */
 		d = cartographer_->DistancePrec(

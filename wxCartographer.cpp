@@ -21,24 +21,24 @@
 //const double c_f = 1.0 / 298.3; /* flattening / сжатие */
 
 /* Эллипсоид WGS84 */
-static const long double c_a  = 6378137.0; /* большая полуось */
-static const long double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
+static const double c_a  = 6378137.0; /* большая полуось */
+static const double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
 
-static const long double c_b  = c_a * (1.0 - c_f); /* малая полуось */
-static const long double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
-static const long double c_e2 = c_e * c_e;
-static const long double c_e4 = c_e2 * c_e2;
-static const long double c_e6 = c_e2 * c_e2 * c_e2;
-static const long double c_k = 1.0 - c_f; /*
+static const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
+static const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
+static const double c_e2 = c_e * c_e;
+static const double c_e4 = c_e2 * c_e2;
+static const double c_e6 = c_e2 * c_e2 * c_e2;
+static const double c_k = 1.0 - c_f; /*
                         = c_b / c_a
                         = sqrt(1.0 - c_e2)
                         = 1 / sqrt(1.0 + c_eb2)
                         = c_e / c_eb */
-static const long double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
-static const long double c_eb2 = c_eb * c_eb;
-static const long double c_b_eb2 = c_b * c_eb2;
-static const long double c_b_eb4 = c_b_eb2 * c_eb2;
-static const long double c_b_eb6 = c_b_eb4 * c_eb2;
+static const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
+static const double c_eb2 = c_eb * c_eb;
+static const double c_b_eb2 = c_b * c_eb2;
+static const double c_b_eb4 = c_b_eb2 * c_eb2;
+static const double c_b_eb6 = c_b_eb4 * c_eb2;
 
 template<typename Real>
 Real atanh(Real x)
@@ -1223,6 +1223,67 @@ double Cartographer::scr_y_to_lat(double y, double z,
 {
 	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
+}
+
+coord Cartographer::Point(const coord &pt, double a, double s)
+{
+	// brng -> a
+	// dist -> s
+	// a -> c_a
+	// b -> c_b
+	// f -> c_f
+
+	const double A1 = a * M_PI / 180.0;
+	const double sin_A1 = sin(A1);
+	const double cos_A1 = cos(A1);
+
+	const double tan_u1 = c_k * tan(pt.lat * M_PI / 180.0);
+	const double cos_u1 = 1.0 / sqrt(1.0 + tan_u1 * tan_u1);
+	const double sin_u1 = tan_u1 * cos_u1;
+	
+	const double sigma1 = atan2(tan_u1, cos_A1);
+	const double sin_A = cos_u1 * sin_A1;
+	const double cos2_A = 1.0 - sin_A * sin_A;
+	
+	const double u2 = c_eb2 * cos2_A;
+	const double A = 1.0 + u2 / 16384.0 * (4096 + u2 * (-768 + u2 * (320 - 175 * u2)));
+	const double B = u2 / 1024 * (256 + u2 * (-128 + u2 * (74 - 47 * u2)));
+
+	double sigma = s / (c_b * A);
+	double sigmaP = 2.0 * M_PI;
+	double sin_sigma;
+	double cos_sigma;
+	double cos2sigmaM;
+
+	while (abs(sigma - sigmaP) > 1e-12)
+	{
+		cos2sigmaM = cos(2.0 * sigma1 + sigma);
+		sin_sigma = sin(sigma);
+		cos_sigma = cos(sigma);
+
+		const double delta_sigma = B * sin_sigma
+			* (cos2sigmaM + B / 4.0 * (cos_sigma * (-1.0 + 2.0 * cos2sigmaM * cos2sigmaM)
+			- B / 6 * cos2sigmaM * (-3.0 + 4.0 * sin_sigma * sin_sigma)
+			* (-3.0 + 4.0 * cos2sigmaM * cos2sigmaM)));
+
+		sigmaP = sigma;
+		sigma = s / (c_b * A) + delta_sigma;
+	}
+
+	const double tmp = sin_u1 * sin_sigma - cos_u1 * cos_sigma * cos_A1;
+	const double lat2 = atan2(
+		sin_u1 * cos_sigma + cos_u1 * sin_sigma * cos_A1,
+		c_k * sqrt(sin_A * sin_A + tmp * tmp));
+	const double lambda = atan2(sin_sigma * sin_A1,
+		cos_u1 * cos_sigma - sin_u1 * sin_sigma * cos_A1);
+	const double C = c_f / 16.0 * cos2_A * (4.0 + c_f * (4.0 - 3.0 * cos2_A));
+	const double L = lambda - (1.0 - C) * c_f * sin_A
+		* (sigma + C * sin_sigma * (cos2sigmaM + C * cos_sigma
+		* (-1.0 + 2.0 * cos2sigmaM * cos2sigmaM)));
+	
+	const double revAz = atan2(sin_A, tmp);
+
+	return coord(lat2 * 180.0 / M_PI, pt.lon + L * 180.0 / M_PI);
 }
 
 double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
