@@ -160,6 +160,8 @@ public:
 
 	/* Рассчёты */
 
+	coord Point(const coord &pt, double a, double s);
+
 	/* Рассчёты расстояния между двумя точками */
 	static double DistancePrec(const coord &pt1, const coord &pt2,
 		double *p_azi1 = NULL, double *p_azi2 = NULL, double accuracy_in_m = 1.0);
