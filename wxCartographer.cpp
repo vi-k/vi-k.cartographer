@@ -21,24 +21,24 @@
 //const double c_f = 1.0 / 298.3; /* flattening / сжатие */
 
 /* Эллипсоид WGS84 */
-static const double c_a  = 6378137.0; /* большая полуось */
-static const double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
+static const long double c_a  = 6378137.0; /* большая полуось */
+static const long double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
 
-static const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
-static const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
-static const double c_e2 = c_e * c_e;
-static const double c_e4 = c_e2 * c_e2;
-static const double c_e6 = c_e2 * c_e2 * c_e2;
-static const double c_k = 1.0 - c_f; /*
+static const long double c_b  = c_a * (1.0 - c_f); /* малая полуось */
+static const long double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
+static const long double c_e2 = c_e * c_e;
+static const long double c_e4 = c_e2 * c_e2;
+static const long double c_e6 = c_e2 * c_e2 * c_e2;
+static const long double c_k = 1.0 - c_f; /*
                         = c_b / c_a
                         = sqrt(1.0 - c_e2)
                         = 1 / sqrt(1.0 + c_eb2)
                         = c_e / c_eb */
-static const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
-static const double c_eb2 = c_eb * c_eb;
-static const double c_b_eb2 = c_b * c_eb2;
-static const double c_b_eb4 = c_b_eb2 * c_eb2;
-static const double c_b_eb6 = c_b_eb4 * c_eb2;
+static const long double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
+static const long double c_eb2 = c_eb * c_eb;
+static const long double c_b_eb2 = c_b * c_eb2;
+static const long double c_b_eb4 = c_b_eb2 * c_eb2;
+static const long double c_b_eb6 = c_b_eb4 * c_eb2;
 
 template<typename Real>
 Real atanh(Real x)
@@ -1228,6 +1228,8 @@ double Cartographer::scr_y_to_lat(double y, double z,
 double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 	double *p_azi1, double *p_azi2, double accuracy_in_m)
 {
+	typedef long double Real;
+
 	/***
 		Функция служит для решения обратной геодезической задачи:
 		расчёт кратчайшего расстояния между двумя точками,
@@ -1266,7 +1268,7 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 	double A2; /* Обратный азимут (в радианах) */
 
 	/* Переводим точность из мм (по экватору) в радианы */
-	const double accuracy = accuracy_in_m / c_a;
+	const Real accuracy = accuracy_in_m / c_a;
 
 	/*
 		B1,L1,B2,L2 - геодезические широта и долгота точек, выраженные в радианах
@@ -1281,26 +1283,26 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 	*/
 
 	/* 1. Подготовительные вычисления */
-	const double sin_B1 = sin(pt1.lat * M_PI / 180.0);
-	const double sin_B2 = sin(pt2.lat * M_PI / 180.0);
-	const double cos_B1 = cos(pt1.lat * M_PI / 180.0);
-	const double cos_B2 = cos(pt2.lat * M_PI / 180.0);
+	const Real sin_B1 = sinl(pt1.lat * M_PI / 180.0);
+	const Real sin_B2 = sinl(pt2.lat * M_PI / 180.0);
+	const Real cos_B1 = cosl(pt1.lat * M_PI / 180.0);
+	const Real cos_B2 = cosl(pt2.lat * M_PI / 180.0);
 
-	const double l = (pt2.lon - pt1.lon) * M_PI / 180.0;
+	const Real l = (pt2.lon - pt1.lon) * M_PI / 180.0;
 
-	const double W1 = sqrt(1 - c_e2 * sin_B1 * sin_B1);
-	const double W2 = sqrt(1 - c_e2 * sin_B2 * sin_B2);
-	const double sin_u1 = sin_B1 / W1 * c_k; /* = sin_B1 / V1 */
-	const double sin_u2 = sin_B2 / W2 * c_k; /* = sin_B2 / V2 */
-	const double cos_u1 = cos_B1 / W1;
-	const double cos_u2 = cos_B2 / W2;
-	const double a1 = sin_u1 * sin_u2;
-	const double a2 = cos_u1 * cos_u2;
-	const double b1 = cos_u1 * sin_u2;
-	const double b2 = sin_u1 * cos_u2;
+	const Real W1 = sqrtl(1.0 - c_e2 * sin_B1 * sin_B1);
+	const Real W2 = sqrtl(1.0 - c_e2 * sin_B2 * sin_B2);
+	const Real sin_u1 = sin_B1 / W1 * c_k; /* = sin_B1 / V1 */
+	const Real sin_u2 = sin_B2 / W2 * c_k; /* = sin_B2 / V2 */
+	const Real cos_u1 = cos_B1 / W1;
+	const Real cos_u2 = cos_B2 / W2;
+	const Real a1 = sin_u1 * sin_u2;
+	const Real a2 = cos_u1 * cos_u2;
+	const Real b1 = cos_u1 * sin_u2;
+	const Real b2 = sin_u1 * cos_u2;
 
 	/* 2. Последовательные приближения */
-	double delta = 0.0;
+	Real delta = 0.0;
 
 	int count = 0;
 
@@ -1309,27 +1311,27 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 		++count;
 
 		/* Разница долгот */
-		const double lambda = l + delta;
-		const double sin_lambda = sin(lambda);
-		const double cos_lambda = cos(lambda);
+		const Real lambda = l + delta;
+		const Real sin_lambda = sinl(lambda);
+		const Real cos_lambda = cosl(lambda);
 		
 		/* Начальный азимут */
-		const double p = cos_u2 * sin_lambda;
-		const double q = b1 - b2 * cos_lambda;
-		A1 = atan2(p, q);
+		const Real p = cos_u2 * sin_lambda;
+		const Real q = b1 - b2 * cos_lambda;
+		A1 = atan2l(p, q);
 		if (A1 < 0.0)
 			A1 += 2.0 * M_PI;
 
 		/* Сферическое расстояние */
-		const double sin_sigma = p * sin(A1) + q * cos(A1);
-		const double cos_sigma = a1 + a2 * cos_lambda;
-		double sigma = atan2(sin_sigma, cos_sigma);
+		const Real sin_sigma = p * sinl(A1) + q * cosl(A1);
+		const Real cos_sigma = a1 + a2 * cos_lambda;
+		Real sigma = atan2l(sin_sigma, cos_sigma);
 
 		/* Азимут линии на экваторе */
-		const double sin_A0 = cos_u1 * sin(A1);
-		const double cos2_A0 = 1.0 - sin_A0 * sin_A0;
+		const Real sin_A0 = cos_u1 * sinl(A1);
+		const Real cos2_A0 = 1.0 - sin_A0 * sin_A0;
 
-		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
+		const Real x = 2.0 * a1 - cos2_A0 * cos_sigma;
 		
 		/*
 			alpha = (1/2 * e^2 + 1/8 * e^4 + 1/16 * e^6 + ...)
@@ -1338,10 +1340,10 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				- ...
 			
 			Для эллипсоида Красовского (из учебника):
-			const double alpha =
+			const Real alpha =
 				(33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
 		*/
-		const double alpha =
+		const Real alpha =
 			(0.5 * c_e2 + 0.125 * c_e4 + 0.0625 * c_e6)
 			- (0.0625 * (c_e4 + c_e6) - 0.0234375 * c_e6 * cos2_A0) * cos2_A0;
 
@@ -1355,12 +1357,12 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				+ ...
 			
 			Для эллипсоида Красовского (из учебника):
-			const double beta_ = (28189 - 94 * cos2_A0) * 0.0000000001;
+			const Real beta_ = (28189 - 94 * cos2_A0) * 0.0000000001;
 		*/
-		const double beta_ =
+		const Real beta_ =
 			0.0625 * (c_e4 + c_e6) - (0.03125 * c_e6) * cos2_A0;
 
-		const double prev_delta = delta;
+		const Real prev_delta = delta;
 		delta = (alpha * sigma - beta_ * x * sin_sigma) * sin_A0;
 			
 		if (delta < 0.0 && prev_delta > 0.0 || delta > 0.0 && prev_delta < 0.0)
@@ -1368,7 +1370,7 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 			/*
 				Если дельта начинает метаться, значит, это точки-антиподы
 				(точки находящиеся на противоположных сторонах планеты)
-				- для них применяем особый подход:
+				- для них применяем особый подход.
 
 				В теории (по учебнику) точки-антиподы легко обнаружить:
 				lambda = PI, u1 = -u2. А потом, соответственно, их решить
@@ -1381,19 +1383,59 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				что очень плохо для метода с погрешностью в сантиметрах.
 				Поэтому предлагаемый в учебнике метод не годится.
 				
-				Нашёл простое и, IMHO, красивое решение: разделить отрезок
-				на два, посчитать каждый отдельно, суммировать результаты.
-				Может, в общем случае для эллипсоида, так делать и неверно
-				- выбранная нами средняя точка может в реальности быть
-				в стороне от самого кратчайшего пути - но для нашей планеты
-				если есть погрешность, то погрешность метода и точности
-				используемых типов много больше
+				Нашёл простое, но медленное решение: вычислять расстояние
+				через среднюю точку, а затем сложить и получить результат.
+				Проблема в том как найти среднюю точку.
+
+				Простыми итерациями: нахожу расстояния через полюс и через
+				экватор. Сравниваю, и приближаю на половину разницы широты
+				между ними. Так продолжаю до требуемой точности.
+				Результат: наименьшее расстояние.
+
+				Долго, зато работает!
 			*/
-			coord ptN( (pt1.lat + pt2.lat) / 2.0, (pt1.lon + pt2.lon) / 2.0 );
-			double aziN;
-			const double s_1_N = DistancePrec(pt1, ptN, p_azi1, &aziN, accuracy_in_m);
-			const double s_N_2 = DistancePrec(ptN, pt2, &aziN, p_azi2, accuracy_in_m);
-			s = s_1_N + s_N_2;
+			
+			const double lonM = (pt1.lon + pt2.lon) / 2.0;
+			
+			coord ptM1(0.0, lonM);
+			coord ptM2(90.0, lonM);
+			double aziM1_1, aziM1_2;
+			double aziM2_1, aziM2_2;
+
+			double s1 = DistancePrec(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
+				+ DistancePrec(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
+			double s2 = DistancePrec(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
+				+ DistancePrec(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
+
+			while ( abs(s2 - s1) > accuracy_in_m )
+			{
+				if (s1 > s2)
+				{
+					ptM1.lat = (ptM1.lat + ptM2.lat) / 2.0;
+					s1 = DistancePrec(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
+						+ DistancePrec(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
+				}
+				else
+				{
+					ptM2.lat = (ptM1.lat + ptM2.lat) / 2.0;
+					s2 = DistancePrec(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
+						+ DistancePrec(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
+				}
+			}
+
+			if (s1 < s2)
+			{
+				if (p_azi1) *p_azi1 = aziM1_1;
+				if (p_azi2) *p_azi2 = aziM1_2;
+				s = s1;
+			}
+			else
+			{
+				if (p_azi1) *p_azi1 = aziM2_1;
+				if (p_azi2) *p_azi2 = aziM2_2;
+				s = s2;
+			}
+
 			return s;
 		}
 
@@ -1413,22 +1455,22 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 					= b * (1 + k^2 * (1/4 - 3/64 * k^2 + 5/256 * k^4 - ...))
 				
 				где k^2 = e'^2 * Cos^2(A0)
-					(const double k2 = c_eb2 * cos2_A0;)
+					(const Real k2 = c_eb2 * cos2_A0;)
 				
 				Примеры расчётов (выносим константы вперёд):
 				
 				Если переменные c_xxx не определены на стадии компиляции:
-				const double A_HI = c_b * (1.0 + k2 * (0.25 + k2 * (-0.046875 + 0.01953125 * k2)));
-				const double A_LO = c_b * (1.0 + k2 * (0.25 - 0.046875 * k2));
+				const Real A_HI = c_b * (1.0 + k2 * (0.25 + k2 * (-0.046875 + 0.01953125 * k2)));
+				const Real A_LO = c_b * (1.0 + k2 * (0.25 - 0.046875 * k2));
 				
 				Если c_xxx - статические константы:
-				const double A_HI = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
-				const double A_LO = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
+				const Real A_HI = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
+				const Real A_LO = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
 
 				Для эллипсоида Красовского (из учебника):
-				const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
+				const Real A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
 			*/
-			const double A = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
+			const Real A = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
 
 			/*
 				B' = 2B / Cos^2(A0)
@@ -1439,17 +1481,17 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				Примеры расчётов:
 
 				Если переменные c_xxx не определены на стадии компиляции:
-				const double B_HI = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0 + 15.0 / 512.0 * k2 * k2);
-				const double B_LO = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0);
+				const Real B_HI = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0 + 15.0 / 512.0 * k2 * k2);
+				const Real B_LO = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0);
 
 				Если c_xxx - статические константы:
-				const double B_HI = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
-				const double B_LO = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
+				const Real B_HI = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
+				const Real B_LO = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
 
 				Для эллипсоида Красовского (из учебника):
-				const double B_ = 10708.938 - 17.956 * cos2_A0;
+				const Real B_ = 10708.938 - 17.956 * cos2_A0;
 			*/
-			const double B_ = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
+			const Real B_ = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
 
 			/*
 				C' = 2C / Cos^4(A0)
@@ -1460,19 +1502,19 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				Примеры расчётов:
 
 				Если переменные c_xxx не определены на стадии компиляции:
-				const double C_HI = c_b_eb4 * (0.015625 - 0.01171875 * k2);
-				const double C_LO = 0.015625 * c_b_eb4;
+				const Real C_HI = c_b_eb4 * (0.015625 - 0.01171875 * k2);
+				const Real C_LO = 0.015625 * c_b_eb4;
 
 				Если c_xxx - статические константы:
-				const double C_HI = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
-				const double C_LO = 0.015625 * c_b_eb4;
+				const Real C_HI = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
+				const Real C_LO = 0.015625 * c_b_eb4;
 
 				Для эллипсоида Красовского (из учебника):
-				const double C_ = 4.487;
+				const Real C_ = 4.487;
 			*/
-			const double C_ = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
+			const Real C_ = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
 
-			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
+			const Real y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
 			s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
 			
 			/* Обратный азимут.
@@ -1480,10 +1522,10 @@ double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
 				в конечную точку. Мне показалось более правильным считать такой
 				азимут азимутом, с которым мы будем возвращаться назад - это дело
 				лишь смены знака в выражениях p2 и q2 */
-			const double p2 = - cos_u1 * sin_lambda;
-			const double q2 = b2 - b1 * cos_lambda;
+			const Real p2 = - cos_u1 * sin_lambda;
+			const Real q2 = b2 - b1 * cos_lambda;
 
-			A2 = atan2(p2, q2);
+			A2 = atan2l(p2, q2);
 			if (A2 < 0.0)
 				A2 += 2.0 * M_PI;
 
