@@ -125,6 +125,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
+				AdditionalIncludeDirectories="D:\DevApps\boost_1_43_0;&quot;D:\DevApps\wxWidgets-2.9.0\include&quot;;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib\mswu&quot;;..\mylib"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -137,13 +138,16 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
+				AdditionalIncludeDirectories="&quot;D:\DevApps\wxWidgets-2.9.0\include&quot;;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib\mswu&quot;"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="mylib.lib wxmsw29u_gl.lib wxmsw29u_core.lib wxbase29u.lib wxpng.lib wxjpeg.lib wxtiff.lib wxzlib.lib comctl32.lib rpcrt4.lib"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="D:\DevApps\boost_1_43_0\stage\lib;&quot;D:\DevApps\wxWidgets-2.9.0\lib\vc_lib&quot;;..\mylib\vc_lib"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"

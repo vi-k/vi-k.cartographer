@@ -45,7 +45,7 @@ const double c_A = 6378137;
 const double c_a = 1/298.257223563;
 const double c_e2 = 2*c_a - c_a*c_a;
 
-double Distance(const cart::coord &pt1, const cart::coord &pt2)
+double Distance2(const cart::coord &pt1, const cart::coord &pt2)
 {
 	const double fSinB1 = sin(pt1.lat * M_PI / 180);
 	const double fCosB1 = cos(pt1.lat * M_PI / 180);
@@ -217,7 +217,6 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	names_[0] = L"Хабаровск";
 	z_[0] = 12;
 	coords_[0] = cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 );
-	//coords_[0] = cart::DegreesToGeo( 55,45,15.0, 37,37,23.0 );
 
 	names_[1] = L"Владивосток";
 	z_[1] = 13;
@@ -225,8 +224,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	names_[2] = L"Магадан";
 	z_[2] = 12;
-	//coords_[2] = cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
-	coords_[2] = cart::DegreesToGeo( -54,-39,-28.39, -65,-7,-50.48 );
+	coords_[2] = cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 );
 
 	names_[3] = L"Якутск";
 	z_[3] = 10;
@@ -256,27 +254,144 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		Choice1->Append(names_[i]);
 
 
+	double d, d2;
 	double a1, a2;
-	const double accuracy_in_m = 0.000000001;
+	double accuracy_in_m = 0.01;
 
 	/* Точки-антиподы */
-	double d_0 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(1.0, 180.0), &a1, &a2, accuracy_in_m );
-	double d_1 = cartographer_->Distance( cart::coord(1.0, 180.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	double d180_1 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	double d180_2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, -180.0), &a1, &a2, accuracy_in_m );
+	/*-
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, -180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(10.0, 0.0), cart::coord(-10.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(20.0, 0.0), cart::coord(-20.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(30.0, 0.0), cart::coord(-30.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(40.0, 0.0), cart::coord(-40.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(50.0, 0.0), cart::coord(-50.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(60.0, 0.0), cart::coord(-60.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(70.0, 0.0), cart::coord(-70.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(80.0, 0.0), cart::coord(-80.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(90.0, 0.0), cart::coord(-90.0, 180.0), &a1, &a2, accuracy_in_m );
+	-*/
 
-	//double dB = cartographer_->Distance( cart::coord(-90.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
-	//double dC = cartographer_->Distance( cart::coord(45.0, 135.0), cart::coord(-45.0, -45.0), &a1, &a2, accuracy_in_m );
+	/* Близкие точки */
+	{
+		double accuracy_in_m = 0.0000000001;
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,29,41.65, 135,6,4.73 ),
+			cart::DegreesToGeo( 48,29,41.43, 135,6,4.29 ), &a1, &a2, accuracy_in_m );
+		d2 = Distance2(
+			cart::DegreesToGeo( 48,29,41.65, 135,6,4.73 ),
+			cart::DegreesToGeo( 48,29,41.43, 135,6,4.29 ));
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,29,41.65, 135,6,4.73 ),
+			cart::DegreesToGeo( 48,29,41.43, 135,6,4.29 ));
+	}
 
-	double d1 = cartographer_->Distance( coords_[2], coords_[0], &a1, &a2, accuracy_in_m );
-	double d2 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
-	double d3 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3964), &a1, &a2, accuracy_in_m );
-	double d3a= cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3965), &a1, &a2, accuracy_in_m );
-	double d4 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d5 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d6 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_m );
-	double d7 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d8 = cartographer_->Distance( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_m );
+	/* Точки по стране */
+	{
+		double accuracy_in_m = 0.0000001;
+		/* Хабаровск - Москва */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 55,45,15.01, 37,37,12.14 ), &a1, &a2, accuracy_in_m );
+		d2 = Distance2(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 55,45,15.01, 37,37,12.14 ));
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 55,45,15.01, 37,37,12.14 ));
+
+		/* Хабаровск - Магадан */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 ));
+
+		/* Хабаровск - Якутск */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 62,4,30.33,  129,45,24.39 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 62,4,30.33,  129,45,24.39 ));
+
+		/* Магадан - Якутск */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 ),
+			cart::DegreesToGeo( 62,4,30.33,  129,45,24.39 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 59,33,41.79, 150,50,19.87 ),
+			cart::DegreesToGeo( 62,4,30.33,  129,45,24.39 ));
+
+		/* Хабаровск - Бикин */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 46,48,47.59, 134,14,55.71 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 46,48,47.59, 134,14,55.71 ));
+
+		/* Хабаровск - Биробиджан */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 48,47,52.55, 132,55,5.13 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 48,47,52.55, 132,55,5.13 ));
+
+		/* Хабаровск - Владивосток */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 43,7,17.95,  131,55,34.4 ), &a1, &a2, accuracy_in_m );
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ),
+			cart::DegreesToGeo( 43,7,17.95,  131,55,34.4 ));
+
+		/* Владивосток - Хабаровск */
+		d = cartographer_->DistancePrec(
+			cart::DegreesToGeo( 43,7,17.95,  131,55,34.4 ),
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ), &a1, &a2, accuracy_in_m );
+		d2 = Distance2(
+			cart::DegreesToGeo( 43,7,17.95,  131,55,34.4 ),
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ));
+		d2 = cartographer_->DistanceFast(
+			cart::DegreesToGeo( 43,7,17.95,  131,55,34.4 ),
+			cart::DegreesToGeo( 48,28,48.77, 135,4,19.04 ));
+	}
+
+	/*-
+	//double dB = cartographer_->DistancePrec( cart::coord(-90.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
+	//double dC = cartographer_->DistancePrec( cart::coord(45.0, 135.0), cart::coord(-45.0, -45.0), &a1, &a2, accuracy_in_m );
+
+	double d1 = cartographer_->DistancePrec( coords_[2], coords_[0], &a1, &a2, accuracy_in_m );
+	double d2 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
+	-*/
+
+	/*-
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 170.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 179.0), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 170.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 177.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 178.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 179.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 179.3964), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer_->DistancePrec( cart::coord(0.0, 179.3965), cart::coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+
+	double d3 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3964), &a1, &a2, accuracy_in_m );
+	double d3a= cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 179.3965), &a1, &a2, accuracy_in_m );
+	-*/
+
+	/*-
+	double d4 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d5 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(45.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d6 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(45.0, -90.0), &a1, &a2, accuracy_in_m );
+	double d7 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(-45.0, 90.0), &a1, &a2, accuracy_in_m );
+	double d8 = cartographer_->DistancePrec( cart::coord(0.0, 0.0), cart::coord(-45.0, -90.0), &a1, &a2, accuracy_in_m );
+	-*/
 	
 	return;
 }
