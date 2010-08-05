@@ -6,6 +6,7 @@
 #include "raw_image.h"
 
 #include <my_thread.h> /* shared_mutex */
+#include <my_ptr.h> /* shared_ptr */
 
 #include <boost/function.hpp>
 
