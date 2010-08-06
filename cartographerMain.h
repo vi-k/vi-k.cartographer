@@ -10,7 +10,7 @@
 #ifndef CARTOGRAPHERMAIN_H
 #define CARTOGRAPHERMAIN_H
 
-#include "wxCartographer.h"
+#include "cartographer/frame.h"
 
 //(*Headers(cartographerFrame)
 #include <wx/sizer.h>
@@ -33,21 +33,18 @@ class cartographerFrame: public wxFrame
 		virtual ~cartographerFrame();
 
 	private:
-		cart::Cartographer *cartographer_;
+		cartographer::Frame *Cartographer;
 		static const int count_ = 9;
 		int images_[count_];
 		wxString names_[count_];
 		int z_[count_];
-		cart::coord coords_[count_];
+		cartographer::coord coords_[count_];
+
+		void Test(); /* Тестирование функция Картографера */
 
 		void OnMapPaint(wxGCDC &gc, int width, int height);
 
-		void DrawImage(int id, const cart::coord &pt);
-
-		static wxCoord DrawTextInBox( wxGCDC &gc,
-			const wxString &str, wxCoord x, wxCoord y,
-			const wxFont &font, const wxColour &color,
-			const wxPen &back_pen, const wxBrush &back_brush );
+		void DrawImage(int id, const cartographer::coord &pt);
 
 		//(*Handlers(cartographerFrame)
 		void OnQuit(wxCommandEvent& event);

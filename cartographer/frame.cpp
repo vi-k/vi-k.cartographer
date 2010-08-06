@@ -1,5 +1,4 @@
-﻿#include "wxCartographer.h"
-#include "handle_exception.h"
+﻿#include "frame.h"
 
 #if defined(_MSC_VER)
 #define __swprintf swprintf_s
@@ -16,69 +15,28 @@
 
 #include <boost/bind.hpp>
 
-/* Эллипсоид Красовского */
-//const double c_a  = 6378245.0; /* большая полуось */
-//const double c_f = 1.0 / 298.3; /* flattening / сжатие */
-
-/* Эллипсоид WGS84 */
-static const double c_a  = 6378137.0; /* большая полуось */
-static const double c_f = 1.0 / 298.257223563; /* сжатие / flattening */
-
-static const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
-static const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса / eccentricity */
-static const double c_e2 = c_e * c_e;
-static const double c_e4 = c_e2 * c_e2;
-static const double c_e6 = c_e2 * c_e2 * c_e2;
-static const double c_k = 1.0 - c_f; /*
-                        = c_b / c_a
-                        = sqrt(1.0 - c_e2)
-                        = 1 / sqrt(1.0 + c_eb2)
-                        = c_e / c_eb */
-static const double c_eb = sqrt(c_a * c_a - c_b * c_b) / c_b;
-static const double c_eb2 = c_eb * c_eb;
-static const double c_b_eb2 = c_b * c_eb2;
-static const double c_b_eb4 = c_b_eb2 * c_eb2;
-static const double c_b_eb6 = c_b_eb4 * c_eb2;
-
 template<typename Real>
 Real atanh(Real x)
 {
 	return 0.5 * log( (1.0 + x) / (1.0 - x) );
 }
 
-namespace cart
+namespace cartographer
 {
 
-double DegreesToGeo(double deg, double min, double sec)
-{
-	return deg + min / 60.0 + sec / 3600.0;
-}
-
-void GeoToDegrees(double lat_or_lon, int *pdeg, int *pmin, double *psec)
-{
-	int d = (int)lat_or_lon;
-	double m_d = (lat_or_lon - d) * 60.0;
-	int m = (int)m_d;
-	double s = (m_d - (double)m) * 60.0;
-
-	*pdeg = d;
-	*pmin = m;
-	*psec = s;
-}
-
-BEGIN_EVENT_TABLE(Cartographer, wxGLCanvas)
-	EVT_PAINT(Cartographer::on_paint)
-	EVT_ERASE_BACKGROUND(Cartographer::on_erase_background)
-	EVT_SIZE(Cartographer::on_size)
-	EVT_LEFT_DOWN(Cartographer::on_left_down)
-	EVT_LEFT_UP(Cartographer::on_left_up)
-	EVT_MOUSE_CAPTURE_LOST(Cartographer::on_capture_lost)
-	EVT_MOTION(Cartographer::on_mouse_move)
-	EVT_MOUSEWHEEL(Cartographer::on_mouse_wheel)
-	//EVT_KEY_DOWN(Cartographer::OnKeyDown)
+BEGIN_EVENT_TABLE(Frame, wxGLCanvas)
+	EVT_PAINT(Frame::on_paint)
+	EVT_ERASE_BACKGROUND(Frame::on_erase_background)
+	EVT_SIZE(Frame::on_size)
+	EVT_LEFT_DOWN(Frame::on_left_down)
+	EVT_LEFT_UP(Frame::on_left_up)
+	EVT_MOUSE_CAPTURE_LOST(Frame::on_capture_lost)
+	EVT_MOTION(Frame::on_mouse_move)
+	EVT_MOUSEWHEEL(Frame::on_mouse_wheel)
+	//EVT_KEY_DOWN(Frame::OnKeyDown)
 END_EVENT_TABLE()
 
-Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
+Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 	const std::wstring &server_port, std::size_t cache_size,
 	std::wstring cache_path, bool only_cache,
 	const std::wstring &init_map, int init_z, double init_lat, double init_lon,
@@ -131,7 +89,7 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 	, paint_thread_id_( boost::this_thread::get_id() )
 	, on_paint_handler_(on_paint_proc)
 	, sprites_index_(0)
-	, on_image_delete_( boost::bind(&Cartographer::on_image_delete_proc, this, _1) )
+	, on_image_delete_( boost::bind(&Frame::on_image_delete_proc, this, _1) )
 {
 	try
 	{
@@ -221,14 +179,14 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 		/* Запускаем файловый загрузчик тайлов */
 		file_loader_ = new_worker(L"file_loader"); /* Название - только для отладки */
 		boost::thread( boost::bind(
-			&Cartographer::file_loader_proc, this, file_loader_) );
+			&Frame::file_loader_proc, this, file_loader_) );
 
 		/* Запускаем серверный загрузчик тайлов */
 		if (!only_cache_)
 		{
 			server_loader_ = new_worker(L"server_loader"); /* Название - только для отладки */
 			boost::thread( boost::bind(
-				&Cartographer::server_loader_proc, this, server_loader_) );
+				&Frame::server_loader_proc, this, server_loader_) );
 		}
 
 		/* Запускаем анимацию */
@@ -244,7 +202,7 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 			}
 			animator_ = new_worker(L"animator");
 			boost::thread( boost::bind(
-				&Cartographer::anim_thread_proc, this, animator_) );
+				&Frame::anim_thread_proc, this, animator_) );
 		}
 	}
 	catch(std::exception &e)
@@ -258,7 +216,7 @@ Cartographer::Cartographer(wxWindow *parent, const std::wstring &server_addr,
 	Update();
 }
 
-Cartographer::~Cartographer()
+Frame::~Frame()
 {
 	if (!finish())
 		Stop();
@@ -271,7 +229,7 @@ Cartographer::~Cartographer()
 	assert( load_texture_debug_counter_ == delete_texture_debug_counter_ );
 }
 
-void Cartographer::Stop()
+void Frame::Stop()
 {
 	/* Как обычно, самое весёлое занятие - это
 		умудриться остановить всю эту махину */
@@ -286,23 +244,23 @@ void Cartographer::Stop()
 
 	/* Ждём завершения */
 	#ifndef NDEBUG
-	debug_wait_for_finish(L"Cartographer", posix_time::seconds(5));
+	debug_wait_for_finish(L"Frame", posix_time::seconds(5));
 	#endif
 
 	wait_for_finish();
 }
 
-void Cartographer::Update()
+void Frame::Update()
 {
 	//Refresh(false);
 }
 
-int Cartographer::GetMapsCount()
+int Frame::GetMapsCount()
 {
 	return (int)maps_.size();
 }
 
-map_info Cartographer::GetMapInfo(int index)
+map_info Frame::GetMapInfo(int index)
 {
 	map_info map;
 	maps_list::iterator iter = maps_.begin();
@@ -316,13 +274,13 @@ map_info Cartographer::GetMapInfo(int index)
 	return map;
 }
 
-map_info Cartographer::GetActiveMapInfo()
+map_info Frame::GetActiveMapInfo()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return maps_[active_map_id_];
 }
 
-bool Cartographer::SetActiveMapByIndex(int index)
+bool Frame::SetActiveMapByIndex(int index)
 {
 	maps_list::iterator iter = maps_.begin();
 
@@ -339,7 +297,7 @@ bool Cartographer::SetActiveMapByIndex(int index)
 	return true;
 }
 
-bool Cartographer::SetActiveMapByName(const std::wstring &map_name)
+bool Frame::SetActiveMapByName(const std::wstring &map_name)
 {
 	maps_name_to_id_list::iterator iter = maps_name_to_id_.find(map_name);
 
@@ -353,7 +311,7 @@ bool Cartographer::SetActiveMapByName(const std::wstring &map_name)
 	return true;
 }
 
-point Cartographer::GeoToScr(double lat, double lon)
+point Frame::GeoToScr(double lat, double lon)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -367,7 +325,7 @@ point Cartographer::GeoToScr(double lat, double lon)
 	return pt;
 }
 
-coord Cartographer::ScrToGeo(double x, double y)
+coord Frame::ScrToGeo(double x, double y)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -381,13 +339,13 @@ coord Cartographer::ScrToGeo(double x, double y)
 	return pt;
 }
 
-double Cartographer::GetActiveZ(void)
+double Frame::GetActiveZ(void)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return z_;
 }
 
-void Cartographer::SetActiveZ(int z)
+void Frame::SetActiveZ(int z)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -403,25 +361,25 @@ void Cartographer::SetActiveZ(int z)
 	Update();
 }
 
-void Cartographer::ZoomIn()
+void Frame::ZoomIn()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ + 1.0 );
 }
 
-void Cartographer::ZoomOut()
+void Frame::ZoomOut()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ - 1.0 );
 }
 
-coord Cartographer::GetActiveGeoPos()
+coord Frame::GetActiveGeoPos()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return coord(fix_lat_, fix_lon_);
 }
 
-point Cartographer::GetActiveScrPos()
+point Frame::GetActiveScrPos()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -431,7 +389,7 @@ point Cartographer::GetActiveScrPos()
 	return point(w * fix_kx_, h * fix_ky_);
 }
 
-void Cartographer::MoveTo(int z, double lat, double lon)
+void Frame::MoveTo(int z, double lat, double lon)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -440,7 +398,7 @@ void Cartographer::MoveTo(int z, double lat, double lon)
 	SetActiveZ(z);
 }
 
-int Cartographer::LoadImageFromFile(const std::wstring &filename)
+int Frame::LoadImageFromFile(const std::wstring &filename)
 {
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -461,7 +419,7 @@ int Cartographer::LoadImageFromFile(const std::wstring &filename)
 	return sprites_index_;
 }
 
-int Cartographer::LoadImageFromMem(const void *data, std::size_t size)
+int Frame::LoadImageFromMem(const void *data, std::size_t size)
 {
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -481,7 +439,7 @@ int Cartographer::LoadImageFromMem(const void *data, std::size_t size)
 
 	return sprites_index_;
 }
-int Cartographer::LoadImageFromRaw(const unsigned char *data,
+int Frame::LoadImageFromRaw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
 	unique_lock<shared_mutex> lock(sprites_mutex_);
@@ -499,13 +457,13 @@ int Cartographer::LoadImageFromRaw(const unsigned char *data,
 	return sprites_index_;
 }
 
-void Cartographer::DeleteImage(int image_id)
+void Frame::DeleteImage(int image_id)
 {
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 	sprites_.erase(image_id);
 }
 
-size Cartographer::GetImageOffset(int image_id)
+size Frame::GetImageOffset(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -518,7 +476,7 @@ size Cartographer::GetImageOffset(int image_id)
 	return offset;
 }
 
-void Cartographer::SetImageOffset(int image_id, double dx, double dy)
+void Frame::SetImageOffset(int image_id, double dx, double dy)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -528,7 +486,7 @@ void Cartographer::SetImageOffset(int image_id, double dx, double dy)
 		iter->second->set_offset(dx, dy);
 }
 
-point Cartographer::GetImageCentralPoint(int image_id)
+point Frame::GetImageCentralPoint(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -541,7 +499,7 @@ point Cartographer::GetImageCentralPoint(int image_id)
 	return pos;
 }
 
-void Cartographer::SetImageCentralPoint(int image_id, double x, double y)
+void Frame::SetImageCentralPoint(int image_id, double x, double y)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -551,7 +509,7 @@ void Cartographer::SetImageCentralPoint(int image_id, double x, double y)
 		iter->second->set_central_point(x, y);
 }
 
-size Cartographer::GetImageSize(int image_id)
+size Frame::GetImageSize(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -564,7 +522,7 @@ size Cartographer::GetImageSize(int image_id)
 	return sz;
 }
 
-size Cartographer::GetImageScale(int image_id)
+size Frame::GetImageScale(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -577,7 +535,7 @@ size Cartographer::GetImageScale(int image_id)
 	return scale;
 }
 
-void Cartographer::SetImageScale(int image_id, const size &scale)
+void Frame::SetImageScale(int image_id, const size &scale)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -588,7 +546,7 @@ void Cartographer::SetImageScale(int image_id, const size &scale)
 		iter->second->set_scale(scale);
 }
 
-void Cartographer::DrawImage(int image_id, double x, double y,
+void Frame::DrawImage(int image_id, double x, double y,
 	double kx = 1.0, double ky = 1.0)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
@@ -629,7 +587,7 @@ void Cartographer::DrawImage(int image_id, double x, double y,
 	}
 }
 
-void Cartographer::magic_init()
+void Frame::magic_init()
 {
 	unsigned char magic_data[4] = {255, 255, 255, 255};
 	
@@ -651,13 +609,13 @@ void Cartographer::magic_init()
 	check_gl_error();
 }
 
-void Cartographer::magic_deinit()
+void Frame::magic_deinit()
 {
 	glDeleteTextures(1, &magic_id_);
 	check_gl_error();
 }
 
-void Cartographer::magic_exec()
+void Frame::magic_exec()
 {
 	/* Замечено, что ко всем отрисовываемым объектам примешивается цвет
 		последней выведенной точки последней выведенной текстуры.
@@ -676,7 +634,7 @@ void Cartographer::magic_exec()
 	glEnd();
 }
 
-void Cartographer::check_gl_error()
+void Frame::check_gl_error()
 {
 	GLenum errLast = GL_NO_ERROR;
 
@@ -698,7 +656,7 @@ void Cartographer::check_gl_error()
 	}
 }
 
-void Cartographer::load_textures()
+void Frame::load_textures()
 {
 	shared_lock<shared_mutex> lock(cache_mutex_);
 	
@@ -719,7 +677,7 @@ void Cartographer::load_textures()
 	}
 }
 
-void Cartographer::delete_texture_later(GLuint texture_id)
+void Frame::delete_texture_later(GLuint texture_id)
 {
 	if (boost::this_thread::get_id() == paint_thread_id_)
 	{
@@ -732,14 +690,14 @@ void Cartographer::delete_texture_later(GLuint texture_id)
 	}
 }
 
-void Cartographer::delete_texture(GLuint texture_id)
+void Frame::delete_texture(GLuint texture_id)
 {
 	glDeleteTextures(1, &texture_id);
 	check_gl_error();
 	++delete_texture_debug_counter_;
 }
 
-void Cartographer::delete_textures()
+void Frame::delete_textures()
 {
 	unique_lock<mutex> lock(delete_texture_mutex_);
 		
@@ -751,7 +709,7 @@ void Cartographer::delete_textures()
 	}
 }
 
-bool Cartographer::check_tile_id(const tile::id &tile_id)
+bool Frame::check_tile_id(const tile::id &tile_id)
 {
 	int sz = size_for_z_i(tile_id.z);
 
@@ -760,7 +718,7 @@ bool Cartographer::check_tile_id(const tile::id &tile_id)
 		&& tile_id.y >= 0 && tile_id.y < sz;
 }
 
-tile::ptr Cartographer::find_tile(const tile::id &tile_id)
+tile::ptr Frame::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
 	shared_lock<shared_mutex> lock(cache_mutex_);
@@ -770,7 +728,7 @@ tile::ptr Cartographer::find_tile(const tile::id &tile_id)
 	return iter == cache_.end() ? tile::ptr() : iter->value();
 }
 
-void Cartographer::paint_tile(const tile::id &tile_id, int level)
+void Frame::paint_tile(const tile::id &tile_id, int level)
 {
 	int z = tile_id.z - level;
 	
@@ -823,7 +781,7 @@ void Cartographer::paint_tile(const tile::id &tile_id, int level)
 	}
 }
 
-tile::ptr Cartographer::get_tile(const tile::id &tile_id)
+tile::ptr Frame::get_tile(const tile::id &tile_id)
 {
 	//if ( !check_tile_id(tile_id))
 	//	return tile::ptr();
@@ -834,7 +792,7 @@ tile::ptr Cartographer::get_tile(const tile::id &tile_id)
 }
 
 /* Загрузчик тайлов с диска. При пустой очереди - засыпает */
-void Cartographer::file_loader_proc(my::worker::ptr this_worker)
+void Frame::file_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
@@ -916,7 +874,7 @@ void Cartographer::file_loader_proc(my::worker::ptr this_worker)
 }
 
 /* Загрузчик тайлов с сервера. При пустой очереди - засыпает */
-void Cartographer::server_loader_proc(my::worker::ptr this_worker)
+void Frame::server_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
@@ -1017,7 +975,7 @@ void Cartographer::server_loader_proc(my::worker::ptr this_worker)
 	} /* while (!finish()) */
 }
 
-void Cartographer::anim_thread_proc(my::worker::ptr this_worker)
+void Frame::anim_thread_proc(my::worker::ptr this_worker)
 {
 	asio::io_service io_service;
 	asio::deadline_timer timer(io_service, my::time::utc_now());
@@ -1068,7 +1026,7 @@ void Cartographer::anim_thread_proc(my::worker::ptr this_worker)
 	}
 }
 
-void Cartographer::get(my::http::reply &reply,
+void Frame::get(my::http::reply &reply,
 	const std::wstring &request)
 {
 	asio::ip::tcp::socket socket(io_service_);
@@ -1082,7 +1040,7 @@ void Cartographer::get(my::http::reply &reply,
 	reply.get(socket, full_request);
 }
 
-unsigned int Cartographer::load_and_save(const std::wstring &request,
+unsigned int Frame::load_and_save(const std::wstring &request,
 	const std::wstring &local_filename)
 {
 	my::http::reply reply;
@@ -1095,7 +1053,7 @@ unsigned int Cartographer::load_and_save(const std::wstring &request,
 	return reply.status_code;
 }
 
-unsigned int Cartographer::load_and_save_xml(const std::wstring &request,
+unsigned int Frame::load_and_save_xml(const std::wstring &request,
 	const std::wstring &local_filename)
 {
 	my::http::reply reply;
@@ -1121,12 +1079,12 @@ unsigned int Cartographer::load_and_save_xml(const std::wstring &request,
 	return reply.status_code;
 }
 
-double Cartographer::lon_to_tile_x(double lon, double z)
+double Frame::lon_to_tile_x(double lon, double z)
 {
 	return (lon + 180.0) * size_for_z_d(z) / 360.0;
 }
 
-double Cartographer::lat_to_tile_y(double lat, double z,
+double Frame::lat_to_tile_y(double lat, double z,
 	map_info::projection_t projection)
 {
 	double s = sin( lat / 180.0 * M_PI );
@@ -1153,7 +1111,7 @@ double Cartographer::lat_to_tile_y(double lat, double z,
 	return y;
 }
 
-double Cartographer::lon_to_scr_x(double lon, double z,
+double Frame::lon_to_scr_x(double lon, double z,
 	double fix_lon, double fix_scr_x)
 {
 	double fix_tile_x = lon_to_tile_x(fix_lon, z);
@@ -1161,7 +1119,7 @@ double Cartographer::lon_to_scr_x(double lon, double z,
 	return (tile_x - fix_tile_x) * 256.0 + fix_scr_x;
 }
 
-double Cartographer::lat_to_scr_y(double lat, double z,
+double Frame::lat_to_scr_y(double lat, double z,
 	map_info::projection_t projection, double fix_lat, double fix_scr_y)
 {
 	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
@@ -1169,12 +1127,12 @@ double Cartographer::lat_to_scr_y(double lat, double z,
 	return (tile_y - fix_tile_y) * 256.0 + fix_scr_y;
 }
 
-double Cartographer::tile_x_to_lon(double x, double z)
+double Frame::tile_x_to_lon(double x, double z)
 {
 	return x / size_for_z_d(z) * 360.0 - 180.0;
 }
 
-double Cartographer::tile_y_to_lat(double y, double z,
+double Frame::tile_y_to_lat(double y, double z,
 	map_info::projection_t projection)
 {
 	double lat;
@@ -1211,450 +1169,22 @@ double Cartographer::tile_y_to_lat(double y, double z,
 	return lat;
 }
 
-double Cartographer::scr_x_to_lon(double x, double z,
+double Frame::scr_x_to_lon(double x, double z,
 	double fix_lon, double fix_scr_x)
 {
 	double fix_tile_x = lon_to_tile_x(fix_lon, z);
 	return tile_x_to_lon( fix_tile_x + (x - fix_scr_x) / 256.0, z );
 }
 
-double Cartographer::scr_y_to_lat(double y, double z,
+double Frame::scr_y_to_lat(double y, double z,
 	map_info::projection_t projection, double fix_lat, double fix_scr_y)
 {
 	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
 	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
 }
 
-coord Cartographer::Point(const coord &pt, double a, double s)
-{
-	// brng -> a
-	// dist -> s
-	// a -> c_a
-	// b -> c_b
-	// f -> c_f
-
-	const double A1 = a * M_PI / 180.0;
-	const double sin_A1 = sin(A1);
-	const double cos_A1 = cos(A1);
-
-	const double tan_u1 = c_k * tan(pt.lat * M_PI / 180.0);
-	const double cos_u1 = 1.0 / sqrt(1.0 + tan_u1 * tan_u1);
-	const double sin_u1 = tan_u1 * cos_u1;
-	
-	const double sigma1 = atan2(tan_u1, cos_A1);
-	const double sin_A = cos_u1 * sin_A1;
-	const double cos2_A = 1.0 - sin_A * sin_A;
-	
-	const double u2 = c_eb2 * cos2_A;
-	const double A = 1.0 + u2 / 16384.0 * (4096 + u2 * (-768 + u2 * (320 - 175 * u2)));
-	const double B = u2 / 1024 * (256 + u2 * (-128 + u2 * (74 - 47 * u2)));
-
-	double sigma = s / (c_b * A);
-	double sigmaP = 2.0 * M_PI;
-	double sin_sigma;
-	double cos_sigma;
-	double cos2sigmaM;
-
-	while (abs(sigma - sigmaP) > 1e-12)
-	{
-		cos2sigmaM = cos(2.0 * sigma1 + sigma);
-		sin_sigma = sin(sigma);
-		cos_sigma = cos(sigma);
-
-		const double delta_sigma = B * sin_sigma
-			* (cos2sigmaM + B / 4.0 * (cos_sigma * (-1.0 + 2.0 * cos2sigmaM * cos2sigmaM)
-			- B / 6 * cos2sigmaM * (-3.0 + 4.0 * sin_sigma * sin_sigma)
-			* (-3.0 + 4.0 * cos2sigmaM * cos2sigmaM)));
-
-		sigmaP = sigma;
-		sigma = s / (c_b * A) + delta_sigma;
-	}
-
-	const double tmp = sin_u1 * sin_sigma - cos_u1 * cos_sigma * cos_A1;
-	const double lat2 = atan2(
-		sin_u1 * cos_sigma + cos_u1 * sin_sigma * cos_A1,
-		c_k * sqrt(sin_A * sin_A + tmp * tmp));
-	const double lambda = atan2(sin_sigma * sin_A1,
-		cos_u1 * cos_sigma - sin_u1 * sin_sigma * cos_A1);
-	const double C = c_f / 16.0 * cos2_A * (4.0 + c_f * (4.0 - 3.0 * cos2_A));
-	const double L = lambda - (1.0 - C) * c_f * sin_A
-		* (sigma + C * sin_sigma * (cos2sigmaM + C * cos_sigma
-		* (-1.0 + 2.0 * cos2sigmaM * cos2sigmaM)));
-	
-	const double revAz = atan2(sin_A, tmp);
-
-	return coord(lat2 * 180.0 / M_PI, pt.lon + L * 180.0 / M_PI);
-}
-
-double Cartographer::DistancePrec(const coord &pt1, const coord &pt2,
-	double *p_azi1, double *p_azi2, double accuracy_in_m)
-{
-	/***
-		Функция служит для решения обратной геодезической задачи:
-		расчёт кратчайшего расстояния между двумя точками,
-		начального и обратного азимутов.
-
-		Решается задача по способу Бесселя согласно его описания
-		в "Курсе сфероидической геодезии" В.П.Морозова сс.133-135.
-		
-			(Для желающих найти что-либо получше: ищите алгоритм по методу
-			Vincenty (http://www.ga.gov.au/geodesy/datums/vincenty_inverse.jsp).
-			На сегодня это наиболее применяемый метод, но я слишком поздно
-			об этом узнал. Точность у обоих методов одинаковая, но, быть может,
-			он окажется быстрее)
-
-		В данном учебнике многие формулы используют константы для эллипсоида
-		Красовского, принятого в СССР в 1940 г. Сегодня же более актуально
-		использование эллипсоида WGS84. Это заставило автора вспомнить годы,
-		проведённые в университете, и "покурить" учебник с целью приведения
-		формул к универсальному виду. Что и было сделано.
-		
-		Теперь данный алгоритм не привязан к конкретному эллипсоиду (лишь бы
-		он был двухосный и не повёрнутый - это, конечно, тоже ограничение,
-		поэтому для расчёта траектории баллистических ракет его использовать
-		не рекомендуется :)).
-
-		Параметры для эллипсоида задаются константами:
-		c_a - большая полуось
-			и
-		c_f - степень сжатия (flattening)
-		
-		Остальные константы вычисляются на основании этих двух.
-	***/
-
-	double s; /* Вычисленное расстояние */
-	double A1; /* Начальный азимут (в радианах) */
-	double A2; /* Обратный азимут (в радианах) */
-
-	/* Переводим точность из мм (по экватору) в радианы */
-	const double accuracy = accuracy_in_m / c_a;
-
-	/*
-		B1,L1,B2,L2 - геодезические широта и долгота точек, выраженные в радианах
-		c_e2 - квадрат эксцентриситета эллипса Земли (c_e - эксцентриситет эллипса)
-		V,W - основные сфероидические функции (V = W / c_k)
-		u - приведённая широта точки (с.11)
-		A - азимут точки
-		А0 - азимут геодезической линии в точке пересения с экватором
-		lambda - разница долгот (с.97)
-		sigma - сферическое расстояние (длина дуги большого круга,
-			выраженная в частях радиуса шара) (с.97)
-	*/
-
-	/* 1. Подготовительные вычисления */
-	const double sin_B1 = sin(pt1.lat * M_PI / 180.0);
-	const double sin_B2 = sin(pt2.lat * M_PI / 180.0);
-	const double cos_B1 = cos(pt1.lat * M_PI / 180.0);
-	const double cos_B2 = cos(pt2.lat * M_PI / 180.0);
-
-	const double l = (pt2.lon - pt1.lon) * M_PI / 180.0;
-
-	const double W1 = sqrt(1.0 - c_e2 * sin_B1 * sin_B1);
-	const double W2 = sqrt(1.0 - c_e2 * sin_B2 * sin_B2);
-	const double sin_u1 = sin_B1 / W1 * c_k; /* = sin_B1 / V1 */
-	const double sin_u2 = sin_B2 / W2 * c_k; /* = sin_B2 / V2 */
-	const double cos_u1 = cos_B1 / W1;
-	const double cos_u2 = cos_B2 / W2;
-	const double a1 = sin_u1 * sin_u2;
-	const double a2 = cos_u1 * cos_u2;
-	const double b1 = cos_u1 * sin_u2;
-	const double b2 = sin_u1 * cos_u2;
-
-	/* 2. Последовательные приближения */
-	double delta = 0.0;
-
-	int count = 0;
-
-	while (1)
-	{
-		++count;
-
-		/* Разница долгот */
-		const double lambda = l + delta;
-		const double sin_lambda = sin(lambda);
-		const double cos_lambda = cos(lambda);
-		
-		/* Начальный азимут */
-		const double p = cos_u2 * sin_lambda;
-		const double q = b1 - b2 * cos_lambda;
-		A1 = atan2(p, q);
-		if (A1 < 0.0)
-			A1 += 2.0 * M_PI;
-
-		/* Сферическое расстояние */
-		const double sin_sigma = p * sin(A1) + q * cos(A1);
-		const double cos_sigma = a1 + a2 * cos_lambda;
-		double sigma = atan2(sin_sigma, cos_sigma);
-
-		/* Азимут линии на экваторе */
-		const double sin_A0 = cos_u1 * sin(A1);
-		const double cos2_A0 = 1.0 - sin_A0 * sin_A0;
-
-		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
-		
-		/*
-			alpha = (1/2 * e^2 + 1/8 * e^4 + 1/16 * e^6 + ...)
-				- (1/16 * e^4 + 1/16 * e^6 + ...) * cos^2(A0)
-				+ (3/128 * e^6 + ...) * cos^4(A0)
-				- ...
-			
-			Для эллипсоида Красовского (из учебника):
-			const double alpha =
-				(33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
-		*/
-		const double alpha =
-			(0.5 * c_e2 + 0.125 * c_e4 + 0.0625 * c_e6)
-			- (0.0625 * (c_e4 + c_e6) - 0.0234375 * c_e6 * cos2_A0) * cos2_A0;
-
-		/*
-			beta' = 2beta / Cos^2(A0)
-			beta = (1/32 * e^4 + 1/32 * e^6 + ...) * cos^2(A0)
-				- (1/64 * e^6 + ...) * cos^4(A0)
-				+ ...
-			=> beta' = (1/16 * e^4 + 1/16 * e^6 + ...)
-				- (1/32 * e^6 + ...) * cos^2(A0)
-				+ ...
-			
-			Для эллипсоида Красовского (из учебника):
-			const double beta_ = (28189 - 94 * cos2_A0) * 0.0000000001;
-		*/
-		const double beta_ =
-			0.0625 * (c_e4 + c_e6) - (0.03125 * c_e6) * cos2_A0;
-
-		const double prev_delta = delta;
-		delta = (alpha * sigma - beta_ * x * sin_sigma) * sin_A0;
-			
-		if (delta < 0.0 && prev_delta > 0.0 || delta > 0.0 && prev_delta < 0.0)
-		{
-			/*
-				Если дельта начинает метаться, значит, мы попали
-				в точку-антипод и область вокруг неё!
-
-				В теории (по учебнику) точки-антиподы легко обнаружить
-				на ранней стадии: lambda = PI, u1 = -u2. А потом,
-				соответственно, их решить математическим способом.
-				В реальности дело обстоит сложнее. Существует большая
-				область вокруг точки-антипода, для которой данный метод
-				не подходит. По долготе эта область начинается на расстоянии
-				~179.3965 градусов от первой точки. Если вторая точка лежит
-				до этой точки - кратчайший путь будет пролегать вдоль экватора,
-				если после неё - начинается плавное смещение к пути через полюс.
-				К самим точкам-антиподам кратчайшее расстояние есть всегда
-				константа и проходит через любой из полюсов.
-				
-				179.3965 - это 67 км до точки-антипода. И каким-либо образом
-				пренебречь рассчётами для метода с погрешностью в сантиметрах
-				не простительно.
-				
-				Нашёл простое, но медленное решение: разделить путь на два
-				отрезка. Измерить каждый, вычислить сумму. Вопрос лишь в том,
-				в какой точке разделить отрезок?
-
-				Методом приближений: нахожу расстояния через полюс и через
-				экватор. Сравниваю, точку, в которой расстояние получилось
-				большим, приближаю к другой. Так продолжаю до требуемой
-				точности.
-
-				Приближаю на половину разницы широт - не оптимально, но работает!
-			*/
-			
-			const double lonM = (pt1.lon + pt2.lon) / 2.0;
-			
-			coord ptM1(0.0, lonM);
-			coord ptM2(90.0, lonM);
-			double aziM1_1, aziM1_2;
-			double aziM2_1, aziM2_2;
-
-			double s1 = DistancePrec(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
-				+ DistancePrec(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
-			double s2 = DistancePrec(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
-				+ DistancePrec(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
-
-			while ( abs(s2 - s1) > accuracy_in_m )
-			{
-				if (s1 > s2)
-				{
-					ptM1.lat = (ptM1.lat + ptM2.lat) / 2.0;
-					s1 = DistancePrec(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
-						+ DistancePrec(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
-				}
-				else
-				{
-					ptM2.lat = (ptM1.lat + ptM2.lat) / 2.0;
-					s2 = DistancePrec(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
-						+ DistancePrec(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
-				}
-			}
-
-			if (s1 < s2)
-			{
-				if (p_azi1) *p_azi1 = aziM1_1;
-				if (p_azi2) *p_azi2 = aziM1_2;
-				s = s1;
-			}
-			else
-			{
-				if (p_azi1) *p_azi1 = aziM2_1;
-				if (p_azi2) *p_azi2 = aziM2_2;
-				s = s2;
-			}
-
-			return s;
-		}
-
-		/* Достигли требуемой точности */
-		if (abs(delta - prev_delta) < accuracy || count >= 10)
-		{
-			/***
-				Расстояние рассчитываем по формуле:
-				s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-				
-				sigma, x - уже рассчитали
-				A, B_, C_, y - рассчитаем ниже
-			***/
-
-			/*
-				A = b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 - ...)
-					= b * (1 + k^2 * (1/4 - 3/64 * k^2 + 5/256 * k^4 - ...))
-				
-				где k^2 = e'^2 * Cos^2(A0)
-					(const double k2 = c_eb2 * cos2_A0;)
-				
-				Примеры расчётов (выносим константы вперёд):
-				
-				Если переменные c_xxx не определены на стадии компиляции:
-				const double A_HI = c_b * (1.0 + k2 * (0.25 + k2 * (-0.046875 + 0.01953125 * k2)));
-				const double A_LO = c_b * (1.0 + k2 * (0.25 - 0.046875 * k2));
-				
-				Если c_xxx - статические константы:
-				const double A_HI = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
-				const double A_LO = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
-
-				Для эллипсоида Красовского (из учебника):
-				const double A = 6356863.020 + (10708.949 - 13.474 * cos2_A0) * cos2_A0;
-			*/
-			const double A = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
-
-			/*
-				B' = 2B / Cos^2(A0)
-				B = b * (1/8 * k^2 - 1/32 * k^4 + 15/1024 * k^6 - ...)
-					= b * k^2 * (1/8 - 1/32 * k^2 + 15/1024 * k^4 - ...)
-				=> B' = b * e'^2 * (1/4 - 1/16 * k^2 + 15/512 * k^4 - ...)
-
-				Примеры расчётов:
-
-				Если переменные c_xxx не определены на стадии компиляции:
-				const double B_HI = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0 + 15.0 / 512.0 * k2 * k2);
-				const double B_LO = c_b * c_eb2 * (1.0 / 4.0 - k2 / 16.0);
-
-				Если c_xxx - статические константы:
-				const double B_HI = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
-				const double B_LO = 0.25 * c_b_eb2 - 0.0625 * c_b_eb4 * cos2_A0;
-
-				Для эллипсоида Красовского (из учебника):
-				const double B_ = 10708.938 - 17.956 * cos2_A0;
-			*/
-			const double B_ = 0.25 * c_b_eb2 + (-0.0625 * c_b_eb4 + 0.029296875 * c_b_eb6 * cos2_A0) * cos2_A0;
-
-			/*
-				C' = 2C / Cos^4(A0)
-				C = b * (1/128 * k^4 - 3/512 * k^6 + ...)
-					= b * k^4 * (1/128 - 3/512 * k^2 + ...)
-				=> C' = b * e'^4 * (1/64 - 3/256 * k^2 + ...)
-
-				Примеры расчётов:
-
-				Если переменные c_xxx не определены на стадии компиляции:
-				const double C_HI = c_b_eb4 * (0.015625 - 0.01171875 * k2);
-				const double C_LO = 0.015625 * c_b_eb4;
-
-				Если c_xxx - статические константы:
-				const double C_HI = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
-				const double C_LO = 0.015625 * c_b_eb4;
-
-				Для эллипсоида Красовского (из учебника):
-				const double C_ = 4.487;
-			*/
-			const double C_ = 0.015625 * c_b_eb4 - 0.01171875 * c_b_eb6 * cos2_A0;
-
-			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
-			s = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-			
-			/* Обратный азимут.
-				По учебнику обратный азимут - это азимут, с которым мы приходим
-				в конечную точку. Мне показалось более правильным считать такой
-				азимут азимутом, с которым мы будем возвращаться назад - это дело
-				лишь смены знака в выражениях p2 и q2 */
-			const double p2 = - cos_u1 * sin_lambda;
-			const double q2 = b2 - b1 * cos_lambda;
-
-			A2 = atan2(p2, q2);
-			if (A2 < 0.0)
-				A2 += 2.0 * M_PI;
-
-
-			break;
-		}
-	} /* while (1) */
-
-	if (p_azi1)
-		*p_azi1 = A1 * 180.0 / M_PI;
-
-	if (p_azi2)
-		*p_azi2 = A2 * 180.0 / M_PI;
-
-	return s;
-}
-
-double Cartographer::DistanceFast(const cart::coord &pt1, const cart::coord &pt2)
-{
-	/***
-		Рассчёт расстояния через нахождение координат x,y,z точек,
-		вычисление расстояния между ними по теореме Пифагора,
-		и нахождениия радиуса по полученной хорде
-	***/
-
-	/*
-		v - радиус кривизны первого вертикала на данной широте
-	*/
-
-	/* Координаты первой точки */
-	const double sin_B1 = sin(pt1.lat * M_PI / 180);
-	const double cos_B1 = cos(pt1.lat * M_PI / 180);
-	const double sin_L1 = sin(pt1.lon * M_PI / 180);
-	const double cos_L1 = cos(pt1.lon * M_PI / 180);
-	
-	const double v1 = c_a / sqrt(1.0 - c_e2 * sin_B1 * sin_B1);
-
-	const double x1 = v1 * cos_B1 * cos_L1;
-	const double y1 = v1 * cos_B1 * sin_L1;
-	const double z1 = (1.0 - c_e2) * v1 * sin_B1;
-
-	/* Координаты второй точки */
-	const double sin_B2 = sin(pt2.lat * M_PI / 180);
-	const double cos_B2 = cos(pt2.lat * M_PI / 180);
-	const double sin_L2 = sin(pt2.lon * M_PI / 180);
-	const double cos_L2 = cos(pt2.lon * M_PI / 180);
-
-	const double v2 = c_a / sqrt(1.0 - c_e2 * sin_B2 * sin_B2);
-
-	const double x2 = v2 * cos_B2 * cos_L2;
-	const double y2 = v2 * cos_B2 * sin_L2;
-	const double z2 = (1.0 - c_e2) * v2 * sin_B2;
-
-	/* Расстояние между точками */
-	const double d = sqrt( (x2 - x1) * (x2 - x1)
-		+ (y2 - y1) * (y2 - y1) + (z2 - z1) * (z2 - z1) );
-
-	/* Длина дуги */
-	const double r = v1 < v2 ? v1 : v2; //(v1 + v2) / 2.0;
-	double s = 2.0 * r * asin(0.5 * d / r);
-
-	return s;
-}
-
 #if 0
-void Cartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
+void Frame::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 {
 	tile::id fix_tile; /* Тайл в центре экрана */
 
@@ -1672,7 +1202,7 @@ void Cartographer::sort_queue(tiles_queue &queue, my::worker::ptr worker)
 	sort_queue(queue, fix_tile, worker);
 }
 
-void Cartographer::sort_queue(tiles_queue &queue,
+void Frame::sort_queue(tiles_queue &queue,
 	const tile::id &fix_tile, my::worker::ptr worker)
 {
 	if (worker)
@@ -1680,11 +1210,11 @@ void Cartographer::sort_queue(tiles_queue &queue,
 		unique_lock<mutex> lock(worker->get_mutex());
 
 		queue.sort( boost::bind(
-			&Cartographer::sort_by_dist, fix_tile, _1, _2) );
+			&Frame::sort_by_dist, fix_tile, _1, _2) );
 	}
 }
 
-bool Cartographer::sort_by_dist( tile::id fix_tile,
+bool Frame::sort_by_dist( tile::id fix_tile,
 	const tiles_queue::item_type &first,
 	const tiles_queue::item_type &second )
 {
@@ -1717,7 +1247,7 @@ bool Cartographer::sort_by_dist( tile::id fix_tile,
 }
 #endif
 
-void Cartographer::paint_debug_info(wxDC &gc, int width, int height)
+void Frame::paint_debug_info(wxDC &gc, int width, int height)
 {
 	/* Отладочная информация */
 	//gc.SetPen(*wxWHITE_PEN);
@@ -1731,7 +1261,7 @@ void Cartographer::paint_debug_info(wxDC &gc, int width, int height)
 	paint_debug_info_int(gc, width, height);
 }
 
-void Cartographer::paint_debug_info(wxGraphicsContext &gc, int width, int height)
+void Frame::paint_debug_info(wxGraphicsContext &gc, int width, int height)
 {
 	/* Отладочная информация */
 	gc.SetPen(*wxWHITE_PEN);
@@ -1745,7 +1275,7 @@ void Cartographer::paint_debug_info(wxGraphicsContext &gc, int width, int height
 }
 
 template<class DC>
-void Cartographer::paint_debug_info_int(DC &gc, int width, int height)
+void Frame::paint_debug_info_int(DC &gc, int width, int height)
 {
 	wxCoord x = 8;
 	wxCoord y = 8;
@@ -1787,16 +1317,16 @@ void Cartographer::paint_debug_info_int(DC &gc, int width, int height)
 	int d;
 	int m;
 	double s;
-	GeoToDegrees(fix_lat_, &d, &m, &s);
+	DDToDMS(fix_lat_, &d, &m, &s);
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"lat: %dº %d\' %0.2f\"", d, m, s);
 	gc.DrawText(buf, x, y), y += 12;
 
-	GeoToDegrees(fix_lon_, &d, &m, &s);
+	DDToDMS(fix_lon_, &d, &m, &s);
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"lon: %dº %d\' %0.2f\"", d, m, s);
 	gc.DrawText(buf, x, y), y += 12;
 }
 
-void Cartographer::repaint(wxPaintDC &dc)
+void Frame::repaint(wxPaintDC &dc)
 {
 	unique_lock<mutex> lock1(paint_mutex_);
 	unique_lock<recursive_mutex> lock2(params_mutex_);
@@ -2224,7 +1754,7 @@ void Cartographer::repaint(wxPaintDC &dc)
 	anim_freq_sw_.start();
 }
 
-void Cartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
+void Frame::move_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -2235,7 +1765,7 @@ void Cartographer::move_fix_to_scr_xy(double scr_x, double scr_y)
 	fix_ky_ = scr_y / h;
 }
 
-void Cartographer::set_fix_to_scr_xy(double scr_x, double scr_y)
+void Frame::set_fix_to_scr_xy(double scr_x, double scr_y)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -2249,7 +1779,7 @@ void Cartographer::set_fix_to_scr_xy(double scr_x, double scr_y)
 	move_fix_to_scr_xy(scr_x, scr_y);
 }
 
-void Cartographer::on_paint(wxPaintEvent &event)
+void Frame::on_paint(wxPaintEvent &event)
 {
 	wxPaintDC dc(this);
 	
@@ -2258,17 +1788,17 @@ void Cartographer::on_paint(wxPaintEvent &event)
 	event.Skip(false);
 }
 
-void Cartographer::on_erase_background(wxEraseEvent& event)
+void Frame::on_erase_background(wxEraseEvent& event)
 {
 	event.Skip(false);
 }
 
-void Cartographer::on_size(wxSizeEvent& event)
+void Frame::on_size(wxSizeEvent& event)
 {
 	Update();
 }
 
-void Cartographer::on_left_down(wxMouseEvent& event)
+void Frame::on_left_down(wxMouseEvent& event)
 {
 	SetFocus();
 
@@ -2283,7 +1813,7 @@ void Cartographer::on_left_down(wxMouseEvent& event)
 	Update();
 }
 
-void Cartographer::on_left_up(wxMouseEvent& event)
+void Frame::on_left_up(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
@@ -2301,12 +1831,12 @@ void Cartographer::on_left_up(wxMouseEvent& event)
 	}
 }
 
-void Cartographer::on_capture_lost(wxMouseCaptureLostEvent& event)
+void Frame::on_capture_lost(wxMouseCaptureLostEvent& event)
 {
 	move_mode_ = false;
 }
 
-void Cartographer::on_mouse_move(wxMouseEvent& event)
+void Frame::on_mouse_move(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
@@ -2315,7 +1845,7 @@ void Cartographer::on_mouse_move(wxMouseEvent& event)
 	}
 }
 
-void Cartographer::on_mouse_wheel(wxMouseEvent& event)
+void Frame::on_mouse_wheel(wxMouseEvent& event)
 {
 	{
 		unique_lock<recursive_mutex> lock(params_mutex_);
@@ -2334,7 +1864,7 @@ void Cartographer::on_mouse_wheel(wxMouseEvent& event)
 	Update();
 }
 
-GLuint Cartographer::load_texture(raw_image &image)
+GLuint Frame::load_texture(raw_image &image)
 {
 	GLuint id;
 
@@ -2362,7 +1892,7 @@ GLuint Cartographer::load_texture(raw_image &image)
 	return id;
 }
 
-GLuint Cartographer::load_image_to_texture(image &img)
+GLuint Frame::load_image_to_texture(image &img)
 {
 	GLuint texture_id = img.texture_id();
 
@@ -2376,11 +1906,11 @@ GLuint Cartographer::load_image_to_texture(image &img)
 	return texture_id;
 }
 
-void Cartographer::on_image_delete_proc(image &img)
+void Frame::on_image_delete_proc(image &img)
 {
 	GLuint texture_id = img.texture_id();
 	if (texture_id)
 		delete_texture_later(texture_id);
 }
 
-} /* namespace cart */
+} /* namespace cartographer */

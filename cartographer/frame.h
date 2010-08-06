@@ -1,9 +1,10 @@
-﻿#ifndef WX_CARTOGRAPHER_H
-#define WX_CARTOGRAPHER_H
+﻿#ifndef CARTOGRAPHER_H
+#define CARTOGRAPHER_H
 
-#include "cart/config.h" /* Обязательно первым */
-#include "cart/defs.h" /* cart::point, cart::coord, cart::size */
-#include "cart/image.h" /* cart::image, cart::sprite, cart::tile */
+#include "config.h" /* Обязательно первым */
+#include "defs.h" /* point, coord, size */
+#include "image.h" /* image, sprite, tile */
+#include "geodesic.h" /* подключаю для пользователя, чтоб всё в одном месте */
 
 #include <mylib.h>
 
@@ -22,7 +23,7 @@
 
 extern my::log main_log;
 
-namespace cart
+namespace cartographer
 {
 
 /*
@@ -41,39 +42,25 @@ struct map_info
 	map_info() : is_layer(false), projection(unknown) {}
 };
 
-/*
-	Преобразование градусов, минут, секунд в десятичный вид и обратно
-*/
-double DegreesToGeo(double deg, double min, double sec);
-inline coord DegreesToGeo(
-	double lat_deg, double lat_min, double lat_sec,
-	double lon_deg, double lon_min, double lon_sec)
-{
-	return coord( DegreesToGeo(lat_deg, lat_min, lat_sec),
-		DegreesToGeo(lon_deg, lon_min, lon_sec) );
-}
-
-void GeoToDegrees(double lat_or_lon, int *pdeg, int *pmin, double *psec);
-
 
 /*
 	Картографер
 */
-class Cartographer : public wxGLCanvas, my::employer
+class Frame : public wxGLCanvas, my::employer
 {
 public:
 	/* Тип обработчика */
 	typedef boost::function<void (wxGCDC &gc, int width, int height)> on_paint_proc_t;
 
 	/* Конструктор */
-	Cartographer(wxWindow *parent, const std::wstring &server_addr,
+	Frame(wxWindow *parent, const std::wstring &server_addr,
 		const std::wstring &server_port, std::size_t cache_size,
 		std::wstring cache_path, bool only_cache,
 		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
 		on_paint_proc_t on_paint_proc,
 		int anim_period = 0, int def_min_anim_steps = 0);
 	
-	~Cartographer();
+	~Frame();
 
 	void Stop();
 	void Update();
@@ -157,15 +144,6 @@ public:
 	inline void DrawImage(int image_id, const point &pos, const size &scale)
 		{ DrawImage(image_id, pos.x, pos.y, scale.width, scale.height); }
 
-
-	/* Рассчёты */
-
-	coord Point(const coord &pt, double a, double s);
-
-	/* Рассчёты расстояния между двумя точками */
-	static double DistancePrec(const coord &pt1, const coord &pt2,
-		double *p_azi1 = NULL, double *p_azi2 = NULL, double accuracy_in_m = 1.0);
-	static double DistanceFast(const cart::coord &pt1, const cart::coord &pt2);
 
 	DECLARE_EVENT_TABLE()
 
@@ -428,6 +406,6 @@ private:
 	void on_image_delete_proc(image &img);
 };
 
-} /* namespace cart */
+} /* namespace cartographer */
 
-#endif
+#endif /* CARTOGRAPHER_H */

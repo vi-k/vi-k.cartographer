@@ -1,7 +1,7 @@
-﻿#ifndef CART_DEFS_H
-#define CART_DEFS_H
+﻿#ifndef CARTOGRAPHER_DEFS_H
+#define CARTOGRAPHER_DEFS_H
 
-namespace cart
+namespace cartographer
 {
 
 /*
@@ -40,6 +40,6 @@ struct size
 	size(double w, double h) : width(w), height(h) {}
 };
 
-} /* namespace cart */
+} /* namespace cartographer */
 
-#endif /* CART_DEFS_H */
+#endif /* CARTOGRAPHER_DEFS_H */

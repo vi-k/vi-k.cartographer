@@ -3,7 +3,7 @@
 #include <cstring>
 #include <wx/mstream.h> /* wxMemoryInputStream */
 
-namespace cart
+namespace cartographer
 {
 
 /* Число кратное 2, большее или равное a */
@@ -98,4 +98,4 @@ void image::load_from_raw(const unsigned char *data,
 	set_state(ready);
 }
 
-} /* namespace cart */
+} /* namespace cartographer */
