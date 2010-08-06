@@ -40,6 +40,24 @@ struct size
 	size(double w, double h) : width(w), height(h) {}
 };
 
+/*
+	Цвет
+*/
+struct color
+{
+	double r;
+	double g;
+	double b;
+	double a;
+
+	color()
+		: r(0), g(0), b(0), a(0) {}
+	color(double r, double g, double b)
+		: r(r), g(g), b(b), a(1.0) {}
+	color(double r, double g, double b, double a)
+		: r(r), g(g), b(b), a(a) {}
+};
+
 } /* namespace cartographer */
 
 #endif /* CARTOGRAPHER_DEFS_H */

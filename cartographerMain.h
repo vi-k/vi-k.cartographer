@@ -34,8 +34,10 @@ class cartographerFrame: public wxFrame
 
 	private:
 		cartographer::Frame *Cartographer;
+		int images_[11];
+
+		/* "Быстрые" точки */
 		static const int count_ = 9;
-		int images_[count_];
 		wxString names_[count_];
 		int z_[count_];
 		cartographer::coord coords_[count_];
@@ -44,6 +46,9 @@ class cartographerFrame: public wxFrame
 
 		void OnMapPaint(wxGCDC &gc, int width, int height);
 
+		void DrawCircle(const cartographer::coord &pt,
+			double r, double line_width, const cartographer::color &line_color,
+			const cartographer::color &fill_color);
 		void DrawImage(int id, const cartographer::coord &pt);
 
 		//(*Handlers(cartographerFrame)

@@ -72,9 +72,14 @@ coord Direct(const coord &pt, double azimuth, double distance);
 /*
 	Решение обратной геодезической задачи (расчёт кратчайшего расстояния
 	между двумя точками, начального и обратного азимутов) по способу Бесселя
+
+	pt1, pt2 - координаты точек
+	p_azi1, p_azi2 - соответственно, начальный и обратный азимут
+	eps_in_m - точность в метрах
+	Возврат: расстояние в метрах
 */
 double Inverse(const coord &pt1, const coord &pt2,
-	double *p_azi1, double *p_azi2, double accuracy_in_m);
+	double *p_azi1 = NULL, double *p_azi2 = NULL, double eps_in_m = 0.1);
 
 
 /*
