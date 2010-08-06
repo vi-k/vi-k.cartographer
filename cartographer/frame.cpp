@@ -405,8 +405,6 @@ int Frame::LoadImageFromFile(const std::wstring &filename)
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
 	sprites_[++sprites_index_] = sprite_ptr;
 
-	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
-
 	if (!sprite_ptr->load_from_file(filename))
 	{
 		sprites_.erase(sprites_index_--);
@@ -426,8 +424,6 @@ int Frame::LoadImageFromMem(const void *data, std::size_t size)
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
 	sprites_[++sprites_index_] = sprite_ptr;
 
-	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
-
 	if (!sprite_ptr->load_from_mem(data, size))
 	{
 		sprites_.erase(sprites_index_--);
@@ -446,8 +442,6 @@ int Frame::LoadImageFromRaw(const unsigned char *data,
 
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
 	sprites_[++sprites_index_] = sprite_ptr;
-
-	unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
 	sprite_ptr->load_from_raw(data, width, height, with_alpha);
 
@@ -556,7 +550,6 @@ void Frame::DrawImage(int image_id, double x, double y,
 	if (iter != sprites_.end())
 	{
 		sprite::ptr sprite_ptr = iter->second;
-		unique_lock<recursive_mutex> lock2( sprite_ptr->get_mutex() );
 
 		/* Загружаем текстуру, если она не была загружена */
 		GLuint texture_id = load_image_to_texture(*sprite_ptr);
@@ -667,8 +660,6 @@ void Frame::load_textures()
 	while (iter != cache_.end() && ++count <= cache_active_tiles_)
 	{
 		tile::ptr tile_ptr = iter->value();
-
-		unique_lock<recursive_mutex> lock2( tile_ptr->get_mutex() );
 
 		if (tile_ptr->ok())
 			load_image_to_texture(*tile_ptr);
@@ -861,8 +852,6 @@ void Frame::file_loader_proc(my::worker::ptr this_worker)
 		}
 		else
 		{
-			unique_lock<recursive_mutex> lock( tile_ptr->get_mutex() );
-
 			if (!tile_ptr->load_from_file(filename))
 			{
 				tile_ptr->set_state(tile::ready);
@@ -954,8 +943,6 @@ void Frame::server_loader_proc(my::worker::ptr this_worker)
 			}
 			else if (reply.status_code == 200)
 			{
-				unique_lock<recursive_mutex> lock2( tile_ptr->get_mutex() );
-
 				/* При успешной загрузке с сервера, создаём тайл из буфера
 					и сохраняем файл на диске */
 				if ( tile_ptr->load_from_mem(reply.body.c_str(), reply.body.size()) )
