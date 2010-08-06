@@ -5,7 +5,6 @@
 #include "defs.h"
 #include "raw_image.h"
 
-#include <my_thread.h> /* shared_mutex */
 #include <my_ptr.h> /* shared_ptr */
 
 #include <boost/function.hpp>
@@ -46,75 +45,41 @@ public:
 		int width, int height, bool with_alpha);
 
 	
-	inline recursive_mutex& get_mutex()
-		{ return mutex_; }
-
 	inline raw_image& raw()
 		{ return raw_; }
 
 	
 	inline int state() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return state_;
-	}
+		{ return state_; }
 		
 	inline void set_state(int state)
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		state_ = state;
-	}
+		{ state_ = state; }
 
 	inline bool ok() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return state_ == ready && raw_.data() != 0;
-	}
+		{ return state_ == ready && raw_.data() != 0; }
 
 	inline size get_size() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return size(width_, height_);
-	}
+		{ return size(width_, height_); }
 
 	inline int width() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return width_;
-	}
+		{ return width_; }
 		
 	inline int height() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return height_;
-	}
+		{ return height_; }
 		
 	inline size scale() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return scale_;
-	}
+		{ return scale_; }
 		
 	inline void set_scale(const size &scale)
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		scale_ = scale;
-	}
+		{ scale_ = scale; }
 
 	inline GLuint texture_id() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return texture_id_;
-	}
+		{ return texture_id_; }
 
 	inline void set_texture_id(GLuint texture_id)
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		texture_id_ = texture_id;
-	}
+		{ texture_id_ = texture_id; }
 
 protected:
-	mutable recursive_mutex mutex_;
 	raw_image raw_;
 	int state_;
 	int width_;
@@ -139,28 +104,16 @@ public:
 
 	
 	size offset() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return offset_;
-	}
+		{ return offset_; }
 
 	void set_offset(double dx, double dy)
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		offset_.width = dx, offset_.height = dy;
-	}
+		{ offset_.width = dx, offset_.height = dy; }
 
 	point central_point() const
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		return point(-offset_.width - 0.5, -offset_.height - 0.5);
-	}
+		{ return point(-offset_.width - 0.5, -offset_.height - 0.5); }
 
 	void set_central_point(double x, double y)
-	{
-		unique_lock<recursive_mutex> lock(mutex_);
-		offset_.width = -x - 0.5, offset_.height = -y - 0.5;
-	}
+		{ offset_.width = -x - 0.5, offset_.height = -y - 0.5; }
 		
 
 private:

@@ -20,8 +20,6 @@ bool image::convert_from(const wxImage &src)
 	if (!src.IsOk())
 		return false;
 
-	unique_lock<recursive_mutex> lock(mutex_);
-
 	unsigned char *src_rgb = src.GetData();
 	unsigned char *src_a = src.GetAlpha();
 
@@ -84,8 +82,6 @@ bool image::load_from_mem(const void *data, std::size_t size)
 void image::load_from_raw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
-	unique_lock<recursive_mutex> lock(mutex_);
-
 	if (with_alpha)
 		raw_.create(width, height, 32, GL_RGBA);
 	else
