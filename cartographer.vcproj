@@ -202,15 +202,19 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\cartographer\frame.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\cartographer\geodesic.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\handle_exception.cpp"
 				>
 			</File>
 			<File
-				RelativePath=".\cart\image.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\wxCartographer.cpp"
+				RelativePath=".\cartographer\image.cpp"
 				>
 			</File>
 		</Filter>
@@ -228,11 +232,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\cart\config.h"
+				RelativePath=".\cartographer\config.h"
 				>
 			</File>
 			<File
-				RelativePath=".\cart\defs.h"
+				RelativePath=".\cartographer\defs.h"
+				>
+			</File>
+			<File
+				RelativePath=".\cartographer\frame.h"
+				>
+			</File>
+			<File
+				RelativePath=".\cartographer\geodesic.h"
 				>
 			</File>
 			<File
@@ -240,11 +252,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\cart\image.h"
+				RelativePath=".\cartographer\image.h"
 				>
 			</File>
 			<File
-				RelativePath=".\cart\raw_image.h"
+				RelativePath=".\cartographer\raw_image.h"
 				>
 			</File>
 			<File
@@ -258,10 +270,6 @@
 						UsePrecompiledHeader="1"
 					/>
 				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\wxCartographer.h"
-				>
 			</File>
 		</Filter>
 		<Filter

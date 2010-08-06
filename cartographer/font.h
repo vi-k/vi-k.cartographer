@@ -1,5 +1,5 @@
-﻿#ifndef CART_FONT_H
-#define CART_FONT_H
+﻿#ifndef CARTOGRAPHER_FONT_H
+#define CARTOGRAPHER_FONT_H
 
 #include "config.h"
 #include "defs.h"
@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace cart
+namespace cartographer
 {
 
 struct char_info
@@ -67,6 +67,6 @@ private:
 
 };
 
-} /* namespace cart */
+} /* namespace cartographer */
 
-#endif /* CART_FONT_H */
+#endif /* CARTOGRAPHER_FONT_H */

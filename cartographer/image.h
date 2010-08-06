@@ -1,5 +1,5 @@
-﻿#ifndef CART_IMAGE_H
-#define CART_IMAGE_H
+﻿#ifndef CARTOGRAPHER_IMAGE_H
+#define CARTOGRAPHER_IMAGE_H
 
 #include "config.h" /* Обязательно первым */
 #include "defs.h"
@@ -13,7 +13,7 @@
 #include <wx/image.h> /* wxImage */
 #include <gl/gl.h> /* OpenGL */
 
-namespace cart
+namespace cartographer
 {
 
 /*
@@ -230,6 +230,6 @@ public:
 		: image(on_delete) {}
 };
 
-} /* namespace cart */
+} /* namespace cartographer */
 
-#endif /* CART_IMAGE_H */
+#endif /* CARTOGRAPHER_IMAGE_H */
