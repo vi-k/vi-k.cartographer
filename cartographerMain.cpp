@@ -173,6 +173,11 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	images_[8] = Cartographer->LoadImageFromFile(L"images/wifi.png");
 	Cartographer->SetImageCentralPoint(images_[8], 15.5, 35.0);
 
+	images_[9] = Cartographer->LoadImageFromFile(L"images/blue_star.png");
+	Cartographer->SetImageCentralPoint(images_[9], 7.0, 8.0);
+
+	images_[10] = Cartographer->LoadImageFromFile(L"images/green_star.png");
+	Cartographer->SetImageCentralPoint(images_[10], 7.0, 8.0);
 
 	/* Места для быстрого перехода */
 	names_[0] = L"Хабаровск";
@@ -224,104 +229,104 @@ void cartographerFrame::Test()
 
 	double d, d2;
 	double a1, a2;
-	double accuracy_in_m = 0.01;
+	double eps_in_m = 0.01;
 
 	/* Точки-антиподы */
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, -180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(10.0, 0.0), coord(-10.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(20.0, 0.0), coord(-20.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(30.0, 0.0), coord(-30.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(40.0, 0.0), coord(-40.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(50.0, 0.0), coord(-50.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(60.0, 0.0), coord(-60.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(70.0, 0.0), coord(-70.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(80.0, 0.0), coord(-80.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(90.0, 0.0), coord(-90.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, -180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(10.0, 0.0), coord(-10.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(20.0, 0.0), coord(-20.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(30.0, 0.0), coord(-30.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(40.0, 0.0), coord(-40.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(50.0, 0.0), coord(-50.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(60.0, 0.0), coord(-60.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(70.0, 0.0), coord(-70.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(80.0, 0.0), coord(-80.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(90.0, 0.0), coord(-90.0, 180.0), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 170.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 177.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 178.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 179.3964), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 179.3965), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 170.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 177.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 178.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 179.3964), coord(0.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 179.3965), coord(0.0, 180.0), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3964), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3965), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3964), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3965), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3966), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.397), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.40), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.41), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.42), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.43), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.44), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.45), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.46), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.47), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.48), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.49), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.50), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.55), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.60), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.65), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.70), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.75), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.80), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.85), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.90), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.95), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.96), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.97), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.98), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3966), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.397), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.40), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.41), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.42), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.43), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.44), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.45), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.46), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.47), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.48), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.49), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.50), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.55), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.60), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.65), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.70), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.75), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.80), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.85), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.90), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.95), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.96), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.97), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.98), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 180.0), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.30), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.31), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.32), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.33), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.34), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.35), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.36), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.37), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.38), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.39), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.30), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.31), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.32), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.33), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.34), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.35), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.36), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.37), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.38), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.39), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.40), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.41), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.42), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.43), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.44), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.45), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.46), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.47), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.48), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.40), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.41), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.42), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.43), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.44), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.45), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.46), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.47), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.48), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.50), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.60), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.70), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.80), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.90), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 180.00), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.50), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.60), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.70), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.80), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.90), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 180.00), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.10, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.20, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.30, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.40, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.50, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.60, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.70, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.80, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.90, 179.99), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(1.00, 179.99), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.10, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.20, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.30, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.40, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.50, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.60, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.70, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.80, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.90, 179.99), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(1.00, 179.99), &a1, &a2, eps_in_m );
 
 	/* Близкие точки */
 	{
-		double accuracy_in_m = 0.0000000001;
+		double eps_in_m = 0.0000000001;
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,29,41.65, 135,6,4.73 ),
-			cartographer::DMSToDD( 48,29,41.43, 135,6,4.29 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 48,29,41.43, 135,6,4.29 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,29,41.65, 135,6,4.73 ),
 			cartographer::DMSToDD( 48,29,41.43, 135,6,4.29 ));
@@ -333,11 +338,11 @@ void cartographerFrame::Test()
 
 	/* Точки по стране */
 	{
-		double accuracy_in_m = 0.0000001;
+		double eps_in_m = 0.0000001;
 		/* Хабаровск - Москва */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 ));
@@ -349,7 +354,7 @@ void cartographerFrame::Test()
 		/* Хабаровск - Магадан */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 59,33,41.79, 150,50,19.87 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 59,33,41.79, 150,50,19.87 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 59,33,41.79, 150,50,19.87 ));
@@ -357,7 +362,7 @@ void cartographerFrame::Test()
 		/* Хабаровск - Якутск */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ));
@@ -365,7 +370,7 @@ void cartographerFrame::Test()
 		/* Магадан - Якутск */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 59,33,41.79, 150,50,19.87 ),
-			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 59,33,41.79, 150,50,19.87 ),
 			cartographer::DMSToDD( 62,4,30.33,  129,45,24.39 ));
@@ -373,7 +378,7 @@ void cartographerFrame::Test()
 		/* Хабаровск - Бикин */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 46,48,47.59, 134,14,55.71 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 46,48,47.59, 134,14,55.71 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 46,48,47.59, 134,14,55.71 ));
@@ -381,7 +386,7 @@ void cartographerFrame::Test()
 		/* Хабаровск - Биробиджан */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 48,47,52.55, 132,55,5.13 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 48,47,52.55, 132,55,5.13 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 48,47,52.55, 132,55,5.13 ));
@@ -389,7 +394,7 @@ void cartographerFrame::Test()
 		/* Хабаровск - Владивосток */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
-			cartographer::DMSToDD( 43,7,17.95,  131,55,34.4 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 43,7,17.95,  131,55,34.4 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 			cartographer::DMSToDD( 43,7,17.95,  131,55,34.4 ));
@@ -397,42 +402,42 @@ void cartographerFrame::Test()
 		/* Владивосток - Хабаровск */
 		d = cartographer::Inverse(
 			cartographer::DMSToDD( 43,7,17.95,  131,55,34.4 ),
-			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ), &a1, &a2, accuracy_in_m );
+			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ), &a1, &a2, eps_in_m );
 		d2 = cartographer::FastDistance(
 			cartographer::DMSToDD( 43,7,17.95,  131,55,34.4 ),
 			cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ));
 	}
 
 	/*-
-	//double dB = cartographer::Inverse( coord(-90.0, 0.0), coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
-	//double dC = cartographer::Inverse( coord(45.0, 135.0), coord(-45.0, -45.0), &a1, &a2, accuracy_in_m );
+	//double dB = cartographer::Inverse( coord(-90.0, 0.0), coord(90.0, 0.0), &a1, &a2, eps_in_m );
+	//double dC = cartographer::Inverse( coord(45.0, 135.0), coord(-45.0, -45.0), &a1, &a2, eps_in_m );
 
-	double d1 = cartographer::Inverse( coords_[2], coords_[0], &a1, &a2, accuracy_in_m );
-	double d2 = cartographer::Inverse( coord(0.0, 0.0), coord(90.0, 0.0), &a1, &a2, accuracy_in_m );
+	double d1 = cartographer::Inverse( coords_[2], coords_[0], &a1, &a2, eps_in_m );
+	double d2 = cartographer::Inverse( coord(0.0, 0.0), coord(90.0, 0.0), &a1, &a2, eps_in_m );
 	-*/
 
 	/*-
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 170.0), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 179.0), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 90.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 170.0), coord(0.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 179.0), coord(0.0, 180.0), &a1, &a2, eps_in_m );
 
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 170.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 177.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 178.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 179.3964), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
-	d = cartographer::Inverse( coord(0.0, 179.3965), coord(0.0, 180.0), &a1, &a2, accuracy_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 170.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 177.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 178.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 179.3964), coord(0.0, 180.0), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 179.3965), coord(0.0, 180.0), &a1, &a2, eps_in_m );
 
-	double d3 = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3964), &a1, &a2, accuracy_in_m );
-	double d3a= cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3965), &a1, &a2, accuracy_in_m );
+	double d3 = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3964), &a1, &a2, eps_in_m );
+	double d3a= cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 179.3965), &a1, &a2, eps_in_m );
 	-*/
 
 	/*-
-	double d4 = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d5 = cartographer::Inverse( coord(0.0, 0.0), coord(45.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d6 = cartographer::Inverse( coord(0.0, 0.0), coord(45.0, -90.0), &a1, &a2, accuracy_in_m );
-	double d7 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, 90.0), &a1, &a2, accuracy_in_m );
-	double d8 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, -90.0), &a1, &a2, accuracy_in_m );
+	double d4 = cartographer::Inverse( coord(0.0, 0.0), coord(0.0, 90.0), &a1, &a2, eps_in_m );
+	double d5 = cartographer::Inverse( coord(0.0, 0.0), coord(45.0, 90.0), &a1, &a2, eps_in_m );
+	double d6 = cartographer::Inverse( coord(0.0, 0.0), coord(45.0, -90.0), &a1, &a2, eps_in_m );
+	double d7 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, 90.0), &a1, &a2, eps_in_m );
+	double d8 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, -90.0), &a1, &a2, eps_in_m );
 	-*/
 	
 	return;
@@ -470,58 +475,128 @@ void cartographerFrame::DrawImage(int id, const cartographer::coord &pt)
 		return;
 
 	cartographer::point pos = Cartographer->GeoToScr(pt);
-	double z = Cartographer->GetActiveZ();
+	const double z = Cartographer->GetActiveZ();
 
 	glColor4d(1.0, 1.0, 1.0, 1.0);
 	Cartographer->DrawImage(id, pos, z < 6.0 ? z / 6.0 : 1.0);
 }
 
+void cartographerFrame::DrawCircle(const cartographer::coord &pt,
+	double r, double line_width, const cartographer::color &line_color,
+	const cartographer::color &fill_color)
+{
+	const double z = Cartographer->GetActiveZ();
+
+	cartographer::point pt_pos = Cartographer->GeoToScr(pt);
+
+	/* Сначала заполняем, потом рисуем окружность */
+	for (int n = 0; n < 2; ++n)
+	{
+		if (n == 0)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glBegin(GL_POLYGON);
+			glColor4dv(&fill_color.r);
+		}
+		else
+		{
+			glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
+			glBegin(GL_LINE_LOOP);
+			glColor4dv(&line_color.r);
+		}
+
+		const double step = 3.0;
+		for (double a = step / 2.0; a < 360.0; a += step)
+		{
+			cartographer::coord ptN = cartographer::Direct(pt, a, r);
+			cartographer::point ptN_pos = Cartographer->GeoToScr(ptN);
+			glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+		}
+		glEnd();
+	}
+}
+
+
 void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 {
-	for (int i = 0; i < count_; ++i)
-		DrawImage(images_[i], coords_[i]);
+	const double z = Cartographer->GetActiveZ();
 
-	/*-
-	wxString str;
-	str = z > 12 ? L"Хабаровский утёс" : L"Хабаровск";
+	//for (int i = 0; i < count_; ++i)
+	//	DrawImage(images_[i], coords_[i]);
 
-	int font_sz = (z == 1 ? 5 : z <=3 ? 6 : z <= 5 ? 7 : 8);
+	/* Путь от Хабаровска до Москвы */
+	{
+		cartographer::coord pt1 = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
+		cartographer::coord pt2 = cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 );
 
-	DrawTextInBox(gc, str, x, y,
-		wxFont(font_sz, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL),
-		wxColour(255, 255, 255),
-		wxPen( wxColor(0, 0, 0), 1 ),
-		wxBrush( wxColor(255, 255, 0, 192) ));
-	-*/
+		/* Находим расстояние и начальный азимут */
+		double azimuth;
+		double distance = cartographer::Inverse(pt1, pt2, &azimuth, NULL, 1000.0);
 
-	/*
-	glBegin(GL_QUADS);
-		glColor4d(1.0, 0.0, 0.0, 0.5);
-		glVertex3i(100, 100, 0);
-		glVertex3i(200, 100, 0);
-		glColor4d(0.0, 1.0, 0.0, 0.5);
-		glVertex3i(200, 200, 0);
-		glVertex3i(100, 200, 0);
-	glEnd();
+		glLineWidth( z >= 6.0 ? 4.0 : z / 1.5 );
+		glBegin(GL_LINE_STRIP);
+			
+			glColor4d(1.0, 0.5, 0.0, 1.0);
 
-	glBegin(GL_QUADS);
-		glColor4d(0.0, 1.0, 0.0, 0.5);
-		glVertex3i(200, 200, 0);
-		glVertex3i(300, 200, 0);
-		glColor4d(0.0, 0.0, 1.0, 0.5);
-		glVertex3i(300, 300, 0);
-		glVertex3i(200, 300, 0);
-	glEnd();
+			/* Делим путь на равные промежутки и вычисляем координаты узлов */
+			for (int i = 0; i < 100; ++i)
+			{
+				double d = distance / 100.0 * i;
+				cartographer::coord ptN = cartographer::Direct(pt1, azimuth, d);
+				cartographer::point ptN_pos = Cartographer->GeoToScr(ptN);
+				glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+			}
+		glEnd();
 
-	glBegin(GL_QUADS);
-		glColor4d(0.0, 0.0, 1.0, 0.5);
-		glVertex3i(300, 300, 0);
-		glVertex3i(400, 300, 0);
-		glColor4d(1.0, 0.0, 0.0, 0.5);
-		glVertex3i(400, 400, 0);
-		glVertex3i(300, 400, 0);
-	glEnd();
-	-*/
+		DrawImage(images_[5], pt1);
+		DrawImage(images_[5], pt2);
+
+		DrawCircle(pt2, 100000, 4.0, cartographer::color(0.0, 1.0, 0.0),
+			cartographer::color(0.0, 1.0, 0.0, 0.3));
+	}
+
+	/* Круг */
+	{
+		//cartographer::coord pt1 = cartographer::DMSToDD( 48,28,51.88, 135,16,1.26 );
+		cartographer::coord pt1 = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
+		cartographer::point pt1_pos = Cartographer->GeoToScr(pt1);
+
+		cartographer::coord pt2;
+		cartographer::point pt2_pos;
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glBegin(GL_POLYGON);
+		{
+			glColor4d(1.0, 0.0, 0.0, 0.3);
+
+			const int step = 5;
+			for (int i = step / 2; i < 360; i += step)
+			{
+				pt2 = cartographer::Direct(pt1, i, 1000000.0);
+				pt2_pos = Cartographer->GeoToScr(pt2);
+				glVertex3d( pt2_pos.x, pt2_pos.y, 0);
+			}
+		}
+		glEnd();
+
+		glLineWidth( z >= 6.0 ? 4.0 : z / 1.5 );
+		glBegin(GL_LINE_LOOP);
+		{
+			glColor4d(1.0, 0.0, 0.0, 1.0);
+
+			const int step = 1;
+			for (int i = step / 2; i < 360; i += step)
+			{
+				pt2 = cartographer::Direct(pt1, i, 1000000.0);
+				pt2_pos = Cartographer->GeoToScr(pt2);
+				glVertex3d( pt2_pos.x, pt2_pos.y, 0);
+			}
+		}
+		glEnd();
+
+		DrawImage(images_[9], pt1);
+	}
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

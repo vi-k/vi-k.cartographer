@@ -1,5 +1,7 @@
 ﻿#include "geodesic.h"
 
+#include <math.h>
+
 namespace cartographer
 {
 
@@ -82,7 +84,7 @@ coord Direct(const coord &pt, double azimuth, double distance)
 }
 
 double Inverse(const coord &pt1, const coord &pt2,
-	double *p_azi1, double *p_azi2, double accuracy_in_m)
+	double *p_azi1, double *p_azi2, double eps_in_m)
 {
 	/***
 		Функция служит для решения обратной геодезической задачи:
@@ -122,7 +124,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 	double A2; /* Обратный азимут (в радианах) */
 
 	/* Переводим точность из мм (по экватору) в радианы */
-	const double accuracy = accuracy_in_m / c_a;
+	const double eps = eps_in_m / c_a;
 
 	/*
 		B1,L1,B2,L2 - геодезические широта и долгота точек, выраженные в радианах
@@ -260,24 +262,24 @@ double Inverse(const coord &pt1, const coord &pt2,
 			double aziM1_1, aziM1_2;
 			double aziM2_1, aziM2_2;
 
-			double s1 = Inverse(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
-				+ Inverse(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
-			double s2 = Inverse(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
-				+ Inverse(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
+			double s1 = Inverse(pt1, ptM1, &aziM1_1, NULL, eps_in_m)
+				+ Inverse(ptM1, pt2, NULL, &aziM1_2, eps_in_m);
+			double s2 = Inverse(pt1, ptM2, &aziM2_1, NULL, eps_in_m)
+				+ Inverse(ptM2, pt2, NULL, &aziM2_2, eps_in_m);
 
-			while ( abs(s2 - s1) > accuracy_in_m )
+			while ( abs(s2 - s1) > eps_in_m )
 			{
 				if (s1 > s2)
 				{
 					ptM1.lat = (ptM1.lat + ptM2.lat) / 2.0;
-					s1 = Inverse(pt1, ptM1, &aziM1_1, NULL, accuracy_in_m)
-						+ Inverse(ptM1, pt2, NULL, &aziM1_2, accuracy_in_m);
+					s1 = Inverse(pt1, ptM1, &aziM1_1, NULL, eps_in_m)
+						+ Inverse(ptM1, pt2, NULL, &aziM1_2, eps_in_m);
 				}
 				else
 				{
 					ptM2.lat = (ptM1.lat + ptM2.lat) / 2.0;
-					s2 = Inverse(pt1, ptM2, &aziM2_1, NULL, accuracy_in_m)
-						+ Inverse(ptM2, pt2, NULL, &aziM2_2, accuracy_in_m);
+					s2 = Inverse(pt1, ptM2, &aziM2_1, NULL, eps_in_m)
+						+ Inverse(ptM2, pt2, NULL, &aziM2_2, eps_in_m);
 				}
 			}
 
@@ -298,7 +300,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 		}
 
 		/* Достигли требуемой точности */
-		if (abs(delta - prev_delta) < accuracy || count >= 10)
+		if (abs(delta - prev_delta) < eps || count >= 10)
 		{
 			/***
 				Расстояние рассчитываем по формуле:

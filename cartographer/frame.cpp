@@ -1552,8 +1552,8 @@ void Frame::repaint(wxPaintDC &dc)
 		glShadeModel(GL_SMOOTH);
 		glClearColor(0.0f, 0.2f, 0.5f, 1.0f);
 		glClearDepth(1.0);
-
 		glEnable(GL_BLEND);
+		glEnable(GL_LINE_SMOOTH);
 
 		glViewport(0, 0, width_i, height_i);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -1640,7 +1640,6 @@ void Frame::repaint(wxPaintDC &dc)
 		}
 
 		glLineWidth(3);
-		//glEnable(GL_LINE_SMOOTH);
 		glColor4d( 1.0, 0.0, 0.0, fix_alpha_ );
 
 		glBegin(GL_LINES);
