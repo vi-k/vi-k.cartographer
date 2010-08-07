@@ -46,10 +46,21 @@ class cartographerFrame: public wxFrame
 
 		void OnMapPaint(wxGCDC &gc, int width, int height);
 
+		void DrawImage(int id, const cartographer::coord &pt);
+		
 		void DrawCircle(const cartographer::coord &pt,
 			double r, double line_width, const cartographer::color &line_color,
 			const cartographer::color &fill_color);
-		void DrawImage(int id, const cartographer::coord &pt);
+		
+		double DrawPath(const cartographer::coord &pt1,
+			const cartographer::coord &pt2,
+			double line_width, const cartographer::color &line_color,
+			double *p_azimuth = NULL, double *p_rev_azimuth = NULL);
+
+		cartographer::coord DrawPath(const cartographer::coord &pt,
+			double azimuth, double distance,
+			double line_width, const cartographer::color &line_color,
+			double *p_rev_azimuth = NULL);
 
 		//(*Handlers(cartographerFrame)
 		void OnQuit(wxCommandEvent& event);

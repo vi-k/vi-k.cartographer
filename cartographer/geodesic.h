@@ -66,7 +66,8 @@ void DDToDMS(double dd, int *p_d, int *p_m, double *p_s);
 	от заданной на определённое расстояние по начальному азимуту)
 	по способу Vincenty
 */
-coord Direct(const coord &pt, double azimuth, double distance);
+coord Direct(const coord &pt, double azimuth, double distance,
+	double *p_rev_azimuth = NULL);
 
 
 /*

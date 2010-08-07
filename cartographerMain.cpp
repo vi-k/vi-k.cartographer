@@ -516,6 +516,72 @@ void cartographerFrame::DrawCircle(const cartographer::coord &pt,
 	}
 }
 
+double cartographerFrame::DrawPath(const cartographer::coord &pt1,
+	const cartographer::coord &pt2,
+	double line_width, const cartographer::color &line_color,
+	double *p_azimuth, double *p_rev_azimuth)
+{
+	/* Находим расстояние и начальный азимут */
+	double azimuth;
+	double distance = cartographer::Inverse(pt1, pt2, &azimuth, NULL, 1000.0);
+
+	if (p_azimuth)
+		*p_azimuth = azimuth;
+
+	DrawPath(pt1, azimuth, distance, line_width, line_color, p_rev_azimuth);
+
+	return distance;
+}
+
+cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
+	double azimuth, double distance,
+	double line_width, const cartographer::color &line_color,
+	double *p_rev_azimuth)
+{
+	/* Избегаем сбоя на точках-антиподах */
+	/*-
+	const double limit = 19000000.0;
+	if (distance > limit)
+	{
+		double azimuthN;
+		cartographer::coord ptN
+			= DrawPath(pt, azimuth, limit, line_width, line_color, &azimuthN);
+
+		return DrawPath(ptN, azimuthN - 180.0, distance - limit,
+			line_width, line_color, p_rev_azimuth);
+	}
+	-*/
+
+	const double z = Cartographer->GetActiveZ();
+
+	glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
+	glBegin(GL_LINE_STRIP);
+	glColor4dv(&line_color.r);
+
+	cartographer::coord ptN;
+	cartographer::point ptN_pos;
+
+	/* Делим путь на равные промежутки и вычисляем координаты узлов */
+	for (int i = 0; i <= 100; ++i)
+	{
+		double d = distance / 100.0 * i;
+		const double old_lon = ptN.lon;
+		ptN = cartographer::Direct(pt, azimuth, d, p_rev_azimuth);
+		/* Проверяем смену знака долготы */
+		if (i > 0 && old_lon * ptN.lon < 0.0)
+		{
+			glEnd();
+			glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
+			glBegin(GL_LINE_STRIP);
+			glColor4dv(&line_color.r);
+		}
+		ptN_pos = Cartographer->GeoToScr(ptN);
+		glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+	}
+	glEnd();
+
+	return ptN;
+}
 
 void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 {
@@ -529,74 +595,42 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 		cartographer::coord pt1 = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
 		cartographer::coord pt2 = cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 );
 
-		/* Находим расстояние и начальный азимут */
-		double azimuth;
-		double distance = cartographer::Inverse(pt1, pt2, &azimuth, NULL, 1000.0);
-
-		glLineWidth( z >= 6.0 ? 4.0 : z / 1.5 );
-		glBegin(GL_LINE_STRIP);
-			
-			glColor4d(1.0, 0.5, 0.0, 1.0);
-
-			/* Делим путь на равные промежутки и вычисляем координаты узлов */
-			for (int i = 0; i < 100; ++i)
-			{
-				double d = distance / 100.0 * i;
-				cartographer::coord ptN = cartographer::Direct(pt1, azimuth, d);
-				cartographer::point ptN_pos = Cartographer->GeoToScr(ptN);
-				glVertex3d(ptN_pos.x, ptN_pos.y, 0);
-			}
-		glEnd();
+		DrawPath(pt1, pt2, 4.0, cartographer::color(1.0, 0.5, 0.0));
 
 		DrawImage(images_[5], pt1);
 		DrawImage(images_[5], pt2);
 
-		DrawCircle(pt2, 100000, 4.0, cartographer::color(0.0, 1.0, 0.0),
-			cartographer::color(0.0, 1.0, 0.0, 0.3));
+		/* Круг, примерно в центре пути */
+		cartographer::coord pt = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
+		DrawCircle(pt, 1000000.0, 4.0,
+			cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.3));
+		DrawImage(images_[9], pt);
 	}
 
-	/* Круг */
-	{
-		//cartographer::coord pt1 = cartographer::DMSToDD( 48,28,51.88, 135,16,1.26 );
-		cartographer::coord pt1 = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
-		cartographer::point pt1_pos = Cartographer->GeoToScr(pt1);
+	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
+		-30.0, 40000000.0, 4.0, cartographer::color(0.0, 1.0, 0.0));
 
-		cartographer::coord pt2;
-		cartographer::point pt2_pos;
+	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
+		90.0, 40000000.0, 4.0, cartographer::color(0.0, 0.5, 1.0));
 
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glBegin(GL_POLYGON);
-		{
-			glColor4d(1.0, 0.0, 0.0, 0.3);
+	DrawImage(images_[9], cartographer::DMSToDD( -54,39,51.45, -65,13,31.03 ));
 
-			const int step = 5;
-			for (int i = step / 2; i < 360; i += step)
-			{
-				pt2 = cartographer::Direct(pt1, i, 1000000.0);
-				pt2_pos = Cartographer->GeoToScr(pt2);
-				glVertex3d( pt2_pos.x, pt2_pos.y, 0);
-			}
-		}
-		glEnd();
+	DrawImage(images_[9], cartographer::DMSToDD( 48,28,43.0, 135,4,5.0 ));
 
-		glLineWidth( z >= 6.0 ? 4.0 : z / 1.5 );
-		glBegin(GL_LINE_LOOP);
-		{
-			glColor4d(1.0, 0.0, 0.0, 1.0);
+	DrawCircle( cartographer::DMSToDD( 48,28,36.0, 135,3,53.0 ), 10.0, 2.0,
+		cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.5));
 
-			const int step = 1;
-			for (int i = step / 2; i < 360; i += step)
-			{
-				pt2 = cartographer::Direct(pt1, i, 1000000.0);
-				pt2_pos = Cartographer->GeoToScr(pt2);
-				glVertex3d( pt2_pos.x, pt2_pos.y, 0);
-			}
-		}
-		glEnd();
+	DrawCircle( cartographer::DMSToDD( 48,28,38.0, 135,3,58.0 ), 13.3, 2.0,
+		cartographer::color(0.67, 0.33, 0.0), cartographer::color(0.67, 0.33, 0.0, 0.5));
 
-		DrawImage(images_[9], pt1);
-	}
+	DrawCircle( cartographer::DMSToDD( 48,28,40.0, 135,4,2.0 ), 16.7, 2.0,
+		cartographer::color(0.33, 0.67, 0.0), cartographer::color(0.33, 0.67, 0.0, 0.5));
+
+	DrawCircle( cartographer::DMSToDD( 48,28,41.5, 135,4,5.5 ), 20.0, 2.0,
+		cartographer::color(0.0, 1.0, 0.0), cartographer::color(0.0, 1.0, 0.0, 0.5));
+
+	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
+		cartographer::color(0.33, 0.67, 0.0), cartographer::color(0.33, 0.67, 0.0, 0.5));
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
