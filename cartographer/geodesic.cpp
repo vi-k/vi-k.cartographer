@@ -23,7 +23,8 @@ void DDToDMS(double dd, int *p_d, int *p_m, double *p_s)
 	*p_s = s;
 }
 
-coord Direct(const coord &pt, double azimuth, double distance)
+coord Direct(const coord &pt, double azimuth, double distance,
+	double *p_rev_azimuth)
 {
 	/*
 		Решение прямой геодезической задачи по методу Vincenty
@@ -77,10 +78,21 @@ coord Direct(const coord &pt, double azimuth, double distance)
 	const double L = lambda - (1.0 - C) * c_f * sin_A
 		* (sigma + C * sin_sigma * (cos2sigmaM + C * cos_sigma
 		* (-1.0 + 2.0 * cos2sigmaM * cos2sigmaM)));
-	
-	const double revAz = atan2(sin_A, tmp);
 
-	return coord(lat2 * 180.0 / M_PI, pt.lon + L * 180.0 / M_PI);
+	double A2 = atan2(-sin_A, tmp);
+	if (A2 < 0.0)
+		A2 += 2.0 * M_PI;
+	
+	if (p_rev_azimuth)
+		*p_rev_azimuth = A2 * 180.0 / M_PI;
+
+	double lon2 = pt.lon + L * 180.0 / M_PI;
+	if (lon2 > 180.0)
+		lon2 -= 360.0;
+	if (lon2 < -180.0)
+		lon2 += 360.0;
+
+	return coord(lat2 * 180.0 / M_PI, lon2);
 }
 
 double Inverse(const coord &pt1, const coord &pt2,
