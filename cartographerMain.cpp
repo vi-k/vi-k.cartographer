@@ -538,20 +538,6 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 	double line_width, const cartographer::color &line_color,
 	double *p_rev_azimuth)
 {
-	/* Избегаем сбоя на точках-антиподах */
-	/*-
-	const double limit = 19000000.0;
-	if (distance > limit)
-	{
-		double azimuthN;
-		cartographer::coord ptN
-			= DrawPath(pt, azimuth, limit, line_width, line_color, &azimuthN);
-
-		return DrawPath(ptN, azimuthN - 180.0, distance - limit,
-			line_width, line_color, p_rev_azimuth);
-	}
-	-*/
-
 	const double z = Cartographer->GetActiveZ();
 
 	glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
@@ -565,17 +551,56 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 	for (int i = 0; i <= 100; ++i)
 	{
 		double d = distance / 100.0 * i;
-		const double old_lon = ptN.lon;
+
+		/* Сохраняем старое значение */
+		cartographer::coord ptP = ptN;
+		cartographer::point ptP_pos = ptN_pos;
+		
+		/* Получаем новое */
 		ptN = cartographer::Direct(pt, azimuth, d, p_rev_azimuth);
-		/* Проверяем смену знака долготы */
-		if (i > 0 && old_lon * ptN.lon < 0.0)
+		ptN_pos = Cartographer->GeoToScr(ptN);
+
+		/* Проверяем переход с одной стороны карты на другую */
+		if (ptP.lon * ptN.lon < 0.0 && abs(ptN.lon) > 170.0)
 		{
+			/* Ищем среднюю точку, на которой произошёл переход */
+			const double k = (180.0 - abs(ptP.lon)) / (360.0 - abs(ptN.lon - ptP.lon));
+			const double mid_lat = ptP.lat + (ptN.lat - ptP.lat) * k;
+			cartographer::coord ptM_N(mid_lat, ptN.lon < 0.0 ? -180.0 : 180.0);
+			cartographer::coord ptM_P(mid_lat, ptP.lon < 0.0 ? -180.0 : 180.0);
+
+			cartographer::point ptM_N_pos = Cartographer->GeoToScr(ptM_N);
+			cartographer::point ptM_P_pos = Cartographer->GeoToScr(ptM_P);
+		
+			/* Дочерчиваем линию на предыдущей стороне */
+			glVertex3d(ptM_P_pos.x, ptM_P_pos.y, 0);
 			glEnd();
-			glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
+
+			/* ... и переходим на новую сторону */
 			glBegin(GL_LINE_STRIP);
 			glColor4dv(&line_color.r);
+			glVertex3d(ptM_N_pos.x, ptM_N_pos.y, 0);
+
+			#if 0
+			/* Позиция новой точки на обратной стороне карты */
+			cartographer::point ptN_pos_ = Cartographer->GeoToScr( cartographer::coord(
+				ptN.lat, ptN.lon < 0.0 ? ptN.lon + 360.0 : ptN.lon - 360.0) );
+			
+			/* Позиция старой точки на обратной стороне карты */
+			cartographer::point ptP_pos_ = Cartographer->GeoToScr( cartographer::coord(
+				ptP.lat, ptP.lon < 0.0 ? ptP.lon + 360.0 : ptP.lon - 360.0) );
+
+			/* Дочерчиваем линию на предыдущей стороне */
+			glVertex3d(ptN_pos_.x, ptN_pos_.y, 0);
+			glEnd();
+			
+			/* ... и переходим на новую сторону */
+			glBegin(GL_LINE_STRIP);
+			glColor4dv(&line_color.r);
+			glVertex3d(ptP_pos_.x, ptP_pos_.y, 0);
+			#endif
 		}
-		ptN_pos = Cartographer->GeoToScr(ptN);
+
 		glVertex3d(ptN_pos.x, ptN_pos.y, 0);
 	}
 	glEnd();
@@ -617,20 +642,21 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 
 	DrawImage(images_[9], cartographer::DMSToDD( 48,28,43.0, 135,4,5.0 ));
 
+	
 	DrawCircle( cartographer::DMSToDD( 48,28,36.0, 135,3,53.0 ), 10.0, 2.0,
 		cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,38.0, 135,3,58.0 ), 13.3, 2.0,
-		cartographer::color(0.67, 0.33, 0.0), cartographer::color(0.67, 0.33, 0.0, 0.5));
+		cartographer::color(1.0, 0.67, 0.0), cartographer::color(1.0, 0.67, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,40.0, 135,4,2.0 ), 16.7, 2.0,
-		cartographer::color(0.33, 0.67, 0.0), cartographer::color(0.33, 0.67, 0.0, 0.5));
+		cartographer::color(0.33, 1.0, 0.0), cartographer::color(0.33, 1.0, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,41.5, 135,4,5.5 ), 20.0, 2.0,
 		cartographer::color(0.0, 1.0, 0.0), cartographer::color(0.0, 1.0, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
-		cartographer::color(0.33, 0.67, 0.0), cartographer::color(0.33, 0.67, 0.0, 0.5));
+		cartographer::color(0.33, 1.0, 0.0), cartographer::color(0.33, 1.0, 0.0, 0.5));
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)
