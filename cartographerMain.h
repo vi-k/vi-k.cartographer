@@ -42,7 +42,8 @@ class cartographerFrame: public wxFrame
 		int z_[count_];
 		cartographer::coord coords_[count_];
 
-		cartographer::font font_;
+		int big_font_;
+		int small_font_;
 
 		void Test(); /* Тестирование функция Картографера */
 

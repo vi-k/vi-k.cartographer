@@ -90,6 +90,7 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 	, on_paint_handler_(on_paint_proc)
 	, sprites_index_(0)
 	, on_image_delete_( boost::bind(&Frame::on_image_delete_proc, this, _1) )
+	, fonts_index_(0)
 {
 	try
 	{
@@ -599,6 +600,45 @@ void Frame::DrawImage(int image_id, double x, double y,
 		
 		check_gl_error();
 	}
+}
+
+int Frame::CreateFont(const wxFont &wxfont)
+{
+	unique_lock<shared_mutex> lock(fonts_mutex_);
+
+	font::ptr font_ptr( new font(wxfont, on_image_delete_) );
+	fonts_[++fonts_index_] = font_ptr;
+
+	/* Загружаем текстуры символов, если это возможно */
+	if (boost::this_thread::get_id() == paint_thread_id_)
+		font_ptr->prepare(L" -~°А-Яа-яЁё"); /* ASCII + русские буквы */
+
+	return fonts_index_;
+}
+
+void Frame::DeleteFont(int font_id)
+{
+	unique_lock<shared_mutex> lock(fonts_mutex_);
+	fonts_.erase(font_id);
+}
+
+size Frame::DrawText(int font_id, const std::wstring &str, const point &pos,
+	const color &text_color, const ratio &center, const ratio &scale)
+{
+	shared_lock<shared_mutex> lock(fonts_mutex_);
+
+	fonts_list::iterator iter = fonts_.find(font_id);
+	size sz;
+
+	if (iter != fonts_.end())
+	{
+		font::ptr font_ptr = iter->second;
+		
+		glColor4dv(&text_color.r);
+		sz = font_ptr->draw(str, pos, center, scale);
+	}
+
+	return sz;
 }
 
 void Frame::magic_init()
