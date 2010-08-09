@@ -15,6 +15,22 @@ inline int __p2(int a)
 	return res;
 }
 
+void image::create(int width, int height)
+{
+	width_ = width;
+	height_ = height;
+
+	raw_.create( __p2(width), __p2(height), 32);
+
+	unsigned char *ptr = raw_.data();
+	unsigned char *end = raw_.end();
+
+	/* Очищаем */
+	std::memset(ptr, 0, end - ptr);
+
+	set_state(ready);
+}
+
 bool image::convert_from(const wxImage &src)
 {
 	if (!src.IsOk())
@@ -33,7 +49,7 @@ bool image::convert_from(const wxImage &src)
 
 	/* Т.к., возможно, понадобится дополнять текстуру прозрачными точками,
 		делаем RGBA-изображение вне зависимости от его исходного bpp */
-	raw_.create(raw_width, raw_height, 32, GL_RGBA);
+	raw_.create(raw_width, raw_height, 32);
 
 	unsigned char *ptr = raw_.data();
 	unsigned char *end = raw_.end();
@@ -51,7 +67,7 @@ bool image::convert_from(const wxImage &src)
 		/* Дополняем ширину прозрачными точками */
 		if (dw)
 		{
-			unsigned char *line_end = ptr + dw;
+			unsigned char *line_end = ptr + dw * 4;
 			std::memset(ptr, 0, line_end - ptr);
 			ptr = line_end;
 		}
@@ -82,10 +98,7 @@ bool image::load_from_mem(const void *data, std::size_t size)
 void image::load_from_raw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
-	if (with_alpha)
-		raw_.create(width, height, 32, GL_RGBA);
-	else
-		raw_.create(width, height, 24, GL_RGB);
+	raw_.create(width, height, with_alpha ? 32 : 24);
 
 	unsigned char *ptr = raw_.data();
 
@@ -113,7 +126,7 @@ GLuint image::load_as_gl_texture()
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, raw_.width(), raw_.height(),
-		0, (GLenum)raw_.tag(), GL_UNSIGNED_BYTE, raw_.data());
+		0, raw_.bpp() == 32 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, raw_.data());
 
 	return glGetError() == GL_NO_ERROR ? id : 0;
 }

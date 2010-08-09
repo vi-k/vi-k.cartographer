@@ -130,6 +130,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	FlexGridSizer1->Add(Cartographer, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	SetSizer(FlexGridSizer1);
 
+	
+	font_ = cartographer::font(
+		wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL) );
+
 	/* Список карт */
 	int maps_count = Cartographer->GetMapsCount();
 	for( int i = 0; i < maps_count; ++i)
@@ -657,6 +661,10 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 
 	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
 		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
+
+	glColor4d(1.0, 1.0, 1.0, 1.0);
+	font_.draw(L"ABCDEFabcdef", 100.0, 100.0);
+	font_.draw(L"θ", 200.0, 150.0);
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

@@ -21,6 +21,7 @@ namespace cartographer
 class image
 {
 public:
+	typedef shared_ptr<image> ptr;
 	typedef boost::function<void (image&)> on_delete_t;
 	enum {unknown = -1, ready = 0};
 
@@ -37,6 +38,8 @@ public:
 		if (on_delete_)
 			on_delete_(*this);
 	}
+
+	void create(int width, int height);
 
 	bool convert_from(const wxImage &src);
 	bool load_from_file(const std::wstring &filename);
