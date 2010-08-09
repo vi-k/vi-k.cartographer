@@ -33,11 +33,31 @@ struct coord
 */
 struct size
 {
-	double width;
-	double height;
+	union
+	{
+		double width;
+		double dx;
+	};
+	union
+	{
+		double height;
+		double dy;
+	};
 
 	size() : width(0), height(0) {}
 	size(double w, double h) : width(w), height(h) {}
+};
+
+/*
+	Соотношение - для масштабов и центральных точек
+*/
+struct ratio
+{
+	double kx;
+	double ky;
+
+	ratio() : kx(1.0), ky(1.0) {}
+	ratio(double kx, double ky) : kx(kx), ky(ky) {}
 };
 
 /*

@@ -42,6 +42,8 @@ END_EVENT_TABLE()
 
 cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	: Cartographer(0)
+	, big_font_(0)
+	, small_font_(0)
 {
 	//(*Initialize(cartographerFrame)
 	wxMenuItem* MenuItem2;
@@ -130,9 +132,10 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	FlexGridSizer1->Add(Cartographer, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	SetSizer(FlexGridSizer1);
 
-	
-	font_ = cartographer::font(
-		wxFont(12, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL) );
+	big_font_ = Cartographer->CreateFont(
+		wxFont(12, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
+	small_font_ = Cartographer->CreateFont(
+		wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL) );
 
 	/* Список карт */
 	int maps_count = Cartographer->GetMapsCount();
@@ -662,9 +665,37 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
 		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
 
-	glColor4d(1.0, 1.0, 1.0, 1.0);
-	font_.draw(L"ABCDEFabcdef", 100.0, 100.0);
-	font_.draw(L"θ", 200.0, 150.0);
+	{
+		cartographer::coord pt = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
+		cartographer::point pt_pos = Cartographer->GeoToScr(pt);
+		
+		cartographer::size sz
+			= Cartographer->DrawText(big_font_,
+				L"Хабаровск",
+				pt_pos, cartographer::color(1.0, 1.0, 1.0),
+				cartographer::ratio(0.5, 0.0));
+		
+		pt_pos.y += sz.height;
+		Cartographer->DrawText(small_font_,
+			L"(столица Дальнего Востока ΘΚΛΜΝ Ёё)",
+			pt_pos, cartographer::color(1.0, 1.0, 1.0),
+			cartographer::ratio(0.5, 0.0));
+	}
+
+	{
+		cartographer::coord pt = cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 );
+		cartographer::point pt_pos = Cartographer->GeoToScr(pt);
+		
+		cartographer::size sz
+			= Cartographer->DrawText(big_font_, L"Москва",
+				pt_pos, cartographer::color(1.0, 1.0, 0.0),
+				cartographer::ratio(0.5, 0.0), cartographer::ratio(0.8, 0.8));
+		
+		pt_pos.y += sz.height;
+		Cartographer->DrawText(small_font_, L"(столица России)",
+			pt_pos, cartographer::color(1.0, 1.0, 0.0),
+			cartographer::ratio(0.5, 0.0), cartographer::ratio(0.8, 0.8));
+	}
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

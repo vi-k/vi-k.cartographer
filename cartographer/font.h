@@ -5,6 +5,8 @@
 #include "defs.h"
 #include "image.h"
 
+#include <my_ptr.h>
+
 #include <string>
 
 #include <wx/font.h>
@@ -38,11 +40,23 @@ struct char_info
 class font
 {
 public:
-	font() {}
-	font(wxFont &font,
-		image::on_delete_t on_image_delete = image::on_delete_t());
+	typedef shared_ptr<font> ptr;
 
-	void draw(const std::wstring &str, double x, double y);
+	font() {}
+	font(const wxFont &font, image::on_delete_t on_image_delete = image::on_delete_t())
+		: font_(font)
+		, on_image_delete_(on_image_delete)
+		, images_index_(0) {}
+
+	/* Предварительное создание текстур для символов, чтобы не делать
+		это во время отрисовки. Символы задаются в виде: A-Za-zА-Яа-яЁё */
+	inline void prepare(const std::wstring &ranges)
+		{ prepare_chars( chars_from_ranges(ranges) ); }
+	
+	/* Вывод текста. Все символы, для которых ещё
+		не были загружены текстуры, будут загружены */
+	size draw(const std::wstring &str, const point &pos,
+		const ratio &center, const ratio &scale);
 
 private:
 	typedef boost::unordered_map<int, image::ptr> images_list;
@@ -54,8 +68,9 @@ private:
 	images_list images_;
 	chars_list chars_;
 
-	std::wstring chars_from_range(wchar_t first, wchar_t last);
+	std::wstring chars_from_ranges(const std::wstring &ranges);
 	void prepare_chars(const std::wstring &chars);
+	void prepare_chars__(const std::wstring &chars);
 };
 
 } /* namespace cartographer */

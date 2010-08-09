@@ -8,31 +8,149 @@
 namespace cartographer
 {
 
-font::font(wxFont &font, image::on_delete_t on_image_delete)
-	: font_(font)
-	, on_image_delete_(on_image_delete)
-	, images_index_(0)
+size font::draw(const std::wstring &str, const point &pos,
+	const ratio &center, const ratio &scale)
 {
-	std::wstring str = chars_from_range(L' ', L'~'); /* 32-127 */
-	str += chars_from_range(L'А', L'Я');
-	str += chars_from_range(L'а', L'я');
-	str.push_back(L'Ё');
-	str.push_back(L'ё');
+	size sz;
 
+	/* Готовим символы, для которых ещё не были созданы текстуры */
 	prepare_chars(str);
+	
+	const wchar_t *ptr = str.c_str();
+	wchar_t ch;
+	double border = 0.0;
+
+	/* Вычисляем размер строки */
+	while ((ch = *ptr++) != 0)
+	{
+		char_info &ci = chars_[ch];
+		image::ptr image_ptr = images_[ci.image_id];
+
+		/* Символы толще своих размеров на величину рамки,
+			при выводе символы накладываются друг на друга как раз
+			на величину рамки */
+		sz.width -= 2.0 * ci.border.width * scale.kx;
+		double ch_w = ci.width * scale.kx;
+		double ch_h = ci.height * scale.ky;
+
+		sz.width += ch_w;
+		if (ch_h > sz.height)
+			sz.height = ch_h;
+	}
+
+	ptr = str.c_str();
+	double x = pos.x - sz.width * center.kx;
+	double y = pos.y - sz.height * center.ky;
+
+	/* Выводим текст посимвольно */
+	while ((ch = *ptr++) != 0)
+	{
+		char_info &ci = chars_[ch];
+		image::ptr image_ptr = images_[ci.image_id];
+
+		GLuint texture_id = image_ptr->texture_id();
+		if (texture_id == 0)
+			texture_id = image_ptr->convert_to_gl_texture();
+
+		double raw_width = image_ptr->raw().width();
+		double raw_height = image_ptr->raw().height();
+
+		double ch_w = ci.width * scale.kx;
+		double ch_h = ci.height * scale.ky;
+
+		double tx = ci.pos / raw_width;
+		double ty = 0.0;
+		double tw = ci.width / raw_width;
+		double th = ci.height / raw_height;
+
+		glBindTexture(GL_TEXTURE_2D, texture_id);
+		glBegin(GL_QUADS);
+			glTexCoord2d(tx,      ty);      glVertex3d(x,        y,        0);
+			glTexCoord2d(tx + tw, ty);      glVertex3d(x + ch_w, y,        0);
+			glTexCoord2d(tx + tw, ty + th); glVertex3d(x + ch_w, y + ch_h, 0);
+			glTexCoord2d(tx,      ty + th); glVertex3d(x,        y + ch_h, 0);
+		glEnd();
+
+		x += (ci.width - 2.0 * ci.border.width) * scale.kx;
+	}
+
+#if 0
+	y += 5 * sz.height;
+	for (images_list::iterator iter = images_.begin();
+		iter != images_.end(); ++iter)
+	{
+		image::ptr image_ptr = iter->second;
+
+		GLuint texture_id = image_ptr->texture_id();
+		if (texture_id == 0)
+			texture_id = image_ptr->convert_to_gl_texture();
+
+		double w = image_ptr->raw().width();
+		double h = image_ptr->raw().height();
+
+		glBindTexture(GL_TEXTURE_2D, texture_id);
+		glBegin(GL_QUADS);
+			glTexCoord2d(0.0, 0.0); glVertex3d(x,     y,     0);
+			glTexCoord2d(1.0, 0.0); glVertex3d(x + w, y,     0);
+			glTexCoord2d(1.0, 1.0); glVertex3d(x + w, y + h, 0);
+			glTexCoord2d(0.0, 1.0); glVertex3d(x,     y + h, 0);
+		glEnd();
+
+		y += h;
+	}
+#endif
+
+	return sz;
 }
 
-std::wstring font::chars_from_range(wchar_t first, wchar_t last)
+std::wstring font::chars_from_ranges(const std::wstring &ranges)
 {
-	std::wstring str;
+	std::wstring chars;
+	
+	const wchar_t *ptr = ranges.c_str();
+	wchar_t prev = 0;
+	wchar_t ch;
 
-	while (first != last)
-		str.push_back(first++);
+	while ((ch = *ptr++) != 0)
+	{
+		if (ch != L'-' || prev == 0 || *ptr == 0)
+		{
+			chars.push_back(ch);
+			prev = ch;
+		}
+		else
+		{
+			ch = *ptr++;
+			++prev;
+			while (prev <= ch)
+				chars.push_back(prev++);
+			
+			prev = 0;
+		}
+	}
 
-	return str;
+	return chars;
 }
 
 void font::prepare_chars(const std::wstring &chars)
+{
+	const wchar_t *ptr = chars.c_str();
+	wchar_t ch;
+	std::wstring not_prepared_chars;
+
+	/* Готовим символы, для которых ещё не были созданы текстуры */
+	while ((ch = *ptr++) != 0)
+	{
+		chars_list::iterator iter = chars_.find(ch);
+		if (iter == chars_.end())
+			not_prepared_chars.push_back(ch);
+	}
+
+	if (!not_prepared_chars.empty())
+		prepare_chars__(not_prepared_chars);
+}
+
+void font::prepare_chars__(const std::wstring &chars)
 {
 	static const int border_v = 1;
 	static const int border_h = 1;
@@ -58,13 +176,33 @@ void font::prepare_chars(const std::wstring &chars)
 	wxMemoryDC dc(bmp);
 	dc.SetFont(font_);
 
-	wxString str = chars;
-	wxCoord width, height;
-	dc.GetTextExtent(str, &width, &height);
+	wxString str;
+	int width = 0;
+	int height = 0;
 
-	/* Добавляем место для рамки */
-	width += border_2h * (chars.size() + 1);
-	height += border_2v;
+	/* Рассчитываем размер строки. GetTextExtent() для всей строки выдаёт
+		не тот результат, что в сумме для каждого символа отдельно.
+		Видимо, сказывается кернинг */
+	{
+		const wchar_t *ptr = chars.c_str();
+		wchar_t ch;
+
+		while ((ch = *ptr++) != 0)
+		{
+			wxCoord w, h;
+
+			str = ch;
+			dc.GetTextExtent(str, &w, &h);
+
+			/* Добавляем место для рамки */
+			w += border_2h;
+			h += border_2v;
+
+			width += w;
+			if (h > height)
+				height = h;
+		}
+	}
 
 	if (width > max_size)
 		width = max_size;
@@ -87,33 +225,34 @@ void font::prepare_chars(const std::wstring &chars)
 
 		int pos = 0;
 		const wchar_t *ptr = chars.c_str();
+		wchar_t ch;
 
-		while (*ptr)
+		while ((ch = *ptr++) != 0)
 		{
 			int w, h;
 
-			str = *ptr;
+			str = ch;
 			dc.GetTextExtent(str, &w, &h);
-
-			/* Проверяем выход за границы текстуры */
-			if (pos + w + border_2h > max_size)
-				break;
-
-			dc.DrawText(str, pos + border_h, border_v);
 
 			w += border_2h;
 			h += border_2v;
 
+			/* Проверяем выход за границы текстуры */
+			if (pos + w > max_size)
+				break;
+
+			dc.DrawText(str, pos + border_h, border_v);
+
 			char_info ci(image_id, pos, w, h, size(border_h, border_v));
 			pos += w;
 
-			chars_[*ptr] = ci;
-
-			++ptr;
+			chars_[ch] = ci;
 		}
 
-		if (*ptr)
-			prepare_chars( std::wstring(ptr) );
+		/* Если вся строка не вместилась в текстуру,
+			переносим остаток строки в следующую */
+		if (ch != 0)
+			prepare_chars__( std::wstring(ptr) );
 	}
 
 	image tmp_image(on_image_delete_);
@@ -175,91 +314,6 @@ void font::prepare_chars(const std::wstring &chars)
 	}
 
 	images_[image_id] = image_ptr;
-}
-
-void font::draw(const std::wstring &str, double x, double y)
-{
-	const wchar_t *ptr = str.c_str();
-	wchar_t ch;
-	std::wstring not_prepared_chars;
-
-	while ((ch = *ptr++) != 0)
-	{
-		chars_list::iterator iter = chars_.find(ch);
-		if (iter == chars_.end())
-			not_prepared_chars.push_back(ch);
-	}
-
-	if (!not_prepared_chars.empty())
-		prepare_chars(not_prepared_chars);
-	
-	ptr = str.c_str();
-
-#if 1
-	while ((ch = *ptr++) != 0)
-	{
-		char_info &ci = chars_[ch];
-		image::ptr image_ptr = images_[ci.image_id];
-
-		GLuint texture_id = image_ptr->texture_id();
-		if (texture_id == 0)
-			texture_id = image_ptr->convert_to_gl_texture();
-
-		double width = image_ptr->raw().width();
-		double height = image_ptr->raw().height();
-
-		const double border_h = ci.border.width;
-		const double border_v = ci.border.height;
-
-		double cw = ci.width;
-		double ch = ci.height;
-
-		double tx = ci.pos / width;
-		double ty = 0.0;
-		double tw = cw / width;
-		double th = ch / height;
-
-		glBindTexture(GL_TEXTURE_2D, texture_id);
-		glBegin(GL_QUADS);
-			glTexCoord2d(tx, ty);
-			glVertex3d(x, y, 0);
-			glTexCoord2d(tx + tw, ty);
-			glVertex3d(x + cw, y, 0);
-			glTexCoord2d(tx + tw, ty + th);
-			glVertex3d(x + cw, y + ch, 0);
-			glTexCoord2d(tx, ty + th);
-			glVertex3d(x, y + ch, 0);
-		glEnd();
-
-		x += ci.width - 2.0 * border_h;
-	}
-#endif
-	
-	/*-
-	y += 100;
-	for (images_list::iterator iter = images_.begin();
-		iter != images_.end(); ++iter)
-	{
-		image::ptr image_ptr = iter->second;
-
-		GLuint texture_id = image_ptr->texture_id();
-		if (texture_id == 0)
-			texture_id = image_ptr->convert_to_gl_texture();
-
-		double w = image_ptr->raw().width();
-		double h = image_ptr->raw().height();
-
-		glBindTexture(GL_TEXTURE_2D, texture_id);
-		glBegin(GL_QUADS);
-			glTexCoord2d(0.0, 0.0); glVertex3d(x,     y,     0);
-			glTexCoord2d(1.0, 0.0); glVertex3d(x + w, y,     0);
-			glTexCoord2d(1.0, 1.0); glVertex3d(x + w, y + h, 0);
-			glTexCoord2d(0.0, 1.0); glVertex3d(x,     y + h, 0);
-		glEnd();
-
-		y += h;
-	}
-	-*/
 }
 
 } /* namespace cartographer */

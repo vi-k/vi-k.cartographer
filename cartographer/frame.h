@@ -131,13 +131,13 @@ public:
 		{ SetImageScale( image_id, size(scale_w, scale_h) ); }
 
 	/* Вывод изображения */
-	void DrawImage(int image_id, double x, double y, double kx, double ky);
+	void DrawImage(int image_id, double x, double y, double scale_x, double scale_y);
 	inline void DrawImage(int image_id, double x, double y, double k)
 		{ return DrawImage(image_id, x, y, k, k); }
 	inline void DrawImage(int image_id, double x, double y)
 		{ return DrawImage(image_id, x, y, 1.0, 1.0); }
-	inline void DrawImage(int image_id, const point &pos, double kx, double ky)
-		{ DrawImage(image_id, pos.x, pos.y, kx, ky); }
+	inline void DrawImage(int image_id, const point &pos, double scale_x, double scale_y)
+		{ DrawImage(image_id, pos.x, pos.y, scale_x, scale_y); }
 	inline void DrawImage(int image_id, const point &pos, double k)
 		{ DrawImage(image_id, pos.x, pos.y, k, k); }
 	inline void DrawImage(int image_id, const point &pos)
@@ -145,6 +145,15 @@ public:
 	inline void DrawImage(int image_id, const point &pos, const size &scale)
 		{ DrawImage(image_id, pos.x, pos.y, scale.width, scale.height); }
 
+	/*
+		Работа с текстом
+	*/
+	int CreateFont(const wxFont &wxfont);
+	void DeleteFont(int font_id);
+	size DrawText(int font_id, const std::wstring &str, const point &pos,
+		const color &text_color,
+		const ratio &center = ratio(0.5, 0.5),
+		const ratio &scale = ratio());
 
 	DECLARE_EVENT_TABLE()
 
@@ -154,6 +163,7 @@ private:
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
 	typedef boost::unordered_map<int, sprite::ptr> sprites_list;
+	typedef boost::unordered_map<int, font::ptr> fonts_list;
 
 
 	/*
@@ -403,6 +413,15 @@ private:
 	image::on_delete_t on_image_delete_;
 
 	void on_image_delete_proc(image &img);
+
+
+	/*
+		Работа с текстом
+	*/
+	int fonts_index_;
+	fonts_list fonts_;
+	shared_mutex fonts_mutex_;
+
 };
 
 } /* namespace cartographer */
