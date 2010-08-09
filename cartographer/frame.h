@@ -173,7 +173,6 @@ private:
 
 	static void check_gl_error();
 	void paint_tile(const tile::id &tile_id, int level = 0);
-	GLuint load_texture(raw_image &image);
 	void load_textures();
 	void delete_texture_later(GLuint texture_id);
 	void delete_texture(GLuint id);
@@ -402,7 +401,6 @@ private:
 	shared_mutex sprites_mutex_;
 	image::on_delete_t on_image_delete_;
 
-	GLuint load_image_to_texture(image &img);
 	void on_image_delete_proc(image &img);
 };
 

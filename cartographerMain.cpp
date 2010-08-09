@@ -650,13 +650,13 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 		cartographer::color(1.0, 0.67, 0.0), cartographer::color(1.0, 0.67, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,40.0, 135,4,2.0 ), 16.7, 2.0,
-		cartographer::color(0.33, 1.0, 0.0), cartographer::color(0.33, 1.0, 0.0, 0.5));
+		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,41.5, 135,4,5.5 ), 20.0, 2.0,
 		cartographer::color(0.0, 1.0, 0.0), cartographer::color(0.0, 1.0, 0.0, 0.5));
 
 	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
-		cartographer::color(0.33, 1.0, 0.0), cartographer::color(0.33, 1.0, 0.0, 0.5));
+		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
 }
 
 void cartographerFrame::OnChoice1Select(wxCommandEvent& event)

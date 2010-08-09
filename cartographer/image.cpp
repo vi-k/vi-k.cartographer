@@ -31,7 +31,7 @@ bool image::convert_from(const wxImage &src)
 	int raw_height = __p2(height_);
 	int dw = raw_width - width_;
 
-	/* Т.к. возможно понадобится дополнять текстуру прозрачными точками,
+	/* Т.к., возможно, понадобится дополнять текстуру прозрачными точками,
 		делаем RGBA-изображение вне зависимости от его исходного bpp */
 	raw_.create(raw_width, raw_height, 32, GL_RGBA);
 
@@ -92,6 +92,43 @@ void image::load_from_raw(const unsigned char *data,
 	memcpy(ptr, data, raw_.end() - data);
 
 	set_state(ready);
+}
+
+GLuint image::load_as_gl_texture()
+{
+	GLuint id;
+
+	glGenTextures(1, &id);
+
+	glBindTexture(GL_TEXTURE_2D, id);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F); /* GL_CLAMP_TO_EDGE */
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F); /* GL_CLAMP_TO_EDGE */
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, raw_.width(), raw_.height(),
+		0, (GLenum)raw_.tag(), GL_UNSIGNED_BYTE, raw_.data());
+
+	return glGetError() == GL_NO_ERROR ? id : 0;
+}
+
+GLuint image::convert_to_gl_texture()
+{
+	if (texture_id_ != 0)
+		glDeleteTextures(1, &texture_id_);
+
+	texture_id_ = load_as_gl_texture();
+
+	if (texture_id_)
+		raw_.clear(false);
+
+	return texture_id_;
 }
 
 } /* namespace cartographer */
