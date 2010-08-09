@@ -412,7 +412,12 @@ int Frame::LoadImageFromFile(const std::wstring &filename)
 	}
 
 	/* Загружаем текстуру, если это возможно */
-	load_image_to_texture(*sprite_ptr);
+	if (boost::this_thread::get_id() == paint_thread_id_)
+	{
+		sprite_ptr->convert_to_gl_texture();
+		check_gl_error();
+		++load_texture_debug_counter_;
+	}
 
 	return sprites_index_;
 }
@@ -431,7 +436,12 @@ int Frame::LoadImageFromMem(const void *data, std::size_t size)
 	}
 
 	/* Загружаем текстуру, если это возможно */
-	load_image_to_texture(*sprite_ptr);
+	if (boost::this_thread::get_id() == paint_thread_id_)
+	{
+		sprite_ptr->convert_to_gl_texture();
+		check_gl_error();
+		++load_texture_debug_counter_;
+	}
 
 	return sprites_index_;
 }
@@ -446,7 +456,12 @@ int Frame::LoadImageFromRaw(const unsigned char *data,
 	sprite_ptr->load_from_raw(data, width, height, with_alpha);
 
 	/* Загружаем текстуру, если это возможно */
-	load_image_to_texture(*sprite_ptr);
+	if (boost::this_thread::get_id() == paint_thread_id_)
+	{
+		sprite_ptr->convert_to_gl_texture();
+		check_gl_error();
+		++load_texture_debug_counter_;
+	}
 
 	return sprites_index_;
 }
@@ -552,7 +567,13 @@ void Frame::DrawImage(int image_id, double x, double y,
 		sprite::ptr sprite_ptr = iter->second;
 
 		/* Загружаем текстуру, если она не была загружена */
-		GLuint texture_id = load_image_to_texture(*sprite_ptr);
+		GLuint texture_id = sprite_ptr->texture_id();
+		if (texture_id == 0)
+		{
+			texture_id = sprite_ptr->convert_to_gl_texture();
+			check_gl_error();
+			++load_texture_debug_counter_;
+		}
 
 		double w = sprite_ptr->raw().width();
 		double h = sprite_ptr->raw().height();
@@ -662,7 +683,11 @@ void Frame::load_textures()
 		tile::ptr tile_ptr = iter->value();
 
 		if (tile_ptr->ok())
-			load_image_to_texture(*tile_ptr);
+		{
+			tile_ptr->convert_to_gl_texture();
+			check_gl_error();
+			++load_texture_debug_counter_;
+		}
 
 		++iter;
 	}
@@ -1848,48 +1873,6 @@ void Frame::on_mouse_wheel(wxMouseEvent& event)
 	}
 
 	Update();
-}
-
-GLuint Frame::load_texture(raw_image &image)
-{
-	GLuint id;
-
-	glGenTextures(1, &id);
-
-	glBindTexture(GL_TEXTURE_2D, id);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, 0x812F); /* GL_CLAMP_TO_EDGE */
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, 0x812F); /* GL_CLAMP_TO_EDGE */
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(),
-		0, (GLenum)image.tag(), GL_UNSIGNED_BYTE, image.data());
-
-	check_gl_error();
-
-	++load_texture_debug_counter_;
-
-	return id;
-}
-
-GLuint Frame::load_image_to_texture(image &img)
-{
-	GLuint texture_id = img.texture_id();
-
-	if (texture_id == 0 && boost::this_thread::get_id() == paint_thread_id_)
-	{
-		texture_id = load_texture( img.raw() );
-		img.raw().clear(false);
-		img.set_texture_id(texture_id);
-	}
-
-	return texture_id;
 }
 
 void Frame::on_image_delete_proc(image &img)

@@ -44,7 +44,10 @@ public:
 	void load_from_raw(const unsigned char *data,
 		int width, int height, bool with_alpha);
 
+	GLuint load_as_gl_texture();
+	GLuint convert_to_gl_texture();
 	
+
 	inline raw_image& raw()
 		{ return raw_; }
 
