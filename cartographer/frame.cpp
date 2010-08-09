@@ -1673,24 +1673,6 @@ void Frame::repaint(wxPaintDC &dc)
 			glVertex3d( fix_scr_x - 8, fix_scr_y + 8, 0.0 );
 			glVertex3d( fix_scr_x + 8, fix_scr_y - 8, 0.0 );
 		glEnd();
-
-		/*-
-		glBegin(GL_LINES);
-			glVertex3d( fix_scr_x, fix_scr_y - 8, 0.0 );
-			glVertex3d( fix_scr_x, fix_scr_y + 8, 0.0 );
-			glVertex3d( fix_scr_x - 8, fix_scr_y, 0.0 );
-			glVertex3d( fix_scr_x + 8, fix_scr_y, 0.0 );
-		glEnd();
-		-*/
-
-		/*-
-		glBegin(GL_LINE_LOOP);
-			glVertex3d( fix_scr_x - 10, fix_scr_y - 10, 0.0 );
-			glVertex3d( fix_scr_x + 10, fix_scr_y - 10, 0.0 );
-			glVertex3d( fix_scr_x + 10, fix_scr_y + 10, 0.0 );
-			glVertex3d( fix_scr_x - 10, fix_scr_y + 10, 0.0 );
-		glEnd();
-		-*/
 	}
 
 	/* Картинка пользователя */

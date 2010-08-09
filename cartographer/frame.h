@@ -4,7 +4,8 @@
 #include "config.h" /* Обязательно первым */
 #include "defs.h" /* point, coord, size */
 #include "image.h" /* image, sprite, tile */
-#include "geodesic.h" /* подключаю для пользователя, чтоб всё в одном месте */
+#include "font.h"
+#include "geodesic.h"
 
 #include <mylib.h>
 
