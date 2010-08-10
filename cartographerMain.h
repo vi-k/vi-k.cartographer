@@ -45,9 +45,9 @@ class cartographerFrame: public wxFrame
 		int big_font_;
 		int small_font_;
 
-		void Test(); /* Тестирование функция Картографера */
+		void Test(); /* Тестирование функций Картографера */
 
-		void OnMapPaint(wxGCDC &gc, int width, int height);
+		void OnMapPaint(double z, int width, int height);
 
 		void DrawImage(int id, const cartographer::coord &pt);
 		
