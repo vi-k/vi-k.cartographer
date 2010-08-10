@@ -109,7 +109,7 @@
 			<Add option="/DWX_PRECOMP" />
 			<Add directory="$(#wx)\include" />
 			<Add directory="$(#wx)\contrib\include" />
-			<Add directory="$(BOOST)" />
+			<Add directory="$(boost)" />
 			<Add directory="..\mylib" />
 		</Compiler>
 		<ResourceCompiler>
@@ -133,13 +133,24 @@
 			<Add library="comctl32.lib" />
 			<Add library="wsock32.lib" />
 			<Add library="odbc32.lib" />
-			<Add directory="$(BOOST)\stage\lib" />
+			<Add directory="$(boost)\stage\lib" />
 			<Add directory="..\mylib\vc_lib" />
 		</Linker>
 		<Unit filename="cartographerApp.cpp" />
 		<Unit filename="cartographerApp.h" />
 		<Unit filename="cartographerMain.cpp" />
 		<Unit filename="cartographerMain.h" />
+		<Unit filename="cartographer\config.h" />
+		<Unit filename="cartographer\defs.h" />
+		<Unit filename="cartographer\font.cpp" />
+		<Unit filename="cartographer\font.h" />
+		<Unit filename="cartographer\frame.cpp" />
+		<Unit filename="cartographer\frame.h" />
+		<Unit filename="cartographer\geodesic.cpp" />
+		<Unit filename="cartographer\geodesic.h" />
+		<Unit filename="cartographer\image.cpp" />
+		<Unit filename="cartographer\image.h" />
+		<Unit filename="cartographer\raw_image.h" />
 		<Unit filename="handle_exception.cpp" />
 		<Unit filename="handle_exception.h" />
 		<Unit filename="resource.rc">
@@ -154,8 +165,6 @@
 			<Option compiler="msvc8" use="0" buildCommand='$compiler /TP /Yc&quot;stdafx.h&quot; /nologo $options $includes /c $file /Fo$object' />
 		</Unit>
 		<Unit filename="stdafx.pch" />
-		<Unit filename="wxCartographer.cpp" />
-		<Unit filename="wxCartographer.h" />
 		<Unit filename="wxsmith\cartographerframe.wxs" />
 		<Extensions>
 			<code_completion />

@@ -45,13 +45,16 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	, big_font_(0)
 	, small_font_(0)
 {
+	#undef _
+	#define _(s) (L##s)
+
 	//(*Initialize(cartographerFrame)
 	wxMenuItem* MenuItem2;
 	wxMenuItem* MenuItem1;
 	wxMenu* Menu1;
 	wxMenuBar* MenuBar1;
 	wxMenu* Menu2;
-	
+
 	Create(parent, wxID_ANY, _("MainFrame"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_FRAME_STYLE, _T("wxID_ANY"));
 	SetClientSize(wxSize(626,293));
 	SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_BTNFACE));
@@ -88,7 +91,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	ToolBar1->Realize();
 	SetToolBar(ToolBar1);
 	FlexGridSizer1->SetSizeHints(this);
-	
+
 	Connect(ID_COMBOBOX1,wxEVT_COMMAND_COMBOBOX_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnComboBox1Select);
 	Connect(ID_CHOICE1,wxEVT_COMMAND_CHOICE_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnChoice1Select);
 	Connect(ID_MENU_QUIT,wxEVT_COMMAND_MENU_SELECTED,(wxObjectEventFunction)&cartographerFrame::OnQuit);
@@ -446,7 +449,7 @@ void cartographerFrame::Test()
 	double d7 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, 90.0), &a1, &a2, eps_in_m );
 	double d8 = cartographer::Inverse( coord(0.0, 0.0), coord(-45.0, -90.0), &a1, &a2, eps_in_m );
 	-*/
-	
+
 	return;
 }
 
@@ -562,7 +565,7 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 		/* Сохраняем старое значение */
 		cartographer::coord ptP = ptN;
 		cartographer::point ptP_pos = ptN_pos;
-		
+
 		/* Получаем новое */
 		ptN = cartographer::Direct(pt, azimuth, d, p_rev_azimuth);
 		ptN_pos = Cartographer->GeoToScr(ptN);
@@ -578,7 +581,7 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 
 			cartographer::point ptM_N_pos = Cartographer->GeoToScr(ptM_N);
 			cartographer::point ptM_P_pos = Cartographer->GeoToScr(ptM_P);
-		
+
 			/* Дочерчиваем линию на предыдущей стороне */
 			glVertex3d(ptM_P_pos.x, ptM_P_pos.y, 0);
 			glEnd();
@@ -592,7 +595,7 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 			/* Позиция новой точки на обратной стороне карты */
 			cartographer::point ptN_pos_ = Cartographer->GeoToScr( cartographer::coord(
 				ptN.lat, ptN.lon < 0.0 ? ptN.lon + 360.0 : ptN.lon - 360.0) );
-			
+
 			/* Позиция старой точки на обратной стороне карты */
 			cartographer::point ptP_pos_ = Cartographer->GeoToScr( cartographer::coord(
 				ptP.lat, ptP.lon < 0.0 ? ptP.lon + 360.0 : ptP.lon - 360.0) );
@@ -600,7 +603,7 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 			/* Дочерчиваем линию на предыдущей стороне */
 			glVertex3d(ptN_pos_.x, ptN_pos_.y, 0);
 			glEnd();
-			
+
 			/* ... и переходим на новую сторону */
 			glBegin(GL_LINE_STRIP);
 			glColor4dv(&line_color.r);
@@ -649,7 +652,7 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 
 	DrawImage(images_[9], cartographer::DMSToDD( 48,28,43.0, 135,4,5.0 ));
 
-	
+
 	DrawCircle( cartographer::DMSToDD( 48,28,36.0, 135,3,53.0 ), 10.0, 2.0,
 		cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.5));
 
@@ -668,13 +671,13 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 	{
 		cartographer::coord pt = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
 		cartographer::point pt_pos = Cartographer->GeoToScr(pt);
-		
+
 		cartographer::size sz
 			= Cartographer->DrawText(big_font_,
 				L"Хабаровск",
 				pt_pos, cartographer::color(1.0, 1.0, 1.0),
 				cartographer::ratio(0.5, 0.0));
-		
+
 		pt_pos.y += sz.height;
 		Cartographer->DrawText(small_font_,
 			L"(столица Дальнего Востока ΘΚΛΜΝ Ёё)",
@@ -685,12 +688,12 @@ void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
 	{
 		cartographer::coord pt = cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 );
 		cartographer::point pt_pos = Cartographer->GeoToScr(pt);
-		
+
 		cartographer::size sz
 			= Cartographer->DrawText(big_font_, L"Москва",
 				pt_pos, cartographer::color(1.0, 1.0, 0.0),
 				cartographer::ratio(0.5, 0.0), cartographer::ratio(0.8, 0.8));
-		
+
 		pt_pos.y += sz.height;
 		Cartographer->DrawText(small_font_, L"(столица России)",
 			pt_pos, cartographer::color(1.0, 1.0, 0.0),
