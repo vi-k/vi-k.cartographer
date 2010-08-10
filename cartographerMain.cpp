@@ -138,7 +138,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	big_font_ = Cartographer->CreateFont(
 		wxFont(12, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
 	small_font_ = Cartographer->CreateFont(
-		wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL) );
+		wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
 
 	/* Список карт */
 	int maps_count = Cartographer->GetMapsCount();
@@ -618,10 +618,8 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 	return ptN;
 }
 
-void cartographerFrame::OnMapPaint(wxGCDC &gc, int width, int height)
+void cartographerFrame::OnMapPaint(double z, int width, int height)
 {
-	const double z = Cartographer->GetActiveZ();
-
 	//for (int i = 0; i < count_; ++i)
 	//	DrawImage(images_[i], coords_[i]);
 

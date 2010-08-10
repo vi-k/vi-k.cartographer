@@ -1690,6 +1690,12 @@ void Frame::repaint(wxPaintDC &dc)
 		glLoadIdentity();
 	}
 
+	/* Картинка пользователя */
+	if (on_paint_handler_)
+		on_paint_handler_(z_, width_i, height_i);
+
+	magic_exec();
+
 	/* Показываем fix-точку при изменении масштаба */
 	if (fix_step_ || dz > 0.1)
 	{
@@ -1713,29 +1719,6 @@ void Frame::repaint(wxPaintDC &dc)
 			glVertex3d( fix_scr_x - 8, fix_scr_y + 8, 0.0 );
 			glVertex3d( fix_scr_x + 8, fix_scr_y - 8, 0.0 );
 		glEnd();
-	}
-
-	/* Картинка пользователя */
-	{
-		//wxMemoryDC dc;
-		//dc.SelectObject(buffer_);
-
-		{
-			wxGCDC gc(dc);
-
-			/* Очищаем */
-			//gc.SetBackground(*wxBLACK_BRUSH);
-			//gc.Clear();
-
-			if (on_paint_handler_)
-				on_paint_handler_(gc, width_i, height_i);
-
-			#ifndef NDEBUG
-			//paint_debug_info(gc, width_i, height_i);
-			#endif
-		}
-
-		//dc.SelectObject(wxNullBitmap);
 	}
 
 	//wxImage image = buffer_.ConvertToImage();

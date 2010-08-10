@@ -51,7 +51,7 @@ class Frame : public wxGLCanvas, my::employer
 {
 public:
 	/* Тип обработчика */
-	typedef boost::function<void (wxGCDC &gc, int width, int height)> on_paint_proc_t;
+	typedef boost::function<void (double z, int width, int height)> on_paint_proc_t;
 
 	/* Конструктор */
 	Frame(wxWindow *parent, const std::wstring &server_addr,
