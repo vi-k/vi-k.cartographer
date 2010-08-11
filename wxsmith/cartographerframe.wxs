@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<wxsmith>
+	<object class="wxFrame" name="cartographerFrame">
+		<title>MainFrame</title>
+		<size>626,293</size>
+		<bg>wxSYS_COLOUR_BTNFACE</bg>
+		<id_arg>0</id_arg>
+		<object class="wxFlexGridSizer" variable="FlexGridSizer1" member="yes">
+			<cols>1</cols>
+			<rows>2</rows>
+			<growablecols>0</growablecols>
+			<growablerows>1</growablerows>
+			<object class="sizeritem">
+				<object class="wxPanel" name="ID_PANEL2" variable="Panel2" member="yes">
+					<size>616,61</size>
+					<object class="wxComboBox" name="ID_COMBOBOX1" variable="ComboBox1" member="yes">
+						<pos>8,8</pos>
+						<size>208,24</size>
+						<style>wxCB_READONLY|wxCB_DROPDOWN</style>
+						<handler function="OnComboBox1Select" entry="EVT_COMBOBOX" />
+					</object>
+					<object class="wxChoice" name="ID_CHOICE1" variable="Choice1" member="yes">
+						<pos>232,8</pos>
+						<size>192,24</size>
+						<handler function="OnChoice1Select" entry="EVT_CHOICE" />
+					</object>
+				</object>
+				<flag>wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+				<border>5</border>
+				<option>1</option>
+			</object>
+			<object class="sizeritem">
+				<object class="wxPanel" name="ID_PANEL1" variable="Panel1" member="yes">
+					<size>616,331</size>
+				</object>
+				<flag>wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+				<border>5</border>
+				<option>1</option>
+			</object>
+		</object>
+		<object class="wxMenuBar" variable="MenuBar1" member="no">
+			<object class="wxMenu" variable="Menu1" member="no">
+				<label>Файл</label>
+				<object class="wxMenuItem" name="ID_MENU_QUIT" variable="MenuItem1" member="no">
+					<label>Выход</label>
+					<accel>Alt-F4</accel>
+					<handler function="OnQuit" entry="EVT_MENU" />
+				</object>
+			</object>
+			<object class="wxMenu" variable="Menu2" member="no">
+				<label>Помощь</label>
+				<object class="wxMenuItem" name="ID_MENU_ABOUT" variable="MenuItem2" member="no">
+					<label>О программе...</label>
+					<accel>F1</accel>
+					<handler function="OnAbout" entry="EVT_MENU" />
+				</object>
+			</object>
+		</object>
+		<object class="wxStatusBar" name="ID_STATUSBAR1" variable="StatusBar1" member="yes">
+			<fields>1</fields>
+			<widths>-1</widths>
+			<styles>wxSB_NORMAL</styles>
+		</object>
+		<object class="wxToolBar" name="ID_TOOLBAR1" variable="ToolBar1" member="yes">
+			<object class="tool" name="ID_ZOOMIN" variable="ToolBarItem1" member="yes">
+				<label>ZoomIn</label>
+				<bitmap>images/zoom-in-32.png</bitmap>
+				<tooltip>Увеличить</tooltip>
+				<handler function="OnZoomInButtonClick" entry="EVT_TOOL" />
+			</object>
+			<object class="tool" name="ID_ZOOMOUT" variable="ToolBarItem2" member="yes">
+				<label>ZoomOut</label>
+				<bitmap>images/zoom-out-32.png</bitmap>
+				<tooltip>Уменьшить</tooltip>
+				<handler function="OnZoomOutButtonClick" entry="EVT_TOOL" />
+			</object>
+			<object class="tool" name="ID_ANCHOR" variable="ToolBarItem3" member="yes">
+				<label>Anchor</label>
+				<bitmap>images/binoculars-32.png</bitmap>
+				<tooltip>Следить</tooltip>
+				<handler function="OnAnchorButtonClick" entry="EVT_TOOL" />
+				<check>1</check>
+			</object>
+		</object>
+	</object>
+</wxsmith>
