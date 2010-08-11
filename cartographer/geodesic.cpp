@@ -171,6 +171,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 
 	/* 2. Последовательные приближения */
 	double delta = 0.0;
+	double dd = 0.0;
 
 	int count = 0;
 
@@ -230,14 +231,18 @@ double Inverse(const coord &pt1, const coord &pt2,
 		const double beta_ =
 			0.0625 * (c_e4 + c_e6) - (0.03125 * c_e6) * cos2_A0;
 
-		const double prev_delta = delta;
+		const double prev_dd = dd;
+		dd = delta;
 		delta = (alpha * sigma - beta_ * x * sin_sigma) * sin_A0;
+		dd = fabs(delta - dd);
 
-		if (delta * prev_delta < 0.0)
+		if ( (count > 1 && dd >= prev_dd) /*|| count >= 1000*/)
 		{
 			/*
-				Если дельта начинает метаться, значит, мы попали
-				в точку-антипод и область вокруг неё!
+				При попадании в точку-антипод или в область вокруг неё
+				delta начинает метаться с одного значения на другое,
+				в результате чего функция входит в бесконечный цикл.
+				Также избегаем затяжных циклов.
 
 				В теории (по учебнику) точки-антиподы легко обнаружить
 				на ранней стадии: lambda = PI, u1 = -u2. А потом,
@@ -312,7 +317,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 		}
 
 		/* Достигли требуемой точности */
-		if (fabs(delta - prev_delta) < eps || count >= 10)
+		if (dd < eps)
 		{
 			/***
 				Расстояние рассчитываем по формуле:

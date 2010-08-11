@@ -120,16 +120,17 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	Cartographer = new cartographer::Frame(
 		this
-		, L"172.16.19.1" /* ServerAddr - адрес сервера */
-		, L"27543" /* ServerPort - порт сервера */
-		, 500 /* CacheSize - размер кэша (в тайлах) */
-		, L"cache" /* CachePath - путь к кэшу на диске */
-		, false /* OnlyCache - работать только с кэшем */
-		, L"Google.Спутник" /* InitMap - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, 2 /* InitZ - исходный масштаб (>1) */
-		, 48.48021475 /* InitLat - широта исходной точки */
-		, 135.0719556 /* InitLon - долгота исходной точки */
-		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* OnPaintProc - функция рисования */
+		, L"127.0.0.1" /* server_addr - адрес сервера */
+		//, L"172.16.19.1" /* server_addr - адрес сервера */
+		, L"27543" /* server_port - порт сервера */
+		, 500 /* cache_size - размер кэша (в тайлах) */
+		, L"cache" /* cache_path - путь к кэшу на диске */
+		, false /* only_cache - работать только с кэшем */
+		, L"Google.Спутник" /* init_map - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
+		, 2 /* init_z - исходный масштаб (>1) */
+		, 48.48021475 /* init_lat - широта исходной точки */
+		, 135.0719556 /* init_lon - долгота исходной точки */
+		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* on_paint_proc - функция рисования */
 		, 50, 5 /* 0 - нет анимации */
   	);
 	delete Panel1;
@@ -298,6 +299,15 @@ void cartographerFrame::Test()
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.32), &a1, &a2, eps_in_m );
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.33), &a1, &a2, eps_in_m );
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.34), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.341), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.342), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.343), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.344), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.345), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.346), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.347), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.348), &a1, &a2, eps_in_m );
+	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.349), &a1, &a2, eps_in_m );
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.35), &a1, &a2, eps_in_m );
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.36), &a1, &a2, eps_in_m );
 	d = cartographer::Inverse( coord(0.0, 0.0), coord(0.1, 179.37), &a1, &a2, eps_in_m );
