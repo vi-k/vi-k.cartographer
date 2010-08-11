@@ -110,6 +110,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	-*/
 
 	SetClientSize(400, 400);
+	Maximize(true);
 	Show(true);
 
 	/* Обязательно обнуляем, а то получим ошибку, т.к. картинки начнут
