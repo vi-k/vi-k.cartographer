@@ -60,13 +60,13 @@ public:
 		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
 		on_paint_proc_t on_paint_proc,
 		int anim_period = 0, int def_min_anim_steps = 0);
-	
+
 	~Frame();
 
 	void Stop();
 	void Update();
-	
-	
+
+
 	/*
 		Карты
 	*/
@@ -76,7 +76,7 @@ public:
 	bool SetActiveMapByIndex(int index);
 	bool SetActiveMapByName(const std::wstring &map_name);
 
-	
+
 	/*
 		Преобразование координат: географические в экранные и обратно
 	*/
@@ -86,7 +86,7 @@ public:
 	coord ScrToGeo(double x, double y);
 	coord ScrToGeo(const point &pt)
 		{ return ScrToGeo(pt.x, pt.y); }
-	
+
 	/*
 		Масштаб
 	*/
@@ -95,7 +95,7 @@ public:
 	void ZoomIn();
 	void ZoomOut();
 
-	
+
 	/*
 		Текущая позиция
 	*/
@@ -105,7 +105,7 @@ public:
 	void MoveTo(int z, const coord &pt)
 		{ MoveTo(z, pt.lat, pt.lon); }
 
-	
+
 	/*
 		Работа с изображениями
 	*/
@@ -318,6 +318,8 @@ private:
 	int painter_debug_counter_;
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
+	point mouse_pos_;
+	int system_font_id_;
 
 	void paint_debug_info(wxDC &gc, int width, int height);
 	void paint_debug_info(wxGraphicsContext &gc, int width, int height);

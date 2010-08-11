@@ -90,6 +90,8 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 	, painter_debug_counter_(0)
 	, move_mode_(false)
 	, force_repaint_(false)
+	//, mouse_pos_()
+	, system_font_id_(0)
 	, paint_thread_id_( boost::this_thread::get_id() )
 	, on_paint_handler_(on_paint_proc)
 	, sprites_index_(0)
@@ -98,7 +100,13 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 {
 	try
 	{
+		SetCurrent(gl_context_);
+
 		magic_init();
+
+		system_font_id_ = CreateFont(
+            wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
+
 
 		std::wstring request;
 		std::wstring file;
@@ -649,8 +657,6 @@ void Frame::magic_init()
 {
 	unsigned char magic_data[4] = {255, 255, 255, 255};
 
-	SetCurrent(gl_context_);
-
 	glGenTextures(1, &magic_id_);
 
 	glBindTexture(GL_TEXTURE_2D, magic_id_);
@@ -828,6 +834,18 @@ void Frame::paint_tile(const tile::id &tile_id, int level)
 			glTexCoord2d( x, y + w);
 			glVertex3d( (double)tile_id.x, (double)tile_id.y + 1.0, 0.0 );
 		glEnd();
+
+		/*-
+		magic_exec();
+
+		glColor3d(1.0, 1.0, 1.0);
+		glBegin(GL_LINE_LOOP);
+			glVertex3d( (double)tile_id.x, (double)tile_id.y, 0.0 );
+			glVertex3d( (double)tile_id.x + 1.0, (double)tile_id.y, 0.0 );
+			glVertex3d( (double)tile_id.x + 1.0, (double)tile_id.y + 1.0, 0.0 );
+			glVertex3d( (double)tile_id.x, (double)tile_id.y + 1.0, 0.0 );
+		glEnd();
+		-*/
 
 		check_gl_error();
 
@@ -1156,6 +1174,7 @@ double Frame::lat_to_tile_y(double lat, double z,
 			// q - изометрическая широта
 			// q = 1/2 * ln( (1 + sin B) / (1 - sin B) )
 			//	- e / 2 * ln( (1 + e * sin B) / (1 - e * sin B) )
+			// q = atahn(s) - c_e * atahn(e*s)
 			y = (0.5 - (atanh(s) - c_e * atanh(c_e*s)) / (2*M_PI)) * size_for_z_d(z);
 			break;
 
@@ -1210,8 +1229,7 @@ double Frame::tile_y_to_lat(double y, double z,
 			{
 				tmp2 = tmp;
 				tmp = asin(1.0 - ((1.0 + sin(tmp))*pow(1.0-c_e*sin(tmp),c_e)) / (exp((2.0*yy)/-(sz/(2.0*M_PI)))*pow(1.0+c_e*sin(tmp),c_e)) );
-
-			} while( abs(tmp - tmp2) > 0.00000001 );
+			} while( fabs(tmp - tmp2) > 0.00000001 );
 
 			lat = tmp * 180.0 / M_PI;
 		}
@@ -1527,9 +1545,6 @@ void Frame::repaint(wxPaintDC &dc)
 		/* Добавляем новые тайлы */
 		while (basis_z)
 		{
-			int xc = (basis_tile_x1 + basis_tile_x2) / 2;
-			int yc = (basis_tile_y1 + basis_tile_y2) / 2;
-
 			for (int tile_x = basis_tile_x1; tile_x < basis_tile_x2; ++tile_x)
 			{
 				for (int tile_y = basis_tile_y1; tile_y < basis_tile_y2; ++tile_y)
@@ -1725,10 +1740,27 @@ void Frame::repaint(wxPaintDC &dc)
 		glEnd();
 	}
 
-	//wxImage image = buffer_.ConvertToImage();
+    {
+        wchar_t buf[200];
 
-	/* Перерисовываем окно */
-	//dc.DrawBitmap(buffer_, 0, 0);
+        double lat = scr_y_to_lat(mouse_pos_.y, z_, map.projection,
+           fix_lat_, fix_scr_y);
+        double lon = scr_x_to_lon(mouse_pos_.x, z_,
+            fix_lon_, fix_scr_x);
+
+        int lat_d, lon_d;
+        int lat_m, lon_m;
+        double lat_s, lon_s;
+        DDToDMS(lat, &lat_d, &lat_m, &lat_s);
+        DDToDMS(lon, &lon_d, &lon_m, &lon_s);
+        __swprintf(buf, sizeof(buf)/sizeof(*buf),
+            L"lat: %d° %d\' %02.2f\" lon: %d° %d\' %02.2f\" fix_tile_y: %02.2f",
+            lat_d, lat_m, lat_s, lon_d, lon_m, lon_s, fix_tile_y);
+
+        DrawText(system_font_id_, buf,
+            point(0.0, height_d), cartographer::color(1.0, 1.0, 1.0),
+            cartographer::ratio(0.0, 1.0));
+    }
 
 	glFlush();
 	SwapBuffers();
@@ -1858,9 +1890,12 @@ void Frame::on_capture_lost(wxMouseCaptureLostEvent& event)
 
 void Frame::on_mouse_move(wxMouseEvent& event)
 {
+	mouse_pos_.x = (double)event.GetX();
+	mouse_pos_.y = (double)event.GetY();
+
 	if (move_mode_)
 	{
-		move_fix_to_scr_xy( (double)event.GetX(), (double)event.GetY() );
+		move_fix_to_scr_xy(mouse_pos_.x, mouse_pos_.y);
 		Update();
 	}
 }

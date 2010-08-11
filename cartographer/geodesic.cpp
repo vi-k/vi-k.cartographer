@@ -8,7 +8,7 @@ namespace cartographer
 double DMSToDD(double d, double m, double s)
 {
 	double sign = d < 0.0 ? -1.0 : m < 0.0 ? -1.0 : s < 0.0 ? -1.0 : 1.0;
-	return sign * (abs(d) + abs(m) / 60.0 + abs(s) / 3600.0);
+	return sign * (fabs(d) + fabs(m) / 60.0 + fabs(s) / 3600.0);
 }
 
 void DDToDMS(double dd, int *p_d, int *p_m, double *p_s)
@@ -38,11 +38,11 @@ coord Direct(const coord &pt, double azimuth, double distance,
 	const double tan_u1 = c_k * tan(pt.lat * M_PI / 180.0);
 	const double cos_u1 = 1.0 / sqrt(1.0 + tan_u1 * tan_u1);
 	const double sin_u1 = tan_u1 * cos_u1;
-	
+
 	const double sigma1 = atan2(tan_u1, cos_A1);
 	const double sin_A = cos_u1 * sin_A1;
 	const double cos2_A = 1.0 - sin_A * sin_A;
-	
+
 	const double u2 = c_eb2 * cos2_A;
 	const double A = 1.0 + u2 / 16384.0 * (4096 + u2 * (-768 + u2 * (320 - 175 * u2)));
 	const double B = u2 / 1024 * (256 + u2 * (-128 + u2 * (74 - 47 * u2)));
@@ -53,7 +53,7 @@ coord Direct(const coord &pt, double azimuth, double distance,
 	double cos_sigma;
 	double cos2sigmaM;
 
-	while (abs(sigma - sigmaP) > 1e-12)
+	while (fabs(sigma - sigmaP) > 1e-12)
 	{
 		cos2sigmaM = cos(2.0 * sigma1 + sigma);
 		sin_sigma = sin(sigma);
@@ -82,7 +82,7 @@ coord Direct(const coord &pt, double azimuth, double distance,
 	double A2 = atan2(-sin_A, tmp);
 	if (A2 < 0.0)
 		A2 += 2.0 * M_PI;
-	
+
 	if (p_rev_azimuth)
 		*p_rev_azimuth = A2 * 180.0 / M_PI;
 
@@ -105,7 +105,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 
 		Решается задача по способу Бесселя согласно его описания
 		в "Курсе сфероидической геодезии" В.П.Морозова сс.133-135.
-		
+
 			(Для желающих найти что-либо получше: ищите алгоритм по методу
 			Vincenty (http://www.ga.gov.au/geodesy/datums/vincenty_inverse.jsp).
 			На сегодня это наиболее применяемый метод, но я слишком поздно
@@ -117,7 +117,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 		использование эллипсоида WGS84. Это заставило автора вспомнить годы,
 		проведённые в университете, и "покурить" учебник с целью приведения
 		формул к универсальному виду. Что и было сделано.
-		
+
 		Теперь данный алгоритм не привязан к конкретному эллипсоиду (лишь бы
 		он был двухосный и не повёрнутый - это, конечно, тоже ограничение,
 		поэтому для расчёта траектории баллистических ракет его использовать
@@ -127,7 +127,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 		c_a - большая полуось
 			и
 		c_f - степень сжатия (flattening)
-		
+
 		Остальные константы вычисляются на основании этих двух.
 	***/
 
@@ -182,7 +182,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 		const double lambda = l + delta;
 		const double sin_lambda = sin(lambda);
 		const double cos_lambda = cos(lambda);
-		
+
 		/* Начальный азимут */
 		const double p = cos_u2 * sin_lambda;
 		const double q = b1 - b2 * cos_lambda;
@@ -200,13 +200,13 @@ double Inverse(const coord &pt1, const coord &pt2,
 		const double cos2_A0 = 1.0 - sin_A0 * sin_A0;
 
 		const double x = 2.0 * a1 - cos2_A0 * cos_sigma;
-		
+
 		/*
 			alpha = (1/2 * e^2 + 1/8 * e^4 + 1/16 * e^6 + ...)
 				- (1/16 * e^4 + 1/16 * e^6 + ...) * cos^2(A0)
 				+ (3/128 * e^6 + ...) * cos^4(A0)
 				- ...
-			
+
 			Для эллипсоида Красовского (из учебника):
 			const double alpha =
 				(33523299 - (28189 - 70 * cos2_A0) * cos2_A0) * 0.0000000001;
@@ -223,7 +223,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 			=> beta' = (1/16 * e^4 + 1/16 * e^6 + ...)
 				- (1/32 * e^6 + ...) * cos^2(A0)
 				+ ...
-			
+
 			Для эллипсоида Красовского (из учебника):
 			const double beta_ = (28189 - 94 * cos2_A0) * 0.0000000001;
 		*/
@@ -232,8 +232,8 @@ double Inverse(const coord &pt1, const coord &pt2,
 
 		const double prev_delta = delta;
 		delta = (alpha * sigma - beta_ * x * sin_sigma) * sin_A0;
-			
-		if (delta < 0.0 && prev_delta > 0.0 || delta > 0.0 && prev_delta < 0.0)
+
+		if (delta * prev_delta < 0.0)
 		{
 			/*
 				Если дельта начинает метаться, значит, мы попали
@@ -250,11 +250,11 @@ double Inverse(const coord &pt1, const coord &pt2,
 				если после неё - начинается плавное смещение к пути через полюс.
 				К самим точкам-антиподам кратчайшее расстояние есть всегда
 				константа и проходит через любой из полюсов.
-				
+
 				179.3965 - это 67 км до точки-антипода. И каким-либо образом
 				пренебречь рассчётами для метода с погрешностью в сантиметрах
 				не простительно.
-				
+
 				Нашёл простое, но медленное решение: разделить путь на два
 				отрезка. Измерить каждый, вычислить сумму. Вопрос лишь в том,
 				в какой точке разделить отрезок?
@@ -266,9 +266,9 @@ double Inverse(const coord &pt1, const coord &pt2,
 
 				Приближаю на половину разницы широт - не оптимально, но работает!
 			*/
-			
+
 			const double lonM = (pt1.lon + pt2.lon) / 2.0;
-			
+
 			coord ptM1(0.0, lonM);
 			coord ptM2(90.0, lonM);
 			double aziM1_1, aziM1_2;
@@ -279,7 +279,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 			double s2 = Inverse(pt1, ptM2, &aziM2_1, NULL, eps_in_m)
 				+ Inverse(ptM2, pt2, NULL, &aziM2_2, eps_in_m);
 
-			while ( abs(s2 - s1) > eps_in_m )
+			while ( fabs(s2 - s1) > eps_in_m )
 			{
 				if (s1 > s2)
 				{
@@ -312,12 +312,12 @@ double Inverse(const coord &pt1, const coord &pt2,
 		}
 
 		/* Достигли требуемой точности */
-		if (abs(delta - prev_delta) < eps || count >= 10)
+		if (fabs(delta - prev_delta) < eps || count >= 10)
 		{
 			/***
 				Расстояние рассчитываем по формуле:
 				distance = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-				
+
 				sigma, x - уже рассчитали
 				A, B_, C_, y - рассчитаем ниже
 			***/
@@ -325,16 +325,16 @@ double Inverse(const coord &pt1, const coord &pt2,
 			/*
 				A = b * (1 + 1/4 * k^2 - 3/64 * k^4 + 5/256 * k^6 - ...)
 					= b * (1 + k^2 * (1/4 - 3/64 * k^2 + 5/256 * k^4 - ...))
-				
+
 				где k^2 = e'^2 * Cos^2(A0)
 					(const double k2 = c_eb2 * cos2_A0;)
-				
+
 				Примеры расчётов (выносим константы вперёд):
-				
+
 				Если переменные c_xxx не определены на стадии компиляции:
 				const double A_HI = c_b * (1.0 + k2 * (0.25 + k2 * (-0.046875 + 0.01953125 * k2)));
 				const double A_LO = c_b * (1.0 + k2 * (0.25 - 0.046875 * k2));
-				
+
 				Если c_xxx - статические константы:
 				const double A_HI = c_b + (0.25 * c_b_eb2 + (-0.046875 * c_b_eb4 + 0.01953125 * c_b_eb6 * cos2_A0) * cos2_A0) * cos2_A0;
 				const double A_LO = c_b + (0.25 * c_b_eb2 - 0.046875 * c_b_eb4 * cos2_A0) * cos2_A0;
@@ -388,7 +388,7 @@ double Inverse(const coord &pt1, const coord &pt2,
 
 			const double y = (cos2_A0 * cos2_A0 - 2 * x * x) * cos_sigma;
 			distance = A * sigma + (B_ * x + C_ * y) * sin_sigma;
-			
+
 			/* Обратный азимут.
 				По учебнику обратный азимут - это азимут, с которым мы приходим
 				в конечную точку. Мне показалось более правильным считать такой
@@ -430,7 +430,7 @@ double FastDistance(const coord &pt1, const coord &pt2)
 	const double cos_B1 = cos(pt1.lat * M_PI / 180);
 	const double sin_L1 = sin(pt1.lon * M_PI / 180);
 	const double cos_L1 = cos(pt1.lon * M_PI / 180);
-	
+
 	const double r1 = c_a / sqrt(1.0 - c_e2 * sin_B1 * sin_B1);
 
 	const double x1 = r1 * cos_B1 * cos_L1;
