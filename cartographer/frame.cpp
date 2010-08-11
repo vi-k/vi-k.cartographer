@@ -1754,8 +1754,8 @@ void Frame::repaint(wxPaintDC &dc)
         DDToDMS(lat, &lat_d, &lat_m, &lat_s);
         DDToDMS(lon, &lon_d, &lon_m, &lon_s);
         __swprintf(buf, sizeof(buf)/sizeof(*buf),
-            L"lat: %d° %d\' %02.2f\" lon: %d° %d\' %02.2f\" fix_tile_y: %02.2f",
-            lat_d, lat_m, lat_s, lon_d, lon_m, lon_s, fix_tile_y);
+            L"lat: %d° %d\' %02.2f\" lon: %d° %d\' %02.2f\"",
+            lat_d, lat_m, lat_s, lon_d, lon_m, lon_s);
 
         DrawText(system_font_id_, buf,
             point(0.0, height_d), cartographer::color(1.0, 1.0, 1.0),
