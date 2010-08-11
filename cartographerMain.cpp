@@ -87,7 +87,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	ToolBar1 = new wxToolBar(this, ID_TOOLBAR1, wxDefaultPosition, wxDefaultSize, wxTB_HORIZONTAL|wxNO_BORDER, _T("ID_TOOLBAR1"));
 	ToolBarItem1 = ToolBar1->AddTool(ID_ZOOMIN, _("ZoomIn"), wxBitmap(wxImage(_T("images/zoom-in-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Увеличить"), wxEmptyString);
 	ToolBarItem2 = ToolBar1->AddTool(ID_ZOOMOUT, _("ZoomOut"), wxBitmap(wxImage(_T("images/zoom-out-32.png"))), wxNullBitmap, wxITEM_NORMAL, _("Уменьшить"), wxEmptyString);
-	ToolBarItem3 = ToolBar1->AddTool(ID_ANCHOR, _("Anchor"), wxBitmap(wxImage(_T("images\\binoculars-32.png"))), wxNullBitmap, wxITEM_CHECK, _("Следить"), wxEmptyString);
+	ToolBarItem3 = ToolBar1->AddTool(ID_ANCHOR, _("Anchor"), wxBitmap(wxImage(_T("images/binoculars-32.png"))), wxNullBitmap, wxITEM_CHECK, _("Следить"), wxEmptyString);
 	ToolBar1->Realize();
 	SetToolBar(ToolBar1);
 	FlexGridSizer1->SetSizeHints(this);
@@ -119,7 +119,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	Cartographer = new cartographer::Frame(
 		this
-		, L"127.0.0.1" /* ServerAddr - адрес сервера */
+		, L"172.16.19.1" /* ServerAddr - адрес сервера */
 		, L"27543" /* ServerPort - порт сервера */
 		, 500 /* CacheSize - размер кэша (в тайлах) */
 		, L"cache" /* CachePath - путь к кэшу на диске */
@@ -158,19 +158,19 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	images_[0] = Cartographer->LoadImageFromFile(L"images/blu-blank.png");
 	Cartographer->SetImageCentralPoint(images_[0], 31.5, 64.0);
 
-	images_[1] = Cartographer->LoadImageFromFile(L"images/Back.png");
+	images_[1] = Cartographer->LoadImageFromFile(L"images/back.png");
 	Cartographer->SetImageCentralPoint(images_[1], -1.0, 15.5);
 
-	images_[2] = Cartographer->LoadImageFromFile(L"images/Forward.png");
+	images_[2] = Cartographer->LoadImageFromFile(L"images/forward.png");
 	Cartographer->SetImageCentralPoint(images_[2], 32.0, 15.5);
 
-	images_[3] = Cartographer->LoadImageFromFile(L"images/Up.png");
+	images_[3] = Cartographer->LoadImageFromFile(L"images/up.png");
 	Cartographer->SetImageCentralPoint(images_[3], 15.5, -1.0);
 
-	images_[4] = Cartographer->LoadImageFromFile(L"images/Down.png");
+	images_[4] = Cartographer->LoadImageFromFile(L"images/down.png");
 	Cartographer->SetImageCentralPoint(images_[4], 15.5, 31.0);
 
-	images_[5] = Cartographer->LoadImageFromFile(L"images/Flag.png");
+	images_[5] = Cartographer->LoadImageFromFile(L"images/flag.png");
 	Cartographer->SetImageCentralPoint(images_[5], 3.5, 31.0);
 
 	images_[6] = Cartographer->LoadImageFromFile(L"images/write.png");

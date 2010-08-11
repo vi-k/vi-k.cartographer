@@ -1,9 +1,13 @@
 ﻿#include "frame.h"
 
-#if defined(_MSC_VER)
-#define __swprintf swprintf_s
+#ifdef BOOST_WINDOWS
+    #if defined(_MSC_VER)
+        #define __swprintf swprintf_s
+    #else
+        #define __swprintf snwprintf
+    #endif
 #else
-#define __swprintf snwprintf
+    #define __swprintf swprintf
 #endif
 
 #include <math.h> /* sin, sqrt */
@@ -352,7 +356,7 @@ void Frame::SetActiveZ(int z)
 
 	if (z < 1)
 		z = 1;
-	
+
 	if (z > 30)
 		z = 30;
 
@@ -597,7 +601,7 @@ void Frame::DrawImage(int image_id, double x, double y,
 		glEnd();
 
 		magic_exec();
-		
+
 		check_gl_error();
 	}
 }
@@ -633,7 +637,7 @@ size Frame::DrawText(int font_id, const std::wstring &str, const point &pos,
 	if (iter != fonts_.end())
 	{
 		font::ptr font_ptr = iter->second;
-		
+
 		glColor4dv(&text_color.r);
 		sz = font_ptr->draw(str, pos, center, scale);
 	}
@@ -644,7 +648,7 @@ size Frame::DrawText(int font_id, const std::wstring &str, const point &pos,
 void Frame::magic_init()
 {
 	unsigned char magic_data[4] = {255, 255, 255, 255};
-	
+
 	SetCurrent(gl_context_);
 
 	glGenTextures(1, &magic_id_);
@@ -675,7 +679,7 @@ void Frame::magic_exec()
 		последней выведенной точки последней выведенной текстуры.
 		Избавиться не удалось, поэтому делаем ход конём - выводим
 		в никуда белую текстуру */
-	
+
 	glColor4d(1.0, 1.0, 1.0, 0.0);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
@@ -713,7 +717,7 @@ void Frame::check_gl_error()
 void Frame::load_textures()
 {
 	shared_lock<shared_mutex> lock(cache_mutex_);
-	
+
 	tiles_cache::iterator iter = cache_.begin();
 
 	int count = 0;
@@ -756,7 +760,7 @@ void Frame::delete_texture(GLuint texture_id)
 void Frame::delete_textures()
 {
 	unique_lock<mutex> lock(delete_texture_mutex_);
-		
+
 	while (delete_texture_queue_.size())
 	{
 		GLuint texture_id = delete_texture_queue_.front();
@@ -787,7 +791,7 @@ tile::ptr Frame::find_tile(const tile::id &tile_id)
 void Frame::paint_tile(const tile::id &tile_id, int level)
 {
 	int z = tile_id.z - level;
-	
+
 	if (z <= 0)
 		return;
 
@@ -826,7 +830,7 @@ void Frame::paint_tile(const tile::id &tile_id, int level)
 		glEnd();
 
 		check_gl_error();
-			
+
 		/* Рамка вокруг тайла, если родного нет */
 		/*-
 		if (level) {
@@ -1532,7 +1536,7 @@ void Frame::repaint(wxPaintDC &dc)
 				{
 					tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
 					tiles_cache::iterator iter = cache_.find(tile_id);
-					
+
 					tile::ptr tile_ptr;
 
 					if (iter != cache_.end())
@@ -1604,7 +1608,7 @@ void Frame::repaint(wxPaintDC &dc)
 		-*/
 	}
 
-	
+
 	/**
 		Рисуем
 	*/
@@ -1675,7 +1679,7 @@ void Frame::repaint(wxPaintDC &dc)
 
 	/* Меняем проекцию на проекцию экрана: 0..width, 0..height */
 	{
-		magic_exec();	
+		magic_exec();
 
 		glColor4d(1.0, 1.0, 1.0, 1.0);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -1747,7 +1751,7 @@ void Frame::repaint(wxPaintDC &dc)
 	SwapBuffers();
 	check_gl_error();
 
-	paint_debug_info(dc, width_i, height_i);
+	//paint_debug_info(dc, width_i, height_i);
 
 	/* Перестраиваем очереди загрузки тайлов. Чтобы загрузка
 		начиналась с центра экрана, а не с краёв */
@@ -1815,7 +1819,7 @@ void Frame::set_fix_to_scr_xy(double scr_x, double scr_y)
 void Frame::on_paint(wxPaintEvent &event)
 {
 	wxPaintDC dc(this);
-	
+
 	repaint(dc);
 
 	event.Skip(false);
@@ -1890,7 +1894,7 @@ void Frame::on_mouse_wheel(wxMouseEvent& event)
 
 		if (z > 30)
 			z = 30.0;
-		
+
 		SetActiveZ(z);
 	}
 

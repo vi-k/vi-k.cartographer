@@ -10,7 +10,7 @@
 #include <boost/function.hpp>
 
 #include <wx/image.h> /* wxImage */
-#include <gl/gl.h> /* OpenGL */
+#include <GL/gl.h> /* OpenGL */
 
 namespace cartographer
 {
@@ -49,15 +49,15 @@ public:
 
 	GLuint load_as_gl_texture();
 	GLuint convert_to_gl_texture();
-	
+
 
 	inline raw_image& raw()
 		{ return raw_; }
 
-	
+
 	inline int state() const
 		{ return state_; }
-		
+
 	inline void set_state(int state)
 		{ state_ = state; }
 
@@ -69,13 +69,13 @@ public:
 
 	inline int width() const
 		{ return width_; }
-		
+
 	inline int height() const
 		{ return height_; }
-		
+
 	inline size scale() const
 		{ return scale_; }
-		
+
 	inline void set_scale(const size &scale)
 		{ scale_ = scale; }
 
@@ -108,7 +108,7 @@ public:
 		: image(on_delete)
 		, offset_(0.0, 0.0) {}
 
-	
+
 	size offset() const
 		{ return offset_; }
 
@@ -120,7 +120,7 @@ public:
 
 	void set_central_point(double x, double y)
 		{ offset_.width = -x - 0.5, offset_.height = -y - 0.5; }
-		
+
 
 private:
 	size offset_;

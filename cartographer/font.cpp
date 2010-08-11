@@ -15,10 +15,9 @@ size font::draw(const std::wstring &str, const point &pos,
 
 	/* Готовим символы, для которых ещё не были созданы текстуры */
 	prepare_chars(str);
-	
+
 	const wchar_t *ptr = str.c_str();
 	wchar_t ch;
-	double border = 0.0;
 
 	/* Вычисляем размер строки */
 	while ((ch = *ptr++) != 0)
@@ -106,7 +105,7 @@ size font::draw(const std::wstring &str, const point &pos,
 std::wstring font::chars_from_ranges(const std::wstring &ranges)
 {
 	std::wstring chars;
-	
+
 	const wchar_t *ptr = ranges.c_str();
 	wchar_t prev = 0;
 	wchar_t ch;
@@ -124,7 +123,7 @@ std::wstring font::chars_from_ranges(const std::wstring &ranges)
 			++prev;
 			while (prev <= ch)
 				chars.push_back(prev++);
-			
+
 			prev = 0;
 		}
 	}
@@ -272,7 +271,7 @@ void font::prepare_chars__(const std::wstring &chars)
 		unsigned char *src_end = tmp_image.raw().end()
 			- border_v * src_line_sz - border_h * 4;
 		unsigned char *src_ptr = src_begin;
-		
+
 		unsigned char *dest_ptr = image_ptr->raw().data() + 3; /* Толька альфа */
 		size_t line_sz = image_ptr->raw().width() * 4;
 
@@ -283,7 +282,7 @@ void font::prepare_chars__(const std::wstring &chars)
 			for (int i = 0; i < box_v; ++i)
 			{
 				unsigned char *line_ptr = dest_ptr + i * line_sz;
-				
+
 				for (int j = 0; j < box_h; ++j)
 				{
 					unsigned char *point_ptr = line_ptr + j * 4;
