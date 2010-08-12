@@ -7,13 +7,54 @@ namespace cartographer
 /*
 	Точка на экране
 */
-struct point
+class point
 {
+public:
 	double x;
 	double y;
 
 	point() : x(0), y(0) {}
 	point(double x, double y) : x(x), y(y) {}
+
+	inline point& operator *=(double k)
+	{
+		x *= k;
+		y *= k;
+		return *this;
+	}
+
+	inline point& operator /=(double k)
+	{
+		x /= k;
+		y /= k;
+		return *this;
+	}
+
+	inline point& operator +=(const size &offset)
+	{
+		x += offset.dx;
+		y += offset.dy;
+		return *this;
+	}
+
+	inline point& operator -=(const size &offset)
+	{
+		x -= offset.dx;
+		y -= offset.dy;
+		return *this;
+	}
+
+	inline point operator *(double k) const
+		{ return point(x * k, y * k); }
+
+	inline point operator /(double k) const
+		{ return point(x / k, y / k); }
+
+	inline point operator -(const size &offset) const
+		{ return point(x - offset.dx, y - offset.dy); }
+
+	inline point operator +(const size &offset) const
+		{ return point(x + offset.dx, y + offset.dy); }
 };
 
 /*
