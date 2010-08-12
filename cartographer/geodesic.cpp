@@ -5,6 +5,11 @@
 namespace cartographer
 {
 
+double atanh(double x)
+{
+	return 0.5 * log( (1.0 + x) / (1.0 - x) );
+}
+
 double DMSToDD(double d, double m, double s)
 {
 	double sign = d < 0.0 ? -1.0 : m < 0.0 ? -1.0 : s < 0.0 ? -1.0 : 1.0;
@@ -464,6 +469,81 @@ double FastDistance(const coord &pt1, const coord &pt2)
 		кривизны из двух рассчитанных */
 	const double r = r1 < r2 ? r1 : r2;
 	return 2.0 * r * asin(0.5 * d / r);
+}
+
+point coord_to_world(const coord &pt, projection pr)
+{
+	point pos;
+	pos.x = (pt.lon + 180.0) / 360.0;
+
+	const double sin_B = sin(pt.lat / 180.0 * M_PI);
+	double y;
+
+	switch (pr)
+	{
+		case Sphere_Mercator:
+			/* Сфера - тот же эллипсоид, но эксцентриситет равен 0 */
+			y = atanh(sin_B) / (2.0 * M_PI);
+			break;
+
+		case WGS84_Mercator:
+			/*
+				q - изометрическая широта
+				q = 1/2 * ln( (1 + sin B) / (1 - sin B) )
+					- e * 1/2 * ln( (1 + e * sin B) / (1 - e * sin B) )
+				q = atahn(s) - c_e * atahn(e*s)
+				y = q / 2PI
+            */
+			y = (atanh(sin_B) - c_e * atanh(c_e * sin_B)) / (2.0 * M_PI);
+			break;
+
+		default:
+			throw my::exception(L"Неизвестная проекция")
+				<< my::param(L"projection: ", pr);
+	}
+
+	pos.y = 0.5 - y;
+
+	return pos;
+}
+
+coord world_to_coord(const point &pos, projection pr)
+{
+	coord pt;
+	pt.lon = pos.x * 360.0 - 180.0;
+
+	const double y = 0.5 - pos.y;
+	double B = 2.0 * atan( exp(2.0 * M_PI * y) ) - M_PI_2;
+
+	switch (pr)
+	{
+		case Sphere_Mercator:
+			break;
+
+		case WGS84_Mercator:
+			/* Последовательные приближения */
+			while (1)
+			{
+				double sin_B = sin(B);
+				const double prev_B = B;
+				
+				B = asin(1.0 -
+					((1.0 + sin_B) * pow(1.0 - c_e * sin_B, c_e)) /
+					(exp(4.0 * M_PI * y) * pow(1.0 + c_e * sin_B, c_e)) );
+
+				if ( fabs(B - prev_B) < 0.00000001)
+					break;
+			}
+			break;
+
+		default:
+			throw my::exception(L"Неизвестная проекция")
+				<< my::param(L"projection: ", pr);
+	}
+
+	pt.lat = B * 180.0 / M_PI;
+
+	return pt;
 }
 
 } /* namespace cartographer */
