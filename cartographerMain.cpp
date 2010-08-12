@@ -120,8 +120,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	Cartographer = new cartographer::Frame(
 		this
-		, L"127.0.0.1" /* server_addr - адрес сервера */
-		//, L"172.16.19.1" /* server_addr - адрес сервера */
+		//, L"127.0.0.1" /* server_addr - адрес сервера */
+		, L"172.16.19.1" /* server_addr - адрес сервера */
 		, L"27543" /* server_port - порт сервера */
 		, 500 /* cache_size - размер кэша (в тайлах) */
 		, L"cache" /* cache_path - путь к кэшу на диске */
