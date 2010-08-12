@@ -104,8 +104,8 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 
 		magic_init();
 
-		system_font_id_ = CreateFont(
-            wxFont(8, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
+		system_font_id_ = CreateFont( wxFont(8,
+            wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
 
 
 		std::wstring request;
@@ -649,6 +649,10 @@ size Frame::DrawText(int font_id, const std::wstring &str, const point &pos,
 		glColor4dv(&text_color.r);
 		sz = font_ptr->draw(str, pos, center, scale);
 	}
+
+	magic_exec();
+
+	check_gl_error();
 
 	return sz;
 }
@@ -1748,17 +1752,21 @@ void Frame::repaint(wxPaintDC &dc)
         double lon = scr_x_to_lon(mouse_pos_.x, z_,
             fix_lon_, fix_scr_x);
 
+        char lat_sign[] = { lat < 0.0 ? '-' : '\0', 0};
+        char lon_sign[] = { lon < 0.0 ? '-' : '\0', 0};
         int lat_d, lon_d;
         int lat_m, lon_m;
         double lat_s, lon_s;
-        DDToDMS(lat, &lat_d, &lat_m, &lat_s);
-        DDToDMS(lon, &lon_d, &lon_m, &lon_s);
+
+        DDToDMS( fabs(lat), &lat_d, &lat_m, &lat_s );
+        DDToDMS( fabs(lon), &lon_d, &lon_m, &lon_s );
+
         __swprintf(buf, sizeof(buf)/sizeof(*buf),
-            L"lat: %d° %d\' %02.2f\" lon: %d° %d\' %02.2f\"",
-            lat_d, lat_m, lat_s, lon_d, lon_m, lon_s);
+            L"lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
+            lat_sign, lat_d, lat_m, lat_s, lon_sign, lon_d, lon_m, lon_s);
 
         DrawText(system_font_id_, buf,
-            point(0.0, height_d), cartographer::color(1.0, 1.0, 1.0),
+            point(4.0, height_d), cartographer::color(1.0, 1.0, 1.0),
             cartographer::ratio(0.0, 1.0));
     }
 
