@@ -42,7 +42,7 @@ bool image::convert_from(const wxImage &src)
 	width_ = src.GetWidth();
 	height_ = src.GetHeight();
 
-    /* Размеры OpenGL-текстур должны быть кратны 2 */
+	/* Размеры OpenGL-текстур должны быть кратны 2 */
 	int raw_width = __p2(width_);
 	int raw_height = __p2(height_);
 	int dw = raw_width - width_;

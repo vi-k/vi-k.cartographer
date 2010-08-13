@@ -496,7 +496,7 @@ point coord_to_world(const coord &pt, projection pr)
 					- e * 1/2 * ln( (1 + e * sin B) / (1 - e * sin B) )
 				q = atahn(s) - c_e * atahn(e*s)
 				y = q / 2PI
-            */
+			*/
 			y = (atanh(sin_B) - c_e * atanh(c_e * sin_B)) / (2.0 * M_PI);
 			break;
 

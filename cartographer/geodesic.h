@@ -275,7 +275,7 @@ public:
 	inline point get_tiles_pos(projection pr, double z)
 		{ return world_to_tiles( get_world_pos(pr), z ); }
 
-    /* Экранные координаты точки */
+	/* Экранные координаты точки */
 	inline point get_screen_pos(projection pr, double z,
 		const point &screen_pos, const point &center_pos)
 	{
