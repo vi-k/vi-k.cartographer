@@ -40,11 +40,10 @@ BEGIN_EVENT_TABLE(Frame, wxGLCanvas)
 	//EVT_KEY_DOWN(Frame::OnKeyDown)
 END_EVENT_TABLE()
 
-Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
-	const std::wstring &server_port, std::size_t cache_size,
-	std::wstring cache_path, bool only_cache,
-	const std::wstring &init_map, int init_z, double init_lat, double init_lon,
-	on_paint_proc_t on_paint_proc,
+Frame::Frame(wxWindow *parent,
+	const std::wstring &server_addr, const std::wstring &server_port,
+	std::size_t cache_size, bool only_cache,
+	const std::wstring &init_map, on_paint_proc_t on_paint_proc,
 	int anim_period, int def_min_anim_steps)
 	: wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
 		wxDefaultPosition, wxDefaultSize,
@@ -53,7 +52,7 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 	, magic_id_(0)
 	, load_texture_debug_counter_(0)
 	, delete_texture_debug_counter_(0)
-	, cache_path_( fs::system_complete(cache_path).string() )
+	, cache_path_( fs::system_complete(L"cache").string() )
 	, only_cache_(only_cache)
 	, cache_(cache_size)
 	, cache_active_tiles_(0)
@@ -75,22 +74,19 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 	, anim_speed_(0)
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
-	, buffer_(100,100)
 	, draw_tile_debug_counter_(0)
 	, active_map_id_(0)
-	, z_(init_z)
+	, z_(1.0)
 	, new_z_(z_)
 	, z_step_(0)
-	, fix_kx_(0.5)
-	, fix_ky_(0.5)
-	, fix_lat_(init_lat)
-	, fix_lon_(init_lon)
-	, fix_step_(0)
-	, fix_alpha_(0.0)
+	, screen_pos_()
+	, center_pos_( ratio(0.5, 0.5) )
+	, central_cross_step_(0)
+	, central_cross_alpha_(0.0)
 	, painter_debug_counter_(0)
 	, move_mode_(false)
 	, force_repaint_(false)
-	//, mouse_pos_()
+	, mouse_pos_()
 	, system_font_id_(0)
 	, paint_thread_id_( boost::this_thread::get_id() )
 	, on_paint_handler_(on_paint_proc)
@@ -158,10 +154,10 @@ Frame::Frame(wxWindow *parent, const std::wstring &server_addr,
 				std::wstring projection
 					= p.first->second.get<std::wstring>(L"projection");
 
-				if (projection == L"spheroid") /* Google */
-					map.projection = map_info::spheroid;
-				else if (projection == L"ellipsoid") /* Yandex */
-					map.projection = map_info::ellipsoid;
+				if (projection == L"spheroid" || projection == L"Sphere_Mercator")
+					map.pr = Sphere_Mercator;
+				else if (projection == L"ellipsoid" || projection == L"WGS84_Mercator")
+					map.pr = WGS84_Mercator;
 				else
 					throw my::exception(L"Неизвестный тип проекции")
 						<< my::param(L"map", map.sid)
@@ -324,32 +320,35 @@ bool Frame::SetActiveMapByName(const std::wstring &map_name)
 	return true;
 }
 
-point Frame::GeoToScr(double lat, double lon)
+point Frame::CoordToScreen(const coord &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	double w, h;
-	get_viewport_size(&w, &h);
+	const projection pr = maps_[active_map_id_].pr;
 
-	point pt;
-	pt.x = lon_to_scr_x(lon, z_, fix_lon_, w * fix_kx_);
-	pt.y = lat_to_scr_y(lat, z_, maps_[active_map_id_].projection, fix_lat_, h * fix_ky_);
-
-	return pt;
+	return coord_to_screen( pt, pr, z_,
+		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
 }
 
-coord Frame::ScrToGeo(double x, double y)
+point Frame::CoordToScreen(fast_point &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	double w, h;
-	get_viewport_size(&w, &h);
+	const projection pr = maps_[active_map_id_].pr;
 
-	coord pt;
-	pt.lat = scr_y_to_lat(y, z_, maps_[active_map_id_].projection, fix_lat_, h * fix_ky_);
-	pt.lon = scr_x_to_lon(x, z_, fix_lon_, w * fix_kx_);
+	return pt.get_screen_pos( pr, z_,
+		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
+}
 
-	return pt;
+coord Frame::ScreenToCoord(const point &pos)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+
+	const projection pr = maps_[active_map_id_].pr;
+
+	return screen_to_coord(pos, pr, z_,
+		screen_pos_.get_world_pos(pr),
+		center_pos_.get_pos() );
 }
 
 double Frame::GetActiveZ(void)
@@ -386,28 +385,16 @@ void Frame::ZoomOut()
 	SetActiveZ( new_z_ - 1.0 );
 }
 
-coord Frame::GetActiveGeoPos()
+fast_point Frame::GetScreenPos()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
-	return coord(fix_lat_, fix_lon_);
+	return screen_pos_;
 }
 
-point Frame::GetActiveScrPos()
+void Frame::MoveTo(int z, const coord &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	double w, h;
-	get_viewport_size(&w, &h);
-
-	return point(w * fix_kx_, h * fix_ky_);
-}
-
-void Frame::MoveTo(int z, double lat, double lon)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	fix_lat_ = lat;
-	fix_lon_ = lon;
+	screen_pos_ = pt;
 	SetActiveZ(z);
 }
 
@@ -781,7 +768,7 @@ void Frame::delete_textures()
 
 bool Frame::check_tile_id(const tile::id &tile_id)
 {
-	int sz = size_for_z_i(tile_id.z);
+	int sz = tiles_count(tile_id.z);
 
 	return tile_id.z >= 1
 		&& tile_id.x >= 0 && tile_id.x < sz
@@ -1157,174 +1144,7 @@ unsigned int Frame::load_and_save_xml(const std::wstring &request,
 	return reply.status_code;
 }
 
-double Frame::lon_to_tile_x(double lon, double z)
-{
-	return (lon + 180.0) * size_for_z_d(z) / 360.0;
-}
-
-double Frame::lat_to_tile_y(double lat, double z,
-	map_info::projection_t projection)
-{
-	double s = sin( lat / 180.0 * M_PI );
-	double y;
-
-	switch (projection)
-	{
-		case map_info::spheroid:
-			y = (0.5 - atanh(s) / (2*M_PI)) * size_for_z_d(z);
-			break;
-
-		case map_info::ellipsoid:
-			// q - изометрическая широта
-			// q = 1/2 * ln( (1 + sin B) / (1 - sin B) )
-			//	- e / 2 * ln( (1 + e * sin B) / (1 - e * sin B) )
-			// q = atahn(s) - c_e * atahn(e*s)
-			y = (0.5 - (atanh(s) - c_e * atanh(c_e*s)) / (2*M_PI)) * size_for_z_d(z);
-			break;
-
-		default:
-			assert(projection == map_info::spheroid
-				|| projection == map_info::ellipsoid);
-	}
-
-	return y;
-}
-
-double Frame::lon_to_scr_x(double lon, double z,
-	double fix_lon, double fix_scr_x)
-{
-	double fix_tile_x = lon_to_tile_x(fix_lon, z);
-	double tile_x = lon_to_tile_x(lon, z);
-	return (tile_x - fix_tile_x) * 256.0 + fix_scr_x;
-}
-
-double Frame::lat_to_scr_y(double lat, double z,
-	map_info::projection_t projection, double fix_lat, double fix_scr_y)
-{
-	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
-	double tile_y = lat_to_tile_y(lat, z, projection);
-	return (tile_y - fix_tile_y) * 256.0 + fix_scr_y;
-}
-
-double Frame::tile_x_to_lon(double x, double z)
-{
-	return x / size_for_z_d(z) * 360.0 - 180.0;
-}
-
-double Frame::tile_y_to_lat(double y, double z,
-	map_info::projection_t projection)
-{
-	double lat;
-	double sz = size_for_z_d(z);
-	double tmp = atan( exp( (0.5 - y / sz) * (2 * M_PI) ) );
-
-	switch (projection)
-	{
-		case map_info::spheroid:
-			lat = tmp * 360.0 / M_PI - 90.0;
-			break;
-
-		case map_info::ellipsoid:
-		{
-			tmp = tmp * 2.0 - M_PI / 2.0;
-			double yy = y - sz / 2.0;
-			double tmp2;
-			do
-			{
-				tmp2 = tmp;
-				tmp = asin(1.0 - ((1.0 + sin(tmp))*pow(1.0-c_e*sin(tmp),c_e)) / (exp((2.0*yy)/-(sz/(2.0*M_PI)))*pow(1.0+c_e*sin(tmp),c_e)) );
-			} while( fabs(tmp - tmp2) > 0.00000001 );
-
-			lat = tmp * 180.0 / M_PI;
-		}
-		break;
-
-		default:
-			assert(projection == map_info::spheroid
-				|| projection == map_info::ellipsoid);
-	}
-
-	return lat;
-}
-
-double Frame::scr_x_to_lon(double x, double z,
-	double fix_lon, double fix_scr_x)
-{
-	double fix_tile_x = lon_to_tile_x(fix_lon, z);
-	return tile_x_to_lon( fix_tile_x + (x - fix_scr_x) / 256.0, z );
-}
-
-double Frame::scr_y_to_lat(double y, double z,
-	map_info::projection_t projection, double fix_lat, double fix_scr_y)
-{
-	double fix_tile_y = lat_to_tile_y(fix_lat, z, projection);
-	return tile_y_to_lat( fix_tile_y + (y - fix_scr_y) / 256.0, z, projection );
-}
-
 #if 0
-void Frame::sort_queue(tiles_queue &queue, my::worker::ptr worker)
-{
-	tile::id fix_tile; /* Тайл в центре экрана */
-
-	/* Копируем все нужные параметры, обеспечив блокировку */
-	{
-		unique_lock<recursive_mutex> lock(params_mutex_);
-
-		fix_tile.map_id = active_map_id_;
-		fix_tile.z = (int)(z_ + 0.5);
-		fix_tile.x = (wxCoord)lon_to_tile_x(fix_lon_, (double)fix_tile.z);
-		fix_tile.y = (wxCoord)lat_to_tile_y(fix_lat_, (double)fix_tile.z,
-			maps_[fix_tile.map_id].projection);
-	}
-
-	sort_queue(queue, fix_tile, worker);
-}
-
-void Frame::sort_queue(tiles_queue &queue,
-	const tile::id &fix_tile, my::worker::ptr worker)
-{
-	if (worker)
-	{
-		unique_lock<mutex> lock(worker->get_mutex());
-
-		queue.sort( boost::bind(
-			&Frame::sort_by_dist, fix_tile, _1, _2) );
-	}
-}
-
-bool Frame::sort_by_dist( tile::id fix_tile,
-	const tiles_queue::item_type &first,
-	const tiles_queue::item_type &second )
-{
-	tile::id first_id = first.key();
-	tile::id second_id = second.key();
-
-	/* Вперёд тайлы для активной карты */
-	if (first_id.map_id != second_id.map_id)
-		return first_id.map_id == fix_tile.map_id;
-
-	/* Вперёд тайлы близкие по масштабу */
-	if (first_id.z != second_id.z)
-		return abs(first_id.z - fix_tile.z)
-			< abs(second_id.z - fix_tile.z);
-
-	/* Дальше остаются тайлы на одной карте, с одним масштабом */
-
-	/* Для расчёта растояний координаты тайлов должны быть в одном масштабе! */
-	while (fix_tile.z < first_id.z)
-		++fix_tile.z, fix_tile.x <<= 1, fix_tile.y <<= 1;
-	while (fix_tile.z > first_id.z)
-		--fix_tile.z, fix_tile.x >>= 1, fix_tile.y >>= 1;
-
-	int dx1 = first_id.x - fix_tile.x;
-	int dy1 = first_id.y - fix_tile.y;
-	int dx2 = second_id.x - fix_tile.x;
-	int dy2 = second_id.y - fix_tile.y;
-	return sqrt( (double)(dx1*dx1 + dy1*dy1) )
-		< sqrt( (double)(dx2*dx2 + dy2*dy2) );
-}
-#endif
-
 void Frame::paint_debug_info(wxDC &gc, int width, int height)
 {
 	/* Отладочная информация */
@@ -1403,6 +1223,7 @@ void Frame::paint_debug_info_int(DC &gc, int width, int height)
 	__swprintf(buf, sizeof(buf)/sizeof(*buf), L"lon: %dº %d\' %0.2f\"", d, m, s);
 	gc.DrawText(buf, x, y), y += 12;
 }
+#endif
 
 void Frame::repaint(wxPaintDC &dc)
 {
@@ -1414,217 +1235,177 @@ void Frame::repaint(wxPaintDC &dc)
 	/* Измеряем скорость выполнения функции */
 	anim_speed_sw_.start();
 
-	/* Размеры окна */
-	int width_i, height_i;
-	get_viewport_size(&width_i, &height_i);
+	/* Размеры окна + обновляем размеры экрана для центральной точки */
+	const size screen_size = get_screen_size();
+	center_pos_.set_size(screen_size);
 
-	double width_d = (double)width_i;
-	double height_d = (double)height_i;
+	//const int screen_width_i = (int)screen_size.x;
+	//const int screen_height_i = (int)screen_size.y;
 
 	/* Активная карта */
-	int map_id = active_map_id_;
-	map_info map = maps_[map_id];
+	const int map_id = active_map_id_;
+	const map_info map = maps_[map_id];
 
 	/* Текущий масштаб. При перемещениях
 		между масштабами - масштаб верхнего слоя */
-	int z_i = (int)z_;
+	const int z_i = (int)z_;
+	const double dz = z_ - (double)z_i; /* "Расстояние" от верхнего слоя */
+	const double alpha = 1.0 - dz; /* Прозрачность верхнего слоя */
 	int basis_z = z_i;
-	double dz = z_ - (double)z_i; /* "Расстояние" от верхнего слоя */
-	double alpha = 1.0 - dz; /* Прозрачность верхнего слоя */
 
+	/* Центральный тайл */
+	const point central_tile = screen_pos_.get_tiles_pos(map.pr, z_i);
 
-	/**
-		Готовим буфер
-	*/
-
-	if (!buffer_.IsOk()
-		|| buffer_.GetWidth() != width_i || buffer_.GetHeight() != height_i)
-	{
-		/* Вот такая хитрая комбинация в сравнении с
-			buffer_.Create(width, height); ускоряет вывод:
-			1) на чёрном экране (DrawRectangle) в 5 раз;
-			2) на заполненном экране (DrawBitmap) в 2 раза. */
-		wxImage image(width_i, height_i, false);
-		image.InitAlpha();
-		buffer_ = wxBitmap(image);
-
-		//buffer_.Create(width, height);
-	}
-
+	/* Позиции экрана и его центра */
+	const point screen_pos = screen_pos_.get_world_pos(map.pr);
+	const point center_pos = center_pos_.get_pos();
 
 	/**
 		Рассчитываем основание пирамиды выводимых тайлов
 	*/
+	int z_i_tile_x1;
+	int z_i_tile_y1;
+	int z_i_tile_x2;
+	int z_i_tile_y2;
 
-	/* "Тайловые" координаты fix-точки */
-	double fix_tile_x_d = lon_to_tile_x(fix_lon_, z_i);
-	double fix_tile_y_d = lat_to_tile_y(fix_lat_, z_i, map.projection);
-	int fix_tile_x_i = (int)fix_tile_x_d;
-	int fix_tile_y_i = (int)fix_tile_y_d;
-
-	/* Экранные координаты fix-точки */
-	double fix_scr_x = width_d * fix_kx_;
-	double fix_scr_y = height_d * fix_ky_;
-
-	/* Координаты его верхнего левого угла */
-	int x = (int)(fix_scr_x - (fix_tile_x_d - (double)fix_tile_x_i) * 256.0 + 0.5);
-	int y = (int)(fix_scr_y - (fix_tile_y_d - (double)fix_tile_y_i) * 256.0 + 0.5);
-
-	/* Определяем начало основания (верхний левый угол) */
-	int basis_tile_x1 = fix_tile_x_i;
-	int basis_tile_y1 = fix_tile_y_i;
-
-	while (x > 0)
-		x -= 256, --basis_tile_x1;
-	while (y > 0)
-		y -= 256, --basis_tile_y1;
-
-	/* Определяем конец основания (нижний правый угол) */
-	int basis_tile_x2 = basis_tile_x1;
-	int basis_tile_y2 = basis_tile_y1;
-
-	while (x < width_i)
-		x += 256, ++basis_tile_x2;
-	while (y < height_i)
-		y += 256, ++basis_tile_y2;
-
-	/* Отсекаем выходы за пределы видимости */
 	{
-		if (basis_tile_x1 < 0)
-			basis_tile_x1 = 0;
-		if (basis_tile_y1 < 0)
-			basis_tile_y1 = 0;
-		if (basis_tile_x2 < 0)
-			basis_tile_x2 = 0;
-		if (basis_tile_y2 < 0)
-			basis_tile_y2 = 0;
+		const int central_tile_x_i = (int)central_tile.x;
+		const int central_tile_y_i = (int)central_tile.y;
 
-		int sz = size_for_z_i(basis_z);
-		if (basis_tile_x1 > sz)
-			basis_tile_x1 = sz;
-		if (basis_tile_y1 > sz)
-			basis_tile_y1 = sz;
-		if (basis_tile_x2 > sz)
-			basis_tile_x2 = sz;
-		if (basis_tile_y2 > sz)
-			basis_tile_y2 = sz;
-	}
+		/* Координаты его верхнего левого угла */
+		//point tile_corner = center_pos
+		//	- (central_tile - point(central_tile_x_i, central_tile_y_i)) * 256.0;
+		point tile_corner(
+			center_pos.x - (central_tile.x - central_tile_x_i) * 256.0,
+			center_pos.y - (central_tile.y - central_tile_y_i) * 256.0);
 
-	/* Сохраняем границы верхнего слоя */
-	int z_i_tile_x1 = basis_tile_x1;
-	int z_i_tile_y1 = basis_tile_y1;
-	int z_i_tile_x2 = basis_tile_x2;
-	int z_i_tile_y2 = basis_tile_y2;
+		/* Определяем начало основания (верхний левый угол) */
+		int basis_tile_x1 = central_tile_x_i;
+		int basis_tile_y1 = central_tile_y_i;
 
-	/* При переходе между масштабами основанием будет нижний слой */
-	//if (dz > 0.01)
-	{
-		basis_tile_x1 <<= 1;
-		basis_tile_y1 <<= 1;
-		basis_tile_x2 <<= 1;
-		basis_tile_y2 <<= 1;
-		++basis_z;
-	}
+		while (tile_corner.x > 0.0)
+			tile_corner.x -= 256.0, --basis_tile_x1;
+		while (tile_corner.y > 0.0)
+			tile_corner.y -= 256.0, --basis_tile_y1;
 
-	/* Если основание изменилось - перестраиваем пирамиду */
-	if ( basis_map_id_ != map_id
-		|| basis_z_ != basis_z
-		|| basis_tile_x1_ != basis_tile_x1
-		|| basis_tile_y1_ != basis_tile_y1
-		|| basis_tile_x2_ != basis_tile_x2
-		|| basis_tile_y2_ != basis_tile_y2 )
-	{
-		unique_lock<shared_mutex> lock(cache_mutex_);
+		/* Определяем конец основания (нижний правый угол) */
+		int basis_tile_x2 = basis_tile_x1;
+		int basis_tile_y2 = basis_tile_y1;
 
-		int tiles_count = 0; /* Считаем кол-во тайлов в пирамиде */
+		while (tile_corner.x < screen_size.width)
+			tile_corner.x += 256.0, ++basis_tile_x2;
+		while (tile_corner.y < screen_size.height)
+			tile_corner.y += 256.0, ++basis_tile_y2;
 
-		/* Сохраняем новое основание */
-		basis_map_id_ = map_id;
-		basis_z_ = basis_z;
-		basis_tile_x1_ = basis_tile_x1;
-		basis_tile_y1_ = basis_tile_y1;
-		basis_tile_x2_ = basis_tile_x2;
-		basis_tile_y2_ = basis_tile_y2;
-
-		/* Добавляем новые тайлы */
-		while (basis_z)
+		/* Отсекаем выходы за пределы видимости */
 		{
-			for (int tile_x = basis_tile_x1; tile_x < basis_tile_x2; ++tile_x)
+			if (basis_tile_x1 < 0)
+				basis_tile_x1 = 0;
+			if (basis_tile_y1 < 0)
+				basis_tile_y1 = 0;
+			if (basis_tile_x2 < 0)
+				basis_tile_x2 = 0;
+			if (basis_tile_y2 < 0)
+				basis_tile_y2 = 0;
+
+			int sz = tiles_count(basis_z);
+			if (basis_tile_x1 > sz)
+				basis_tile_x1 = sz;
+			if (basis_tile_y1 > sz)
+				basis_tile_y1 = sz;
+			if (basis_tile_x2 > sz)
+				basis_tile_x2 = sz;
+			if (basis_tile_y2 > sz)
+				basis_tile_y2 = sz;
+		}
+
+		/* Сохраняем границы верхнего слоя */
+		z_i_tile_x1 = basis_tile_x1;
+		z_i_tile_y1 = basis_tile_y1;
+		z_i_tile_x2 = basis_tile_x2;
+		z_i_tile_y2 = basis_tile_y2;
+
+		/* При переходе между масштабами основанием будет нижний слой */
+		//if (dz > 0.01)
+		{
+			basis_tile_x1 <<= 1;
+			basis_tile_y1 <<= 1;
+			basis_tile_x2 <<= 1;
+			basis_tile_y2 <<= 1;
+			++basis_z;
+		}
+
+		/* Если основание изменилось - перестраиваем пирамиду */
+		if ( basis_map_id_ != map_id
+			|| basis_z_ != basis_z
+			|| basis_tile_x1_ != basis_tile_x1
+			|| basis_tile_y1_ != basis_tile_y1
+			|| basis_tile_x2_ != basis_tile_x2
+			|| basis_tile_y2_ != basis_tile_y2 )
+		{
+			unique_lock<shared_mutex> lock(cache_mutex_);
+
+			int tiles_count = 0; /* Считаем кол-во тайлов в пирамиде */
+
+			/* Сохраняем новое основание */
+			basis_map_id_ = map_id;
+			basis_z_ = basis_z;
+			basis_tile_x1_ = basis_tile_x1;
+			basis_tile_y1_ = basis_tile_y1;
+			basis_tile_x2_ = basis_tile_x2;
+			basis_tile_y2_ = basis_tile_y2;
+
+			/* Добавляем новые тайлы */
+			while (basis_z)
 			{
-				for (int tile_y = basis_tile_y1; tile_y < basis_tile_y2; ++tile_y)
+				for (int tile_x = basis_tile_x1; tile_x < basis_tile_x2; ++tile_x)
 				{
-					tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
-					tiles_cache::iterator iter = cache_.find(tile_id);
-
-					tile::ptr tile_ptr;
-
-					if (iter != cache_.end())
-						tile_ptr = iter->value();
-					else
+					for (int tile_y = basis_tile_y1; tile_y < basis_tile_y2; ++tile_y)
 					{
-						tile_ptr = tile::ptr( new tile(on_image_delete_) );
-						tile_ptr->set_state(tile::file_loading);
+						tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
+						tiles_cache::iterator iter = cache_.find(tile_id);
+
+						tile::ptr tile_ptr;
+
+						if (iter != cache_.end())
+							tile_ptr = iter->value();
+						else
+						{
+							tile_ptr = tile::ptr( new tile(on_image_delete_) );
+							tile_ptr->set_state(tile::file_loading);
+						}
+
+						cache_.insert(tile_id, tile_ptr);
+
+						++tiles_count;
 					}
-
-					cache_.insert(tile_id, tile_ptr);
-
-					++tiles_count;
 				}
+
+				--basis_z;
+
+				basis_tile_x1 >>= 1;
+				basis_tile_y1 >>= 1;
+
+				if (basis_tile_x2 & 1)
+					++basis_tile_x2;
+				basis_tile_x2 >>= 1;
+
+				if (basis_tile_y2 & 1)
+					++basis_tile_y2;
+				basis_tile_y2 >>= 1;
 			}
 
-			--basis_z;
+			/* Сортируем */
+			////
 
-			basis_tile_x1 >>= 1;
-			basis_tile_y1 >>= 1;
+			/* Устанавливаем итераторы загрузчиков на начало. Будим их */
+			file_iterator_ = server_iterator_ = cache_.begin();
+			wake_up(file_loader_);
+			wake_up(server_loader_);
 
-			if (basis_tile_x2 & 1)
-				++basis_tile_x2;
-			basis_tile_x2 >>= 1;
+			cache_active_tiles_ = tiles_count;
 
-			if (basis_tile_y2 & 1)
-				++basis_tile_y2;
-			basis_tile_y2 >>= 1;
 		}
-
-		/* Сортируем */
-		////
-
-		/* Устанавливаем итераторы загрузчиков на начало. Будим их */
-		file_iterator_ = server_iterator_ = cache_.begin();
-		wake_up(file_loader_);
-		wake_up(server_loader_);
-
-		cache_active_tiles_ = tiles_count;
-
-		/*-
-		wchar_t buf[200];
-		std::wstring str;
-		int z = 0;
-		int count1 = 0;
-		int count2 = 0;
-
-		for (tiles_cache::iterator iter = cache_.begin();
-			iter != cache_.end(); ++iter)
-		{
-			tile::id tile_id = iter->key();
-			tile &ti = *(iter->value().get());
-			tile_id = tile_id;
-			if (z != tile_id.z && z != 0)
-			{
-				__swprintf(buf, sizeof(buf)/sizeof(*buf), L" %d:(%d,%d)",
-					z, count1, count2);
-				str += buf;
-				count2 = 0;
-			}
-			z = tile_id.z;
-			++count1;
-			++count2;
-		}
-		__swprintf(buf, sizeof(buf)/sizeof(*buf), L" %d:(%d,%d)",
-			z, count1, count2);
-		str += buf;
-		str = str;
-		-*/
 	}
 
 
@@ -1643,26 +1424,26 @@ void Frame::repaint(wxPaintDC &dc)
 		glEnable(GL_BLEND);
 		glEnable(GL_LINE_SMOOTH);
 
-		glViewport(0, 0, width_i, height_i);
+		glViewport(0, 0, screen_size.width, screen_size.height);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		/* Уровень GL_PROJECTION */
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
 
-		/* Зрителя помещаем в fix-точку */
-		double w = width_d / 256.0;
-		double h = height_d / 256.0;
-		double x = -w * fix_kx_;
-		double y = -h * fix_ky_;
+		/* Зрителя помещаем в центральную точку (тайловые координаты) */
+		size sz = screen_size / 256.0;
+		point pos = -center_pos_.get_pos_for(sz);
 
 		#ifdef TEST_FRUSTRUM
-		glFrustum(x, x + w, -y - h, -y, 0.8, 3.0);
+		glFrustum( pos.x, pos.x + sz.width,
+			-pos.y - sz.height, -pos.y, 0.8, 3.0 );
 		#else
-		glOrtho(x, x + w, -y - h, -y, -1.0, 2.0);
+		glOrtho( pos.x, pos.x + sz.width,
+			-pos.y - sz.height, -pos.y, -1.0, 2.0 );
 		#endif
 
-		/* С вертикалью работаем по старинке - сверху вниз, а не снизу вверх */
+		/* С вертикалью работаем сверху вниз, а не снизу вверх */
 		glScaled(1.0 + dz, -1.0 - dz, 1.0);
 	}
 
@@ -1674,7 +1455,7 @@ void Frame::repaint(wxPaintDC &dc)
 
 		/* Тайлы заднего фона меньше в два раза */
 		glScaled(0.5, 0.5, 1.0);
-		glTranslated(-2.0 * fix_tile_x_d, -2.0 * fix_tile_y_d, 0.0);
+		glTranslated(-2.0 * central_tile.x, -2.0 * central_tile.y, 0.0);
 
 		glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -1687,7 +1468,7 @@ void Frame::repaint(wxPaintDC &dc)
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glTranslated(-fix_tile_x_d, -fix_tile_y_d, 0.0);
+	glTranslated(-central_tile.x, -central_tile.y, 0.0);
 
 	glColor4f(1.0f, 1.0f, 1.0f, alpha);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -1696,7 +1477,7 @@ void Frame::repaint(wxPaintDC &dc)
 		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
 			paint_tile( tile::id(map_id, z_i, x, y) );
 
-	/* Меняем проекцию на проекцию экрана: 0..width, 0..height */
+	/* Меняем проекцию на проекцию экрана */
 	{
 		magic_exec();
 
@@ -1706,7 +1487,7 @@ void Frame::repaint(wxPaintDC &dc)
 		glMatrixMode(GL_PROJECTION);
 		glLoadIdentity();
 
-		glOrtho(0.0, width_d, -height_d, 0.0, -1.0, 2.0);
+		glOrtho(0.0, screen_size.width, -screen_size.height, 0.0, -1.0, 2.0);
 		glScaled(1.0, -1.0, 1.0);
 
 		glMatrixMode(GL_MODELVIEW);
@@ -1715,58 +1496,57 @@ void Frame::repaint(wxPaintDC &dc)
 
 	/* Картинка пользователя */
 	if (on_paint_handler_)
-		on_paint_handler_(z_, width_i, height_i);
+		on_paint_handler_(z_, screen_size.width, screen_size.height);
 
 	magic_exec();
 
 	/* Показываем fix-точку при изменении масштаба */
-	if (fix_step_ || dz > 0.1)
+	if (central_cross_step_ || dz > 0.1)
 	{
-		if (fix_step_ == 0)
+		if (central_cross_step_ == 0)
 		{
-			fix_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
-			fix_alpha_ = 1.0;
+			central_cross_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
+			central_cross_alpha_ = 1.0;
 		}
 		else
 		{
-			fix_alpha_ -= fix_alpha_ / fix_step_;
-			--fix_step_;
+			central_cross_alpha_ -= central_cross_alpha_ / central_cross_step_;
+			--central_cross_step_;
 		}
 
 		glLineWidth(3);
-		glColor4d( 1.0, 0.0, 0.0, fix_alpha_ );
+		glColor4d( 1.0, 0.0, 0.0, central_cross_alpha_ );
 
 		glBegin(GL_LINES);
-			glVertex3d( fix_scr_x - 8, fix_scr_y - 8, 0.0 );
-			glVertex3d( fix_scr_x + 8, fix_scr_y + 8, 0.0 );
-			glVertex3d( fix_scr_x - 8, fix_scr_y + 8, 0.0 );
-			glVertex3d( fix_scr_x + 8, fix_scr_y - 8, 0.0 );
+			glVertex3d( center_pos.x - 8, center_pos.y - 8, 0.0 );
+			glVertex3d( center_pos.x + 8, center_pos.y + 8, 0.0 );
+			glVertex3d( center_pos.x - 8, center_pos.y + 8, 0.0 );
+			glVertex3d( center_pos.x + 8, center_pos.y - 8, 0.0 );
 		glEnd();
 	}
 
     {
         wchar_t buf[200];
 
-        double lat = scr_y_to_lat(mouse_pos_.y, z_, map.projection,
-           fix_lat_, fix_scr_y);
-        double lon = scr_x_to_lon(mouse_pos_.x, z_,
-            fix_lon_, fix_scr_x);
+        coord mouse_coord = screen_to_coord(
+			mouse_pos_, map.pr, z_, screen_pos, center_pos);
 
-        char lat_sign[] = { lat < 0.0 ? '-' : '\0', 0};
-        char lon_sign[] = { lon < 0.0 ? '-' : '\0', 0};
-        int lat_d, lon_d;
-        int lat_m, lon_m;
-        double lat_s, lon_s;
+		int lat_sign, lon_sign;
+		int lat_d, lon_d;
+		int lat_m, lon_m;
+		double lat_s, lon_s;
 
-        DDToDMS( fabs(lat), &lat_d, &lat_m, &lat_s );
-        DDToDMS( fabs(lon), &lon_d, &lon_m, &lon_s );
+		DDToDMS( mouse_coord,
+			&lat_sign, &lat_d, &lat_m, &lat_s,
+			&lon_sign, &lon_d, &lon_m, &lon_s);
 
         __swprintf(buf, sizeof(buf)/sizeof(*buf),
             L"lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
-            lat_sign, lat_d, lat_m, lat_s, lon_sign, lon_d, lon_m, lon_s);
+			lat_sign < 0 ? L"-" : L"", lat_d, lat_m, lat_s,
+			lon_sign < 0 ? L"-" : L"", lon_d, lon_m, lon_s);
 
         DrawText(system_font_id_, buf,
-            point(4.0, height_d), cartographer::color(1.0, 1.0, 1.0),
+            point(4.0, screen_size.height), cartographer::color(1.0, 1.0, 1.0),
             cartographer::ratio(0.0, 1.0));
     }
 
@@ -1775,13 +1555,6 @@ void Frame::repaint(wxPaintDC &dc)
 	check_gl_error();
 
 	//paint_debug_info(dc, width_i, height_i);
-
-	/* Перестраиваем очереди загрузки тайлов. Чтобы загрузка
-		начиналась с центра экрана, а не с краёв */
-	//sort_queue(file_queue_, fix_tile, file_loader_);
-
-	/* Серверную очередь тоже корректируем */
-	//sort_queue(server_queue_, fix_tile, server_loader_);
 
 	/* Удаляем текстуры, вышедшие из употребления */
 	delete_textures();
@@ -1814,29 +1587,38 @@ void Frame::repaint(wxPaintDC &dc)
 	anim_freq_sw_.start();
 }
 
-void Frame::move_fix_to_scr_xy(double scr_x, double scr_y)
+size Frame::get_screen_size()
 {
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	double w, h;
-	get_viewport_size(&w, &h);
-
-	fix_kx_ = scr_x / w;
-	fix_ky_ = scr_y / h;
+	wxCoord w, h;
+	GetClientSize(&w, &h);
+	return size( (double)w, (double)h);
 }
 
-void Frame::set_fix_to_scr_xy(double scr_x, double scr_y)
+point Frame::get_screen_max_point()
+{
+	wxCoord w, h;
+	GetClientSize(&w, &h);
+	return point( (double)w, (double)h);
+}
+
+void Frame::move_screen_to(const point &pos)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+	center_pos_.set_pos(pos);
+}
+
+void Frame::set_screen_pos(const point &pos)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	double w, h;
-	get_viewport_size(&w, &h);
+	const projection pr = maps_[active_map_id_].pr;
 
-	fix_lat_ = scr_y_to_lat(scr_y, z_, maps_[active_map_id_].projection,
-		fix_lat_, h * fix_ky_);
-	fix_lon_ = scr_x_to_lon(scr_x, z_, fix_lon_, w * fix_kx_);
-
-	move_fix_to_scr_xy(scr_x, scr_y);
+	screen_pos_ = screen_to_coord(
+		pos, pr, z_, screen_pos_.get_world_pos(pr),
+		center_pos_.get_pos() );
+	
+	/* move_screen_to() */
+	center_pos_.set_pos(pos);
 }
 
 void Frame::on_paint(wxPaintEvent &event)
@@ -1862,7 +1644,7 @@ void Frame::on_left_down(wxMouseEvent& event)
 {
 	SetFocus();
 
-	set_fix_to_scr_xy( (double)event.GetX(), (double)event.GetY() );
+	set_screen_pos( point(event.GetX(), event.GetY()) );
 
 	move_mode_ = true;
 
@@ -1877,10 +1659,7 @@ void Frame::on_left_up(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
-		double w, h;
-		get_viewport_size(&w, &h);
-
-		//set_fix_to_scr_xy( w/2.0, h/2.0 );
+		//set_screen_pos( point( get_screen_size() / 2.0 ) );
 		move_mode_ = false;
 
 		#ifdef BOOST_WINDOWS
@@ -1903,7 +1682,7 @@ void Frame::on_mouse_move(wxMouseEvent& event)
 
 	if (move_mode_)
 	{
-		move_fix_to_scr_xy(mouse_pos_.x, mouse_pos_.y);
+		move_screen_to(mouse_pos_);
 		Update();
 	}
 }

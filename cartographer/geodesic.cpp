@@ -16,8 +16,11 @@ double DMSToDD(double d, double m, double s)
 	return sign * (fabs(d) + fabs(m) / 60.0 + fabs(s) / 3600.0);
 }
 
-void DDToDMS(double dd, int *p_d, int *p_m, double *p_s)
+void DDToDMS(double dd, int *p_sign, int *p_d, int *p_m, double *p_s)
 {
+	*p_sign = dd < 0.0 ? -1 : 1;
+	dd = fabs(dd);
+
 	int d = (int)dd;
 	double m_d = (dd - d) * 60.0;
 	int m = (int)m_d;
@@ -513,7 +516,7 @@ coord world_to_coord(const point &pos, projection pr)
 	pt.lon = pos.x * 360.0 - 180.0;
 
 	const double y = 0.5 - pos.y;
-	double B = 2.0 * atan( exp(2.0 * M_PI * y) ) - M_PI_2;
+	double B = 2.0 * atan( exp(2.0 * M_PI * y) ) - M_PI / 2.0;
 
 	switch (pr)
 	{
