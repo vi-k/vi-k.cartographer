@@ -47,13 +47,13 @@ bool cartographerApp::OnInit()
 	main_log_stream.open("main.log", std::ios::app);
 
 	if (log_exists)
-        main_log_stream << std::endl;
-    else
+		main_log_stream << std::endl;
+	else
 	{
-	    std::ofstream fs("main.log");
-	    fs << "\xEF\xBB\xBF";
-	    fs.close();
-	    main_log_stream.open("main.log", std::ios::app);
+		std::ofstream fs("main.log");
+		fs << "\xEF\xBB\xBF";
+		fs.close();
+		main_log_stream.open("main.log", std::ios::app);
 	}
 
 	main_log_stream.imbue( std::locale( main_log_stream.getloc(),

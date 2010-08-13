@@ -1,13 +1,13 @@
 ﻿#include "frame.h"
 
 #ifdef BOOST_WINDOWS
-    #if defined(_MSC_VER)
-        #define __swprintf swprintf_s
-    #else
-        #define __swprintf snwprintf
-    #endif
+	#if defined(_MSC_VER)
+		#define __swprintf swprintf_s
+	#else
+		#define __swprintf snwprintf
+	#endif
 #else
-    #define __swprintf swprintf
+	#define __swprintf swprintf
 #endif
 
 #include <math.h> /* sin, sqrt */
@@ -18,12 +18,6 @@
 #include <locale>
 
 #include <boost/bind.hpp>
-
-template<typename Real>
-Real atanh(Real x)
-{
-	return 0.5 * log( (1.0 + x) / (1.0 - x) );
-}
 
 namespace cartographer
 {
@@ -101,7 +95,7 @@ Frame::Frame(wxWindow *parent,
 		magic_init();
 
 		system_font_id_ = CreateFont( wxFont(8,
-            wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
+			wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
 
 
 		std::wstring request;
@@ -1525,10 +1519,10 @@ void Frame::repaint(wxPaintDC &dc)
 		glEnd();
 	}
 
-    {
-        wchar_t buf[200];
+	{
+		wchar_t buf[200];
 
-        coord mouse_coord = screen_to_coord(
+		coord mouse_coord = screen_to_coord(
 			mouse_pos_, map.pr, z_, screen_pos, center_pos);
 
 		int lat_sign, lon_sign;
@@ -1540,15 +1534,15 @@ void Frame::repaint(wxPaintDC &dc)
 			&lat_sign, &lat_d, &lat_m, &lat_s,
 			&lon_sign, &lon_d, &lon_m, &lon_s);
 
-        __swprintf(buf, sizeof(buf)/sizeof(*buf),
-            L"lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
+		__swprintf(buf, sizeof(buf)/sizeof(*buf),
+			L"lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
 			lat_sign < 0 ? L"-" : L"", lat_d, lat_m, lat_s,
 			lon_sign < 0 ? L"-" : L"", lon_d, lon_m, lon_s);
 
-        DrawText(system_font_id_, buf,
-            point(4.0, screen_size.height), cartographer::color(1.0, 1.0, 1.0),
-            cartographer::ratio(0.0, 1.0));
-    }
+		DrawText(system_font_id_, buf,
+			point(4.0, screen_size.height), cartographer::color(1.0, 1.0, 1.0),
+			cartographer::ratio(0.0, 1.0));
+	}
 
 	glFlush();
 	SwapBuffers();

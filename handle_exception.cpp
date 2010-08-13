@@ -18,26 +18,26 @@ void handle_exception(
 	const std::wstring &window_title)
 {
 	std::wstring log_title;
-    std::wstring error;
+	std::wstring error;
 	std::wstringstream log;
 
-    if (!e)
-    {
-    	log_title = L"unknown exception";
-    	error = L"Неизвестное исключение";
-    }
-    else
-    {
-	    my::exception *my_e_ptr = dynamic_cast<my::exception*>(e);
+	if (!e)
+	{
+		log_title = L"unknown exception";
+		error = L"Неизвестное исключение";
+	}
+	else
+	{
+		my::exception *my_e_ptr = dynamic_cast<my::exception*>(e);
 
-	    if (my_e_ptr)
-    	{
-    		log_title = L"my::exception";
-	    	error = my_e_ptr->message();
-    	}
+		if (my_e_ptr)
+		{
+			log_title = L"my::exception";
+			error = my_e_ptr->message();
+		}
 		else
 		{
-    		log_title = L"std::exception";
+			log_title = L"std::exception";
 			my::exception my_e(*e);
 			error = my_e.message();
 		}
