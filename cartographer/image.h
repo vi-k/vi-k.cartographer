@@ -27,8 +27,8 @@ public:
 
 	image(on_delete_t on_delete = on_delete_t())
 		: state_(unknown)
-		, width_(0.0)
-		, height_(0.0)
+		, width_(0)
+		, height_(0)
 		, scale_(1.0, 1.0)
 		, texture_id_(0)
 		, on_delete_(on_delete) {}
@@ -73,10 +73,10 @@ public:
 	inline int height() const
 		{ return height_; }
 
-	inline size scale() const
+	inline ratio scale() const
 		{ return scale_; }
 
-	inline void set_scale(const size &scale)
+	inline void set_scale(const ratio &scale)
 		{ scale_ = scale; }
 
 	inline GLuint texture_id() const
@@ -90,7 +90,7 @@ protected:
 	int state_;
 	int width_;
 	int height_;
-	size scale_;
+	ratio scale_;
 	GLuint texture_id_;
 	on_delete_t on_delete_;
 };
@@ -106,24 +106,34 @@ public:
 
 	sprite(on_delete_t on_delete = on_delete_t())
 		: image(on_delete)
-		, offset_(0.0, 0.0) {}
+		, center_(0.5, 0.5) {}
 
 
-	size offset() const
-		{ return offset_; }
+    /* Центр изображения задаётся относительно размеров изображения */
+	ratio center() const
+		{ return center_; }
 
-	void set_offset(double dx, double dy)
-		{ offset_.width = dx, offset_.height = dy; }
+	void set_center(const ratio &pos)
+		{ center_ = pos; }
 
+	/* Центральная точка - центр конкретного пикселя: от 0 до sz-1.
+		Координаты верхнего угла изображения в этом случае - это координаты
+		верхнего левого угла верхнего левого пикселя, т.е. равны -0.5,-0.5 */
 	point central_point() const
-		{ return point(-offset_.width - 0.5, -offset_.height - 0.5); }
+	{
+		return point(width_ * center_.kx - 0.5,
+			height_ * center_.ky - 0.5);
+	}
 
-	void set_central_point(double x, double y)
-		{ offset_.width = -x - 0.5, offset_.height = -y - 0.5; }
+	void set_central_point(const point &pos)
+	{
+		center_.kx = (pos.x + 0.5) / width_;
+		center_.ky = (pos.y + 0.5) / height_;
+	}
 
 
 private:
-	size offset_;
+	ratio center_;
 };
 
 

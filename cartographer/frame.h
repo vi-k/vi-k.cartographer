@@ -107,38 +107,44 @@ public:
 	int LoadImageFromFile(const std::wstring &filename);
 	int LoadImageFromMem(const void *data, std::size_t size);
 	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
+
+	template<class C_ImageStruct>
+	int LoadImageFromC(C_ImageStruct &st)
+	{
+		return LoadImageFromRaw( st.pixel_data,
+			st.width, st.height, st.bytes_per_pixel == 4);
+	}
+
 	void DeleteImage(int image_id);
 
-	/* Смещение изображения при выводе. По умолчанию: 0.0, 0.0 */
-	size GetImageOffset(int image_id);
-	void SetImageOffset(int image_id, double dx, double dy);
+	/* Центр изображения - задаётся относительно размеров изображения от 0.0 до 1.0 */
+	ratio GetImageCenter(int image_id);
+	void SetImageCenter(int image_id, const ratio &pos);
+	inline void SetImageCenter(int image_id, double kx, double ky)
+		{ SetImageCenter(image_id, ratio(kx, ky)); }
 
-	/* Центральная точка изображения. На деле устанавливает смещение
-		изображения равным -(x + 0.5), -(y + 0.5) */
+	/* Центральная точка изображения - для удобства
+		установки центра изображения на конкретную точку */
 	point GetImageCentralPoint(int image_id);
-	void SetImageCentralPoint(int image_id, double x, double y);
+	void SetImageCentralPoint(int image_id, const point &pos);
+	inline void SetImageCentralPoint(int image_id, double x, double y)
+		{ SetImageCentralPoint(image_id, point(x, y)); }
 
 	/* Размеры изображения */
 	size GetImageSize(int image_id);
-	size GetImageScale(int image_id);
-	void SetImageScale(int image_id, const size &scale);
-	inline void SetImageScale(int image_id, double scale_w, double scale_h)
-		{ SetImageScale( image_id, size(scale_w, scale_h) ); }
+	ratio GetImageScale(int image_id);
+	void SetImageScale(int image_id, const ratio &scale);
+	inline void SetImageScale(int image_id, double kx, double ky)
+		{ SetImageScale(image_id, ratio(kx, ky)); }
+	inline void SetImageScale(int image_id, double k)
+		{ SetImageScale(image_id, ratio(k, k)); }
 
 	/* Вывод изображения */
-	void DrawImage(int image_id, double x, double y, double scale_x, double scale_y);
-	inline void DrawImage(int image_id, double x, double y, double k)
-		{ return DrawImage(image_id, x, y, k, k); }
-	inline void DrawImage(int image_id, double x, double y)
-		{ return DrawImage(image_id, x, y, 1.0, 1.0); }
-	inline void DrawImage(int image_id, const point &pos, double scale_x, double scale_y)
-		{ DrawImage(image_id, pos.x, pos.y, scale_x, scale_y); }
+	void DrawImage(int image_id, const point &pos, const ratio &scale = ratio(1.0, 1.0));
+	inline void DrawImage(int image_id, const point &pos, double kx, double ky)
+		{ return DrawImage(image_id, pos, ratio(kx, ky)); }
 	inline void DrawImage(int image_id, const point &pos, double k)
-		{ DrawImage(image_id, pos.x, pos.y, k, k); }
-	inline void DrawImage(int image_id, const point &pos)
-		{ DrawImage(image_id, pos.x, pos.y, 1.0, 1.0); }
-	inline void DrawImage(int image_id, const point &pos, const size &scale)
-		{ DrawImage(image_id, pos.x, pos.y, scale.width, scale.height); }
+		{ return DrawImage(image_id, pos, ratio(k, k)); }
 
 	/*
 		Работа с текстом
@@ -302,11 +308,6 @@ private:
 	bool force_repaint_; /* Флаг обязательной перерисовки */
 	point mouse_pos_;
 	int system_font_id_;
-
-	//void paint_debug_info(wxDC &gc, int width, int height);
-	//void paint_debug_info(wxGraphicsContext &gc, int width, int height);
-	//template<class DC>
-	//void paint_debug_info_int(DC &gc, int width, int height);
 
 	boost::thread::id paint_thread_id_;
 	void repaint(wxPaintDC &dc);

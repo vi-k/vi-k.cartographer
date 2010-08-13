@@ -234,9 +234,6 @@ Frame::~Frame()
 
 void Frame::Stop()
 {
-	/* Как обычно, самое весёлое занятие - это
-		умудриться остановить всю эту махину */
-
 	/* Оповещаем о завершении работы */
 	lets_finish();
 
@@ -466,27 +463,22 @@ void Frame::DeleteImage(int image_id)
 	sprites_.erase(image_id);
 }
 
-size Frame::GetImageOffset(int image_id)
+ratio Frame::GetImageCenter(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	size offset;
-
-	if (iter != sprites_.end())
-		offset = iter->second->offset();
-
-	return offset;
+	return iter == sprites_.end() ? ratio() : iter->second->center();
 }
 
-void Frame::SetImageOffset(int image_id, double dx, double dy)
+void Frame::SetImageCenter(int image_id, const ratio &pos)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 
 	if (iter != sprites_.end())
-		iter->second->set_offset(dx, dy);
+		iter->second->set_center(pos);
 }
 
 point Frame::GetImageCentralPoint(int image_id)
@@ -494,22 +486,17 @@ point Frame::GetImageCentralPoint(int image_id)
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	point pos;
-
-	if (iter != sprites_.end())
-		pos = iter->second->central_point();
-
-	return pos;
+	return iter == sprites_.end() ? point() : iter->second->central_point();
 }
 
-void Frame::SetImageCentralPoint(int image_id, double x, double y)
+void Frame::SetImageCentralPoint(int image_id, const point &pos)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
 
 	if (iter != sprites_.end())
-		iter->second->set_central_point(x, y);
+		iter->second->set_central_point(pos);
 }
 
 size Frame::GetImageSize(int image_id)
@@ -517,40 +504,28 @@ size Frame::GetImageSize(int image_id)
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	size sz;
-
-	if (iter != sprites_.end())
-		sz = iter->second->get_size();
-
-	return sz;
+	return iter == sprites_.end() ? size() : iter->second->get_size();
 }
 
-size Frame::GetImageScale(int image_id)
+ratio Frame::GetImageScale(int image_id)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	size scale;
-
-	if (iter != sprites_.end())
-		scale = iter->second->scale();
-
-	return scale;
+	return iter == sprites_.end() ? ratio() : iter->second->scale();
 }
 
-void Frame::SetImageScale(int image_id, const size &scale)
+void Frame::SetImageScale(int image_id, const ratio &scale)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
-	size sz;
 
 	if (iter != sprites_.end())
 		iter->second->set_scale(scale);
 }
 
-void Frame::DrawImage(int image_id, double x, double y,
-	double kx = 1.0, double ky = 1.0)
+void Frame::DrawImage(int image_id, const point &pos, const ratio &scale)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -569,17 +544,13 @@ void Frame::DrawImage(int image_id, double x, double y,
 			++load_texture_debug_counter_;
 		}
 
-		double w = sprite_ptr->raw().width();
-		double h = sprite_ptr->raw().height();
-		kx *= sprite_ptr->scale().width;
-		ky *= sprite_ptr->scale().height;
+		const ratio total_scale = scale * sprite_ptr->scale();
+		double w = sprite_ptr->raw().width() * total_scale.kx;
+		double h = sprite_ptr->raw().height() * total_scale.ky;
 
-		w *= kx;
-		h *= ky;
-
-		size offset = sprite_ptr->offset();
-		x += offset.width * kx;
-		y += offset.height * ky;
+		const ratio center = sprite_ptr->center();
+		double x = pos.x - w * center.kx;
+		double y = pos.y - h * center.ky;
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 		glBegin(GL_QUADS);
@@ -833,14 +804,6 @@ void Frame::paint_tile(const tile::id &tile_id, int level)
 		-*/
 
 		check_gl_error();
-
-		/* Рамка вокруг тайла, если родного нет */
-		/*-
-		if (level) {
-			Gdiplus::Pen pen(Gdiplus::Color(160, 160, 160), 1);
-			canvas->DrawRectangle(&pen, canvas_x, canvas_y, 255, 255);
-		}
-		-*/
 	}
 }
 
@@ -1139,33 +1102,6 @@ unsigned int Frame::load_and_save_xml(const std::wstring &request,
 }
 
 #if 0
-void Frame::paint_debug_info(wxDC &gc, int width, int height)
-{
-	/* Отладочная информация */
-	//gc.SetPen(*wxWHITE_PEN);
-	//gc.DrawLine(0, height/2, width, height/2);
-	//gc.DrawLine(width/2, 0, width/2, height);
-
-	gc.SetTextForeground(*wxWHITE);
-	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
-		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
-
-	paint_debug_info_int(gc, width, height);
-}
-
-void Frame::paint_debug_info(wxGraphicsContext &gc, int width, int height)
-{
-	/* Отладочная информация */
-	gc.SetPen(*wxWHITE_PEN);
-	gc.StrokeLine(0, height/2, width, height/2);
-	gc.StrokeLine(width/2, 0, width/2, height);
-
-	gc.SetFont( wxFont(6, wxFONTFAMILY_DEFAULT,
-		wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL), *wxWHITE);
-
-	paint_debug_info_int(gc, width, height);
-}
-
 template<class DC>
 void Frame::paint_debug_info_int(DC &gc, int width, int height)
 {
@@ -1233,9 +1169,6 @@ void Frame::repaint(wxPaintDC &dc)
 	const size screen_size = get_screen_size();
 	center_pos_.set_size(screen_size);
 
-	//const int screen_width_i = (int)screen_size.x;
-	//const int screen_height_i = (int)screen_size.y;
-
 	/* Активная карта */
 	const int map_id = active_map_id_;
 	const map_info map = maps_[map_id];
@@ -1267,11 +1200,11 @@ void Frame::repaint(wxPaintDC &dc)
 		const int central_tile_y_i = (int)central_tile.y;
 
 		/* Координаты его верхнего левого угла */
-		//point tile_corner = center_pos
-		//	- (central_tile - point(central_tile_x_i, central_tile_y_i)) * 256.0;
-		point tile_corner(
-			center_pos.x - (central_tile.x - central_tile_x_i) * 256.0,
-			center_pos.y - (central_tile.y - central_tile_y_i) * 256.0);
+		point tile_corner = center_pos
+			- (central_tile - point(central_tile_x_i, central_tile_y_i)) * 256.0;
+		//point tile_corner(
+		//	center_pos.x - (central_tile.x - central_tile_x_i) * 256.0,
+		//	center_pos.y - (central_tile.y - central_tile_y_i) * 256.0);
 
 		/* Определяем начало основания (верхний левый угол) */
 		int basis_tile_x1 = central_tile_x_i;
@@ -1389,7 +1322,7 @@ void Frame::repaint(wxPaintDC &dc)
 				basis_tile_y2 >>= 1;
 			}
 
-			/* Сортируем */
+			/*TODO: Сортируем */
 			////
 
 			/* Устанавливаем итераторы загрузчиков на начало. Будим их */
@@ -1520,7 +1453,7 @@ void Frame::repaint(wxPaintDC &dc)
 	}
 
 	{
-		wchar_t buf[200];
+		wchar_t buf[400];
 
 		coord mouse_coord = screen_to_coord(
 			mouse_pos_, map.pr, z_, screen_pos, center_pos);
@@ -1535,7 +1468,8 @@ void Frame::repaint(wxPaintDC &dc)
 			&lon_sign, &lon_d, &lon_m, &lon_s);
 
 		__swprintf(buf, sizeof(buf)/sizeof(*buf),
-			L"lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
+			L"z: %.1f | lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
+			z_,
 			lat_sign < 0 ? L"-" : L"", lat_d, lat_m, lat_s,
 			lon_sign < 0 ? L"-" : L"", lon_d, lon_m, lon_s);
 

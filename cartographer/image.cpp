@@ -98,11 +98,42 @@ bool image::load_from_mem(const void *data, std::size_t size)
 void image::load_from_raw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
-	raw_.create(width, height, with_alpha ? 32 : 24);
+	width_ = width;
+	height_ = height;
+
+	/* Размеры OpenGL-текстур должны быть кратны 2 */
+	int raw_width = __p2(width_);
+	int raw_height = __p2(height_);
+	int dw = raw_width - width_;
+
+	/* Т.к., возможно, понадобится дополнять текстуру прозрачными точками,
+		делаем RGBA-изображение вне зависимости от его исходного bpp */
+	raw_.create(raw_width, raw_height, 32);
 
 	unsigned char *ptr = raw_.data();
+	unsigned char *end = raw_.end();
 
-	memcpy(ptr, data, raw_.end() - data);
+	for (int i = 0; i < height_; ++i)
+	{
+		for (int j = 0; j < width_; ++j)
+		{
+			*ptr++ = *data++;
+			*ptr++ = *data++;
+			*ptr++ = *data++;
+			*ptr++ = with_alpha ? *data++ : 255;
+		}
+		
+		/* Дополняем ширину прозрачными точками */
+		if (dw)
+		{
+			unsigned char *line_end = ptr + dw * 4;
+			std::memset(ptr, 0, line_end - ptr);
+			ptr = line_end;
+		}
+	}
+
+	/* Дополняем ширину прозрачными точками */
+	std::memset(ptr, 0, end - ptr);
 
 	set_state(ready);
 }

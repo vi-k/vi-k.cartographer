@@ -19,6 +19,10 @@
 #include <wx/string.h>
 //*)
 
+#include "images/green_mark16.c"
+#include "images/red_mark16.c"
+#include "images/yellow_mark16.c"
+
 //#include <wx/filename.h>
 
 //(*IdInit(cartographerFrame)
@@ -34,6 +38,14 @@ const long cartographerFrame::ID_ZOOMOUT = wxNewId();
 const long cartographerFrame::ID_ANCHOR = wxNewId();
 const long cartographerFrame::ID_TOOLBAR1 = wxNewId();
 //*)
+
+/*-
+wxImage convert_to_image()
+{
+	wxImage img(width_, height_, true);
+	if
+}
+-*/
 
 BEGIN_EVENT_TABLE(cartographerFrame,wxFrame)
 	//(*EventTable(cartographerFrame)
@@ -101,13 +113,11 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	Connect(ID_ANCHOR,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnAnchorButtonClick);
 	//*)
 
-	/*-
 	{
-	wxIcon FrameIcon;
-	FrameIcon.CopyFromBitmap(wxArtProvider::GetBitmap(wxART_MAKE_ART_ID_FROM_STR(_T("wxART_TIP")),wxART_FRAME_ICON));
-	SetIcon(FrameIcon);
+		wxIcon FrameIcon;
+		FrameIcon.CopyFromBitmap(wxBitmap(wxImage(_T("images/cartographer.png"))));
+		SetIcon(FrameIcon);
 	}
-	-*/
 
 	SetClientSize(400, 400);
 	Maximize(true);
@@ -120,8 +130,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	Cartographer = new cartographer::Frame(
 		this
-		//, L"127.0.0.1" /* server_addr - адрес сервера */
-		, L"172.16.19.1" /* server_addr - адрес сервера */
+		, L"127.0.0.1" /* server_addr - адрес сервера */
+		//, L"172.16.19.1" /* server_addr - адрес сервера */
 		, L"27543" /* server_port - порт сервера */
 		, 500 /* cache_size - размер кэша (в тайлах) */
 		, false /* only_cache - работать только с кэшем */
@@ -149,6 +159,11 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Текущая карта */
 	cartographer::map_info map = Cartographer->GetActiveMapInfo();
 	ComboBox1->SetValue(map.name);
+
+	/* Изображения */
+	green_mark16_id_ = Cartographer->LoadImageFromC(green_mark16);
+	red_mark16_id_ = Cartographer->LoadImageFromC(red_mark16);
+	yellow_mark16_id_ = Cartographer->LoadImageFromC(yellow_mark16);
 
 
 	/* Метки - не забыть изменить размер массива (!),
@@ -487,7 +502,7 @@ void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 	Cartographer->SetActiveMapByName(str);
 }
 
-void cartographerFrame::DrawImage(int id, const cartographer::coord &pt)
+void cartographerFrame::DrawImage(int id, const cartographer::coord &pt, double alpha)
 {
 	if (id == 0)
 		return;
@@ -495,7 +510,7 @@ void cartographerFrame::DrawImage(int id, const cartographer::coord &pt)
 	cartographer::point pos = Cartographer->CoordToScreen(pt);
 	const double z = Cartographer->GetActiveZ();
 
-	glColor4d(1.0, 1.0, 1.0, 1.0);
+	glColor4d(1.0, 1.0, 1.0, alpha);
 	Cartographer->DrawImage(id, pos, z < 6.0 ? z / 6.0 : 1.0);
 }
 
@@ -638,9 +653,6 @@ void cartographerFrame::OnMapPaint(double z, int width, int height)
 
 		DrawPath(pt1, pt2, 4.0, cartographer::color(1.0, 0.5, 0.0));
 
-		DrawImage(images_[5], pt1);
-		DrawImage(images_[5], pt2);
-
 		/* Круг, примерно в центре пути */
 		cartographer::coord pt = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
 		DrawCircle(pt, 1000000.0, 4.0,
@@ -686,9 +698,33 @@ void cartographerFrame::OnMapPaint(double z, int width, int height)
 
 		pt_pos.y += sz.height;
 		Cartographer->DrawText(small_font_,
-			L"(столица Дальнего Востока ΘΚΛΜΝ Ёё)",
+			L"(столица Дальнего Востока)",
 			pt_pos, cartographer::color(1.0, 1.0, 1.0),
 			cartographer::ratio(0.5, 0.0));
+
+		DrawImage(green_mark16_id_, pt);
+		
+		pt.lon += 0.01;
+		DrawImage(green_mark16_id_, pt);
+		DrawImage(yellow_mark16_id_, pt, 0.33);
+
+		pt.lon += 0.01;
+		DrawImage(green_mark16_id_, pt);
+		DrawImage(yellow_mark16_id_, pt, 0.67);
+
+		pt.lon += 0.01;
+		DrawImage(yellow_mark16_id_, pt);
+
+		pt.lon += 0.01;
+		DrawImage(yellow_mark16_id_, pt);
+		DrawImage(red_mark16_id_, pt, 0.33);
+
+		pt.lon += 0.01;
+		DrawImage(yellow_mark16_id_, pt);
+		DrawImage(red_mark16_id_, pt, 0.67);
+
+		pt.lon += 0.01;
+		DrawImage(red_mark16_id_, pt);
 	}
 
 	{
@@ -704,6 +740,8 @@ void cartographerFrame::OnMapPaint(double z, int width, int height)
 		Cartographer->DrawText(small_font_, L"(столица России)",
 			pt_pos, cartographer::color(1.0, 1.0, 0.0),
 			cartographer::ratio(0.5, 0.0), cartographer::ratio(0.8, 0.8));
+
+		DrawImage(red_mark16_id_, pt);
 	}
 }
 
