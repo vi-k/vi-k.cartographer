@@ -32,15 +32,16 @@ namespace cartographer
 */
 struct map_info
 {
-	enum projection_t {unknown, spheroid /*Google*/, ellipsoid /*Yandex*/};
 	std::wstring sid;
 	std::wstring name;
 	bool is_layer;
 	std::wstring tile_type;
 	std::wstring ext;
-	projection_t projection;
+	projection pr;
 
-	map_info() : is_layer(false), projection(unknown) {}
+	map_info()
+		: is_layer(false)
+		, pr(Unknown_Projection) {}
 };
 
 
@@ -54,11 +55,10 @@ public:
 	typedef boost::function<void (double z, int width, int height)> on_paint_proc_t;
 
 	/* Конструктор */
-	Frame(wxWindow *parent, const std::wstring &server_addr,
-		const std::wstring &server_port, std::size_t cache_size,
-		std::wstring cache_path, bool only_cache,
-		const std::wstring &init_map, int initZ, double init_lat, double init_lon,
-		on_paint_proc_t on_paint_proc,
+	Frame(wxWindow *parent,
+		const std::wstring &server_addr, const std::wstring &server_port,
+		std::size_t cache_size, bool only_cache,
+		const std::wstring &init_map, on_paint_proc_t on_paint_proc,
 		int anim_period = 0, int def_min_anim_steps = 0);
 
 	~Frame();
@@ -80,12 +80,10 @@ public:
 	/*
 		Преобразование координат: географические в экранные и обратно
 	*/
-	point GeoToScr(double lat, double lon);
-	point GeoToScr(const coord &pt)
-		{ return GeoToScr(pt.lat, pt.lon); }
-	coord ScrToGeo(double x, double y);
-	coord ScrToGeo(const point &pt)
-		{ return ScrToGeo(pt.x, pt.y); }
+	point CoordToScreen(const coord &pt);
+	point CoordToScreen(fast_point &pt);
+	coord ScreenToCoord(const point &pt);
+
 
 	/*
 		Масштаб
@@ -99,11 +97,8 @@ public:
 	/*
 		Текущая позиция
 	*/
-	coord GetActiveGeoPos();
-	point GetActiveScrPos();
-	void MoveTo(int z, double lat, double lon);
-	void MoveTo(int z, const coord &pt)
-		{ MoveTo(z, pt.lat, pt.lon); }
+	fast_point GetScreenPos();
+	void MoveTo(int z, const coord &pt);
 
 
 	/*
@@ -253,18 +248,6 @@ private:
 	void file_loader_proc(my::worker::ptr this_worker);
 	void server_loader_proc(my::worker::ptr this_worker);
 
-	/* Сортировка тайлов по расстоянию от текущего центра экрана */
-	//void sort_queue(tiles_queue &queue, my::worker::ptr worker);
-
-	/* Сортировка тайлов по расстоянию от заданного тайла */
-	//static void sort_queue(tiles_queue &queue, const tile::id &tile,
-	//	my::worker::ptr worker);
-
-	/* Функция сортировки */
-	//static bool sort_by_dist( tile::id tile,
-	//	const tiles_queue::item_type &first,
-	//	const tiles_queue::item_type &second );
-
 
 	/*
 		Анимация
@@ -301,7 +284,6 @@ private:
 		Отображение карты
 	*/
 
-	wxBitmap buffer_; /* Буфер для прорисовки, равен размерам экрана */
 	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
 	recursive_mutex params_mutex_;
@@ -309,85 +291,33 @@ private:
 	double z_; /* Текущий масштаб */
 	double new_z_;
 	int z_step_;
-	double fix_kx_; /* Координаты точки экрана (от 0.0 до 1.0), */
-	double fix_ky_; /* остающейся фиксированной при изменении масштаба */
-	double fix_lat_; /* Географические координаты этой точки */
-	double fix_lon_;
-	int fix_step_;
-	double fix_alpha_;
+	//fast_point central_point_; /* Координаты центра экрана */
+	fast_point screen_pos_; /* Координаты центра экрана */
+	//ratio center_scr_ratio_; /* Позиция центральной точки относительно границ экрана */
+	rel_point center_pos_; /* Позиция центральной точки относительно границ экрана */
+	int central_cross_step_;
+	double central_cross_alpha_;
 	int painter_debug_counter_;
 	bool move_mode_;
 	bool force_repaint_; /* Флаг обязательной перерисовки */
 	point mouse_pos_;
 	int system_font_id_;
 
-	void paint_debug_info(wxDC &gc, int width, int height);
-	void paint_debug_info(wxGraphicsContext &gc, int width, int height);
-
-	template<class DC>
-	void paint_debug_info_int(DC &gc, int width, int height);
+	//void paint_debug_info(wxDC &gc, int width, int height);
+	//void paint_debug_info(wxGraphicsContext &gc, int width, int height);
+	//template<class DC>
+	//void paint_debug_info_int(DC &gc, int width, int height);
 
 	boost::thread::id paint_thread_id_;
 	void repaint(wxPaintDC &dc);
 
-	/* Размеры рабочей области */
-	template<typename SIZE>
-	void get_viewport_size(SIZE *p_width, SIZE *p_height)
-	{
-		wxCoord w, h;
-		GetClientSize(&w, &h);
-		*p_width = (SIZE)w;
-		*p_height = (SIZE)h;
-	}
+	/* Размеры экрана */
+	size get_screen_size();
+	point get_screen_max_point();
 
-	/* Назначить новую fix-точку */
-	void set_fix_to_scr_xy(double scr_x, double scr_y);
-
-	/* Передвинуть fix-точку в новые координаты */
-	void move_fix_to_scr_xy(double scr_x, double scr_y);
-
-
-	/*
-		Преобразование координат
-	*/
-
-	/* Размер "мира" в тайлах, для заданного масштаба */
-	static inline int size_for_z_i(int z)
-	{
-		return 1 << (z - 1);
-	}
-
-	/* Размер мира в тайлах - для дробного z дробный результат */
-	static inline double size_for_z_d(double z)
-	{
-		/* Размер всей карты в тайлах.
-			Для дробного z - чуть посложнее, чем для целого */
-		int iz = (int)z;
-		return (double)(1 << (iz - 1)) * (1.0 + z - iz);
-	}
-
-
-	/* Градусы -> тайловые координаты */
-	static inline double lon_to_tile_x(double lon, double z);
-	static inline double lat_to_tile_y(double lat, double z,
-		map_info::projection_t projection);
-
-	/* Градусы -> экранные координаты */
-	static inline double lon_to_scr_x(double lon, double z,
-		double fix_lon, double fix_scr_x);
-	static inline double lat_to_scr_y(double lat, double z,
-		map_info::projection_t projection, double fix_lat, double fix_scr_y);
-
-	/* Тайловые координаты -> градусы */
-	static inline double tile_x_to_lon(double x, double z);
-	static inline double tile_y_to_lat(double y, double z,
-		map_info::projection_t projection);
-
-	/* Экранные координаты -> градусы */
-	static inline double scr_x_to_lon(double x, double z,
-		double fix_lon, double fix_scr_x);
-	static inline double scr_y_to_lat(double y, double z,
-		map_info::projection_t projection, double fix_lat, double fix_scr_y);
+	/* Центр экрана */
+	void move_screen_to(const point &pos);
+	void set_screen_pos(const point &pos);
 
 
 	/*

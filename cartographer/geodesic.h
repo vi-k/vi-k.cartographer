@@ -8,7 +8,7 @@ namespace cartographer
 
 enum projection
 {
-	Unknown
+	Unknown_Projection
 	, Sphere_Mercator  /* Google Maps */
 	, WGS84_Mercator   /* Yandex, Kosmosnimki */
 	//, WGS84_PlateCaree /* Google Earth */
@@ -66,7 +66,14 @@ inline coord DMSToDD(
 	Простые преобразования из десятичных градусов
 	в минут градусы, минуты и секунды
 */
-void DDToDMS(double dd, int *p_d, int *p_m, double *p_s);
+void DDToDMS(double dd, int *p_sign, int *p_d, int *p_m, double *p_s);
+inline void DDToDMS(const coord &pt,
+	int *p_lat_sign, int *p_lat_d, int *p_lat_m, double *p_lat_s,
+	int *p_lon_sign, int *p_lon_d, int *p_lon_m, double *p_lon_s)
+{
+	DDToDMS(pt.lat, p_lat_sign, p_lat_d, p_lat_m, p_lat_s),
+	DDToDMS(pt.lon, p_lon_sign, p_lon_d, p_lon_m, p_lon_s);
+}
 
 
 /*
@@ -179,49 +186,104 @@ inline point world_to_tiles(const point &pos, double z)
 inline point tiles_to_world(const point &pos, double z)
 	{ return pos / world_tl_size(z); }
 
-inline point coord_to_tiles(const coord &pt, double z, projection pr)
-	{ return world_to_tiles( coord_to_world(pt, pr) ); }
+inline point coord_to_tiles(const coord &pt, projection pr, double z)
+	{ return world_to_tiles( coord_to_world(pt, pr), z ); }
 
-inline coord tiles_to_coord(const point &pos, double z, projection pr)
+inline coord tiles_to_coord(const point &pos, projection pr, double z)
 	{ return world_to_coord( tiles_to_world(pos, z), pr); }
 
 
-/* Экранные координаты.
-	Смещение экрана в тех же единицах, что и заданная позиция! */
-point world_to_screen(const point &pos, double z,
-	const size &screen_offset, const size &center_offset)
+/*
+	Экранные координаты
+	screen_pos - расположение экрана "в мире" (в мировых координатах)
+	center_pos - позиция центра экрана (в экранных координатах)
+*/
+inline point world_to_screen(const point &pos, double z,
+	const point &screen_pos, const point &center_pos)
 {
-	return (pos - screen_offset) * world_px_size(z) + center_offset;
+	return (pos - screen_pos.as_size()) * world_px_size(z)
+		+ center_pos.as_size();
 }
 
-point screen_to_world(const point &pos, double z,
-	const size &screen_offset, const size &center_offset)
+inline point screen_to_world(const point &pos, double z,
+	const point &screen_pos, const point &center_pos)
 {
-	return (pos - center_offset) / world_px_size(z) + screen_offset;
+	return (pos - center_pos.as_size()) / world_px_size(z)
+		+ screen_pos.as_size();
 }
 
-#if 0
-double lon_to_tile_x(double lon, double z);
-inline double lat_to_tile_y(double lat, double z,
-		map_info::projection_t projection);
+inline point coord_to_screen(const coord &pt, projection pr, double z,
+	const point &screen_pos, const point &center_pos)
+{
+	return world_to_screen( coord_to_world(pt, pr), z,
+		screen_pos, center_pos );
+}
 
-	/* Градусы -> экранные координаты */
-	static inline double lon_to_scr_x(double lon, double z,
-		double fix_lon, double fix_scr_x);
-	static inline double lat_to_scr_y(double lat, double z,
-		map_info::projection_t projection, double fix_lat, double fix_scr_y);
+inline coord screen_to_coord(const point &pos, projection pr, double z,
+	const point &screen_pos, const point &center_pos)
+{
+	return world_to_coord(
+		screen_to_world(pos, z, screen_pos, center_pos), pr);
+}
 
-	/* Тайловые координаты -> градусы */
-	static inline double tile_x_to_lon(double x, double z);
-	static inline double tile_y_to_lat(double y, double z,
-		map_info::projection_t projection);
 
-	/* Экранные координаты -> градусы */
-	static inline double scr_x_to_lon(double x, double z,
-		double fix_lon, double fix_scr_x);
-	static inline double scr_y_to_lat(double y, double z,
-		map_info::projection_t projection, double fix_lat, double fix_scr_y);
-#endif
+/*
+	"Быстрая" точка
+*/
+class fast_point
+{
+private:
+	coord pt_;
+	projection pr_;
+	point world_pos_;
+
+public:
+
+	fast_point()
+		: pt_()
+		, pr_(Unknown_Projection)
+		, world_pos_() {}
+
+	fast_point(const coord &pt)
+		: pt_(pt)
+		, pr_(Unknown_Projection)
+		, world_pos_() {}
+
+	/* Установка новых координат */
+	//inline void set_coord(const coord &pt)
+	//{
+	//	pt_ = pt;
+	//	pr_ = Unknown_Projection;
+	//}
+
+	inline coord get_coord() const
+		{ return pt_; }
+
+	/* Мировые координаты точки */
+	inline point get_world_pos(projection pr)
+	{
+		if (pr != pr_)
+		{
+			world_pos_ = coord_to_world(pt_, pr);
+			pr_ = pr;
+		}
+
+		return world_pos_;
+	}
+
+	/* Тайловые координаты точки */
+	inline point get_tiles_pos(projection pr, double z)
+		{ return world_to_tiles( get_world_pos(pr), z ); }
+
+    /* Экранные координаты точки */
+	inline point get_screen_pos(projection pr, double z,
+		const point &screen_pos, const point &center_pos)
+	{
+		return world_to_screen(
+			get_world_pos(pr), z, screen_pos, center_pos );
+	}
+};
+
 } /* namespace cartographer */
 
 #endif /* CARTOGRAPHER_GEODESIC_H */
