@@ -7,13 +7,23 @@ namespace cartographer
 /*
 	Соотношение - для масштабов и центральных точек
 */
-struct ratio
+class ratio
 {
+public:
 	double kx;
 	double ky;
 
 	ratio() : kx(1.0), ky(1.0) {}
 	ratio(double kx, double ky) : kx(kx), ky(ky) {}
+
+	inline ratio operator *(double k) const
+		{ return ratio(kx * k, ky * k); }
+
+	inline ratio operator *(const ratio &other) const
+		{ return ratio(kx * other.kx, ky * other.ky); }
+
+	inline ratio operator /(double k) const
+		{ return ratio(kx / k, ky / k); }
 };
 
 /*

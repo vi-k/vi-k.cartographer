@@ -1,4 +1,3 @@
-//aaaa ICON "wx/msw/std.ico"
-aaaa ICON "cartographer.ico"
+aaaa ICON "wx/msw/std.ico"
 
 //#include "wx/msw/wx.rc"
