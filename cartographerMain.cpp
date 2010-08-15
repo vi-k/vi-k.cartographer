@@ -113,6 +113,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	Connect(ID_ANCHOR,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnAnchorButtonClick);
 	//*)
 
+	setlocale(LC_NUMERIC, "C");
+
 	{
 		wxIcon FrameIcon;
 		FrameIcon.CopyFromBitmap(wxBitmap(wxImage(_T("images/cartographer.png"))));
