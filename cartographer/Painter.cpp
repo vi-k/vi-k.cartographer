@@ -144,18 +144,7 @@ double Painter::GetActiveZ(void)
 
 void Painter::SetActiveZ(int z)
 {
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	if (z < 1)
-		z = 1;
-
-	if (z > 30)
-		z = 30;
-
-	new_z_ = z;
-	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
-
-	update();
+	set_z(z);
 }
 
 void Painter::ZoomIn()
@@ -174,6 +163,12 @@ fast_point Painter::GetScreenPos()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return screen_pos_;
+}
+
+void Painter::MoveTo(const coord &pt)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+	screen_pos_ = pt;
 }
 
 void Painter::MoveTo(int z, const coord &pt)

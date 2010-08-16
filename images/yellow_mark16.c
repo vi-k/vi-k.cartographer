@@ -1,6 +1,6 @@
 /* GIMP RGBA C-Source image dump (yellow_mark16.c) */
 
-static const struct {
+static const struct yellow_mark16_st {
   unsigned int 	 width;
   unsigned int 	 height;
   unsigned int 	 bytes_per_pixel; /* 3:RGB, 4:RGBA */ 
