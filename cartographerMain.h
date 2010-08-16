@@ -10,7 +10,7 @@
 #ifndef CARTOGRAPHERMAIN_H
 #define CARTOGRAPHERMAIN_H
 
-#include "cartographer/frame.h"
+#include "cartographer/Painter.h"
 
 //(*Headers(cartographerFrame)
 #include <wx/sizer.h>
@@ -33,7 +33,7 @@ class cartographerFrame: public wxFrame
 		virtual ~cartographerFrame();
 
 	private:
-		cartographer::Frame *Cartographer;
+		cartographer::Painter *Cartographer;
 
 		/* Шрифты */
 		int big_font_;

@@ -240,21 +240,11 @@ private:
 public:
 
 	fast_point()
-		: pt_()
-		, pr_(Unknown_Projection)
-		, world_pos_() {}
+		: pr_(Unknown_Projection) {}
 
 	fast_point(const coord &pt)
 		: pt_(pt)
-		, pr_(Unknown_Projection)
-		, world_pos_() {}
-
-	/* Установка новых координат */
-	//inline void set_coord(const coord &pt)
-	//{
-	//	pt_ = pt;
-	//	pr_ = Unknown_Projection;
-	//}
+		, pr_(Unknown_Projection) {}
 
 	inline coord get_coord() const
 		{ return pt_; }
