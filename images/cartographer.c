@@ -1,6 +1,6 @@
 /* GIMP RGBA C-Source image dump (cartographer.c) */
 
-static const struct {
+static const struct cartographer32_st {
   unsigned int 	 width;
   unsigned int 	 height;
   unsigned int 	 bytes_per_pixel; /* 3:RGB, 4:RGBA */ 
