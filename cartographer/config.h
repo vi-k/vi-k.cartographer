@@ -1,5 +1,5 @@
-﻿#ifndef CART_CONFIG_H
-#define CART_CONFIG_H
+﻿#ifndef CARTOGRAPHER_CONFIG_H
+#define CARTGRAPHER_CONFIG_H
 
 /* Из-за нюансов работы под Windows этот файл обязательно должен
 	быть подключен самым первым (особенно это касается работы
@@ -46,4 +46,4 @@
 #include <boost/asio.hpp> /* Обязательно до включения windows.h */
 #include <wx/wxprec.h> /* Обязательно после boost/asio.h */
 
-#endif /* CART_CONFIG_H */
+#endif /* CARTGRAPHER_CONFIG_H */

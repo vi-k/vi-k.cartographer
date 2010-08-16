@@ -1,17 +1,6 @@
-﻿#include "frame.h"
+﻿#include "Base.h"
 
-#ifdef BOOST_WINDOWS
-	#if defined(_MSC_VER)
-		#define __swprintf swprintf_s
-	#else
-		#define __swprintf snwprintf
-	#endif
-#else
-	#define __swprintf swprintf
-#endif
-
-#include <math.h> /* sin, sqrt */
-#include <wchar.h> /* swprintf */
+#include <wchar.h> /* swprintf, wcschr */
 #include <sstream>
 #include <fstream>
 #include <vector>
@@ -22,23 +11,20 @@
 namespace cartographer
 {
 
-BEGIN_EVENT_TABLE(Frame, wxGLCanvas)
-	EVT_PAINT(Frame::on_paint)
-	EVT_ERASE_BACKGROUND(Frame::on_erase_background)
-	EVT_SIZE(Frame::on_size)
-	EVT_LEFT_DOWN(Frame::on_left_down)
-	EVT_LEFT_UP(Frame::on_left_up)
-	EVT_MOUSE_CAPTURE_LOST(Frame::on_capture_lost)
-	EVT_MOTION(Frame::on_mouse_move)
-	EVT_MOUSEWHEEL(Frame::on_mouse_wheel)
-	//EVT_KEY_DOWN(Frame::OnKeyDown)
+BEGIN_EVENT_TABLE(Base, wxGLCanvas)
+	EVT_PAINT(Base::on_paint)
+	EVT_ERASE_BACKGROUND(Base::on_erase_background)
+	EVT_SIZE(Base::on_size)
+	EVT_LEFT_DOWN(Base::on_left_down)
+	EVT_LEFT_UP(Base::on_left_up)
+	EVT_MOUSE_CAPTURE_LOST(Base::on_capture_lost)
+	EVT_MOTION(Base::on_mouse_move)
+	EVT_MOUSEWHEEL(Base::on_mouse_wheel)
+	//EVT_KEY_DOWN(Base::OnKeyDown)
 END_EVENT_TABLE()
 
-Frame::Frame(wxWindow *parent,
-	const std::wstring &server_addr, const std::wstring &server_port,
-	std::size_t cache_size, bool only_cache,
-	const std::wstring &init_map, on_paint_proc_t on_paint_proc,
-	int anim_period, int def_min_anim_steps)
+Base::Base(wxWindow *parent, const std::wstring &server_addr,
+	const std::wstring &init_map, std::size_t cache_size)
 	: wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
 		wxDefaultPosition, wxDefaultSize,
 		wxFULL_REPAINT_ON_RESIZE)
@@ -47,7 +33,6 @@ Frame::Frame(wxWindow *parent,
 	, load_texture_debug_counter_(0)
 	, delete_texture_debug_counter_(0)
 	, cache_path_( fs::system_complete(L"cache").string() )
-	, only_cache_(only_cache)
 	, cache_(cache_size)
 	, cache_active_tiles_(0)
 	, basis_map_id_(0)
@@ -63,8 +48,8 @@ Frame::Frame(wxWindow *parent,
 	, server_iterator_(cache_.end())
 	, server_loader_dbg_loop_(0)
 	, server_loader_dbg_load_(0)
-	, anim_period_( posix_time::milliseconds(anim_period) )
-	, def_min_anim_steps_(def_min_anim_steps)
+	, anim_period_( posix_time::milliseconds(50) )
+	, def_min_anim_steps_(5)
 	, anim_speed_(0)
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
@@ -73,20 +58,13 @@ Frame::Frame(wxWindow *parent,
 	, z_(1.0)
 	, new_z_(z_)
 	, z_step_(0)
-	, screen_pos_()
 	, center_pos_( ratio(0.5, 0.5) )
 	, central_cross_step_(0)
 	, central_cross_alpha_(0.0)
 	, painter_debug_counter_(0)
 	, move_mode_(false)
-	, force_repaint_(false)
-	, mouse_pos_()
-	, system_font_id_(0)
 	, paint_thread_id_( boost::this_thread::get_id() )
-	, on_paint_handler_(on_paint_proc)
-	, sprites_index_(0)
-	, on_image_delete_( boost::bind(&Frame::on_image_delete_proc, this, _1) )
-	, fonts_index_(0)
+	, on_image_delete_( boost::bind(&Base::on_image_delete_proc, this, _1) )
 {
 	try
 	{
@@ -94,12 +72,10 @@ Frame::Frame(wxWindow *parent,
 
 		magic_init();
 
-		system_font_id_ = CreateFont( wxFont(8,
-			wxFONTFAMILY_MODERN, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
-
-
 		std::wstring request;
 		std::wstring file;
+			
+		bool load_from_server = (server_addr != L"cache");
 
 		/* Загружаем с сервера список доступных карт */
 		try
@@ -108,13 +84,30 @@ Frame::Frame(wxWindow *parent,
 			file = cache_path_ + L"/maps.xml";
 
 			/* Загружаем с сервера на диск (кэшируем) */
-			if (!only_cache_)
+			if (load_from_server)
 			{
+				const wchar_t *cstr = server_addr.c_str();
+				const wchar_t *delim = wcschr(cstr, L':');
+				std::wstring addr;
+				std::wstring port;
+
+				if (delim)
+				{
+					addr = std::wstring(cstr, delim - cstr);
+					port = std::wstring(delim + 1);
+				}
+				else
+				{
+					addr = server_addr.empty() ?
+						std::wstring(L"127.0.0.1") : server_addr;
+					port = L"27543";
+				}
+				
 				/* Резолвим сервер */
 				asio::ip::tcp::resolver resolver(io_service_);
 				asio::ip::tcp::resolver::query query(
-					my::ip::punycode_encode(server_addr),
-					my::ip::punycode_encode(server_port));
+					my::ip::punycode_encode(addr),
+					my::ip::punycode_encode(port));
 				server_endpoint_ = *resolver.resolve(query);
 
 				load_and_save_xml(request, file);
@@ -182,57 +175,55 @@ Frame::Frame(wxWindow *parent,
 		/* Запускаем файловый загрузчик тайлов */
 		file_loader_ = new_worker(L"file_loader"); /* Название - только для отладки */
 		boost::thread( boost::bind(
-			&Frame::file_loader_proc, this, file_loader_) );
+			&Base::file_loader_proc, this, file_loader_) );
 
 		/* Запускаем серверный загрузчик тайлов */
-		if (!only_cache_)
+		if (load_from_server)
 		{
 			server_loader_ = new_worker(L"server_loader"); /* Название - только для отладки */
 			boost::thread( boost::bind(
-				&Frame::server_loader_proc, this, server_loader_) );
+				&Base::server_loader_proc, this, server_loader_) );
 		}
 
 		/* Запускаем анимацию */
-		if (anim_period)
+
+		/* Чтобы при расчёте средних скорости и частоты анимации данные
+			не скакали слишком быстро, будем хранить 10 последних расчётов
+			и вычислять общее среднее */
+		for (int i = 0; i < 10; i++)
 		{
-			/* Чтобы при расчёте средних скорости и частоты анимации данные
-				не скакали слишком быстро, будем хранить 10 последних расчётов
-				и вычислять общее среднее */
-			for (int i = 0; i < 10; i++)
-			{
-				anim_speed_sw_.push();
-				anim_freq_sw_.push();
-			}
-			animator_ = new_worker(L"animator");
-			boost::thread( boost::bind(
-				&Frame::anim_thread_proc, this, animator_) );
+			anim_speed_sw_.push();
+			anim_freq_sw_.push();
 		}
+
+		animator_ = new_worker(L"animator");
+		boost::thread( boost::bind(
+			&Base::anim_thread_proc, this, animator_) );
 	}
 	catch(std::exception &e)
 	{
 		throw my::exception(L"Ошибка создания Картографа")
-			<< my::param(L"serverAddr", server_addr)
-			<< my::param(L"serverPort", server_port)
+			<< my::param(L"server_addr", server_addr)
 			<< my::exception(e);
 	}
 
-	Update();
+	update();
 }
 
-Frame::~Frame()
+Base::~Base()
 {
 	if (!finish())
-		Stop();
+		stop();
 
 	cache_.clear();
 	delete_textures();
 	magic_deinit();
-	sprites_.clear();
 
+	/*TODO: assert не срабатывает! */
 	assert( load_texture_debug_counter_ == delete_texture_debug_counter_ );
 }
 
-void Frame::Stop()
+void Base::stop()
 {
 	/* Оповещаем о завершении работы */
 	lets_finish();
@@ -244,372 +235,18 @@ void Frame::Stop()
 
 	/* Ждём завершения */
 	#ifndef NDEBUG
-	debug_wait_for_finish(L"Frame", posix_time::seconds(5));
+	debug_wait_for_finish(L"Cartographer", posix_time::seconds(5));
 	#endif
 
 	wait_for_finish();
 }
 
-void Frame::Update()
+void Base::update()
 {
 	//Refresh(false);
 }
 
-int Frame::GetMapsCount()
-{
-	return (int)maps_.size();
-}
-
-map_info Frame::GetMapInfo(int index)
-{
-	map_info map;
-	maps_list::iterator iter = maps_.begin();
-
-	while (index-- && iter != maps_.end())
-		++iter;
-
-	if (iter != maps_.end())
-		map = iter->second;
-
-	return map;
-}
-
-map_info Frame::GetActiveMapInfo()
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	return maps_[active_map_id_];
-}
-
-bool Frame::SetActiveMapByIndex(int index)
-{
-	maps_list::iterator iter = maps_.begin();
-
-	while (index-- && iter != maps_.end())
-		++iter;
-
-	if (iter == maps_.end())
-		return false;
-
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	active_map_id_ = iter->first;
-	Update();
-
-	return true;
-}
-
-bool Frame::SetActiveMapByName(const std::wstring &map_name)
-{
-	maps_name_to_id_list::iterator iter = maps_name_to_id_.find(map_name);
-
-	if (iter == maps_name_to_id_.end())
-		return false;
-
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	active_map_id_ = iter->second;
-	Update();
-
-	return true;
-}
-
-point Frame::CoordToScreen(const coord &pt)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	const projection pr = maps_[active_map_id_].pr;
-
-	return coord_to_screen( pt, pr, z_,
-		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
-}
-
-point Frame::CoordToScreen(fast_point &pt)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	const projection pr = maps_[active_map_id_].pr;
-
-	return pt.get_screen_pos( pr, z_,
-		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
-}
-
-coord Frame::ScreenToCoord(const point &pos)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	const projection pr = maps_[active_map_id_].pr;
-
-	return screen_to_coord(pos, pr, z_,
-		screen_pos_.get_world_pos(pr),
-		center_pos_.get_pos() );
-}
-
-double Frame::GetActiveZ(void)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	return z_;
-}
-
-void Frame::SetActiveZ(int z)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-
-	if (z < 1)
-		z = 1;
-
-	if (z > 30)
-		z = 30;
-
-	new_z_ = z;
-	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
-
-	Update();
-}
-
-void Frame::ZoomIn()
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	SetActiveZ( new_z_ + 1.0 );
-}
-
-void Frame::ZoomOut()
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	SetActiveZ( new_z_ - 1.0 );
-}
-
-fast_point Frame::GetScreenPos()
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	return screen_pos_;
-}
-
-void Frame::MoveTo(int z, const coord &pt)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	screen_pos_ = pt;
-	SetActiveZ(z);
-}
-
-int Frame::LoadImageFromFile(const std::wstring &filename)
-{
-	unique_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
-	sprites_[++sprites_index_] = sprite_ptr;
-
-	if (!sprite_ptr->load_from_file(filename))
-	{
-		sprites_.erase(sprites_index_--);
-		return 0;
-	}
-
-	/* Загружаем текстуру, если это возможно */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		sprite_ptr->convert_to_gl_texture();
-		check_gl_error();
-		++load_texture_debug_counter_;
-	}
-
-	return sprites_index_;
-}
-
-int Frame::LoadImageFromMem(const void *data, std::size_t size)
-{
-	unique_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
-	sprites_[++sprites_index_] = sprite_ptr;
-
-	if (!sprite_ptr->load_from_mem(data, size))
-	{
-		sprites_.erase(sprites_index_--);
-		return 0;
-	}
-
-	/* Загружаем текстуру, если это возможно */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		sprite_ptr->convert_to_gl_texture();
-		check_gl_error();
-		++load_texture_debug_counter_;
-	}
-
-	return sprites_index_;
-}
-int Frame::LoadImageFromRaw(const unsigned char *data,
-	int width, int height, bool with_alpha)
-{
-	unique_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
-	sprites_[++sprites_index_] = sprite_ptr;
-
-	sprite_ptr->load_from_raw(data, width, height, with_alpha);
-
-	/* Загружаем текстуру, если это возможно */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-	{
-		sprite_ptr->convert_to_gl_texture();
-		check_gl_error();
-		++load_texture_debug_counter_;
-	}
-
-	return sprites_index_;
-}
-
-void Frame::DeleteImage(int image_id)
-{
-	unique_lock<shared_mutex> lock(sprites_mutex_);
-	sprites_.erase(image_id);
-}
-
-ratio Frame::GetImageCenter(int image_id)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-	return iter == sprites_.end() ? ratio() : iter->second->center();
-}
-
-void Frame::SetImageCenter(int image_id, const ratio &pos)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-
-	if (iter != sprites_.end())
-		iter->second->set_center(pos);
-}
-
-point Frame::GetImageCentralPoint(int image_id)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-	return iter == sprites_.end() ? point() : iter->second->central_point();
-}
-
-void Frame::SetImageCentralPoint(int image_id, const point &pos)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-
-	if (iter != sprites_.end())
-		iter->second->set_central_point(pos);
-}
-
-size Frame::GetImageSize(int image_id)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-	return iter == sprites_.end() ? size() : iter->second->get_size();
-}
-
-ratio Frame::GetImageScale(int image_id)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-	return iter == sprites_.end() ? ratio() : iter->second->scale();
-}
-
-void Frame::SetImageScale(int image_id, const ratio &scale)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-
-	if (iter != sprites_.end())
-		iter->second->set_scale(scale);
-}
-
-void Frame::DrawImage(int image_id, const point &pos, const ratio &scale)
-{
-	shared_lock<shared_mutex> lock(sprites_mutex_);
-
-	sprites_list::iterator iter = sprites_.find(image_id);
-
-	if (iter != sprites_.end())
-	{
-		sprite::ptr sprite_ptr = iter->second;
-
-		/* Загружаем текстуру, если она не была загружена */
-		GLuint texture_id = sprite_ptr->texture_id();
-		if (texture_id == 0)
-		{
-			texture_id = sprite_ptr->convert_to_gl_texture();
-			check_gl_error();
-			++load_texture_debug_counter_;
-		}
-
-		const ratio total_scale = scale * sprite_ptr->scale();
-		double w = sprite_ptr->raw().width() * total_scale.kx;
-		double h = sprite_ptr->raw().height() * total_scale.ky;
-
-		const ratio center = sprite_ptr->center();
-		double x = pos.x - w * center.kx;
-		double y = pos.y - h * center.ky;
-
-		glBindTexture(GL_TEXTURE_2D, texture_id);
-		glBegin(GL_QUADS);
-			glTexCoord2d(0.0, 0.0); glVertex3d(x,     y,     0);
-			glTexCoord2d(1.0, 0.0); glVertex3d(x + w, y,     0);
-			glTexCoord2d(1.0, 1.0); glVertex3d(x + w, y + h, 0);
-			glTexCoord2d(0.0, 1.0); glVertex3d(x,     y + h, 0);
-		glEnd();
-
-		magic_exec();
-
-		check_gl_error();
-	}
-}
-
-int Frame::CreateFont(const wxFont &wxfont)
-{
-	unique_lock<shared_mutex> lock(fonts_mutex_);
-
-	font::ptr font_ptr( new font(wxfont, on_image_delete_) );
-	fonts_[++fonts_index_] = font_ptr;
-
-	/* Загружаем текстуры символов, если это возможно */
-	if (boost::this_thread::get_id() == paint_thread_id_)
-		font_ptr->prepare(L" -~°А-Яа-яЁё"); /* ASCII + русские буквы */
-
-	return fonts_index_;
-}
-
-void Frame::DeleteFont(int font_id)
-{
-	unique_lock<shared_mutex> lock(fonts_mutex_);
-	fonts_.erase(font_id);
-}
-
-size Frame::DrawText(int font_id, const std::wstring &str, const point &pos,
-	const color &text_color, const ratio &center, const ratio &scale)
-{
-	shared_lock<shared_mutex> lock(fonts_mutex_);
-
-	fonts_list::iterator iter = fonts_.find(font_id);
-	size sz;
-
-	if (iter != fonts_.end())
-	{
-		font::ptr font_ptr = iter->second;
-
-		glColor4dv(&text_color.r);
-		sz = font_ptr->draw(str, pos, center, scale);
-	}
-
-	magic_exec();
-
-	check_gl_error();
-
-	return sz;
-}
-
-void Frame::magic_init()
+void Base::magic_init()
 {
 	unsigned char magic_data[4] = {255, 255, 255, 255};
 
@@ -629,13 +266,13 @@ void Frame::magic_init()
 	check_gl_error();
 }
 
-void Frame::magic_deinit()
+void Base::magic_deinit()
 {
 	glDeleteTextures(1, &magic_id_);
 	check_gl_error();
 }
 
-void Frame::magic_exec()
+void Base::magic_exec()
 {
 	/* Замечено, что ко всем отрисовываемым объектам примешивается цвет
 		последней выведенной точки последней выведенной текстуры.
@@ -654,7 +291,7 @@ void Frame::magic_exec()
 	glEnd();
 }
 
-void Frame::check_gl_error()
+void Base::check_gl_error()
 {
 	GLenum errLast = GL_NO_ERROR;
 
@@ -676,7 +313,7 @@ void Frame::check_gl_error()
 	}
 }
 
-void Frame::load_textures()
+void Base::load_textures()
 {
 	shared_lock<shared_mutex> lock(cache_mutex_);
 
@@ -699,7 +336,7 @@ void Frame::load_textures()
 	}
 }
 
-void Frame::delete_texture_later(GLuint texture_id)
+void Base::delete_texture_later(GLuint texture_id)
 {
 	if (boost::this_thread::get_id() == paint_thread_id_)
 	{
@@ -712,14 +349,14 @@ void Frame::delete_texture_later(GLuint texture_id)
 	}
 }
 
-void Frame::delete_texture(GLuint texture_id)
+void Base::delete_texture(GLuint texture_id)
 {
 	glDeleteTextures(1, &texture_id);
 	check_gl_error();
 	++delete_texture_debug_counter_;
 }
 
-void Frame::delete_textures()
+void Base::delete_textures()
 {
 	unique_lock<mutex> lock(delete_texture_mutex_);
 
@@ -731,7 +368,7 @@ void Frame::delete_textures()
 	}
 }
 
-bool Frame::check_tile_id(const tile::id &tile_id)
+bool Base::check_tile_id(const tile::id &tile_id)
 {
 	int sz = tiles_count(tile_id.z);
 
@@ -740,7 +377,7 @@ bool Frame::check_tile_id(const tile::id &tile_id)
 		&& tile_id.y >= 0 && tile_id.y < sz;
 }
 
-tile::ptr Frame::find_tile(const tile::id &tile_id)
+tile::ptr Base::find_tile(const tile::id &tile_id)
 {
 	/* Блокируем кэш для чтения */
 	shared_lock<shared_mutex> lock(cache_mutex_);
@@ -750,7 +387,7 @@ tile::ptr Frame::find_tile(const tile::id &tile_id)
 	return iter == cache_.end() ? tile::ptr() : iter->value();
 }
 
-void Frame::paint_tile(const tile::id &tile_id, int level)
+void Base::paint_tile(const tile::id &tile_id, int level)
 {
 	int z = tile_id.z - level;
 
@@ -807,7 +444,7 @@ void Frame::paint_tile(const tile::id &tile_id, int level)
 	}
 }
 
-tile::ptr Frame::get_tile(const tile::id &tile_id)
+tile::ptr Base::get_tile(const tile::id &tile_id)
 {
 	//if ( !check_tile_id(tile_id))
 	//	return tile::ptr();
@@ -818,7 +455,7 @@ tile::ptr Frame::get_tile(const tile::id &tile_id)
 }
 
 /* Загрузчик тайлов с диска. При пустой очереди - засыпает */
-void Frame::file_loader_proc(my::worker::ptr this_worker)
+void Base::file_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
@@ -898,7 +535,7 @@ void Frame::file_loader_proc(my::worker::ptr this_worker)
 }
 
 /* Загрузчик тайлов с сервера. При пустой очереди - засыпает */
-void Frame::server_loader_proc(my::worker::ptr this_worker)
+void Base::server_loader_proc(my::worker::ptr this_worker)
 {
 	while (!finish())
 	{
@@ -997,7 +634,7 @@ void Frame::server_loader_proc(my::worker::ptr this_worker)
 	} /* while (!finish()) */
 }
 
-void Frame::anim_thread_proc(my::worker::ptr this_worker)
+void Base::anim_thread_proc(my::worker::ptr this_worker)
 {
 	asio::io_service io_service;
 	asio::deadline_timer timer(io_service, my::time::utc_now());
@@ -1033,7 +670,7 @@ void Frame::anim_thread_proc(my::worker::ptr this_worker)
 			unique_lock<mutex> lock(paint_mutex_);
 		}
 
-		//Update();
+		//update();
 		Refresh(false);
 
 		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
@@ -1048,7 +685,7 @@ void Frame::anim_thread_proc(my::worker::ptr this_worker)
 	}
 }
 
-void Frame::get(my::http::reply &reply,
+void Base::get(my::http::reply &reply,
 	const std::wstring &request)
 {
 	asio::ip::tcp::socket socket(io_service_);
@@ -1062,7 +699,7 @@ void Frame::get(my::http::reply &reply,
 	reply.get(socket, full_request);
 }
 
-unsigned int Frame::load_and_save(const std::wstring &request,
+unsigned int Base::load_and_save(const std::wstring &request,
 	const std::wstring &local_filename)
 {
 	my::http::reply reply;
@@ -1075,7 +712,7 @@ unsigned int Frame::load_and_save(const std::wstring &request,
 	return reply.status_code;
 }
 
-unsigned int Frame::load_and_save_xml(const std::wstring &request,
+unsigned int Base::load_and_save_xml(const std::wstring &request,
 	const std::wstring &local_filename)
 {
 	my::http::reply reply;
@@ -1103,7 +740,7 @@ unsigned int Frame::load_and_save_xml(const std::wstring &request,
 
 #if 0
 template<class DC>
-void Frame::paint_debug_info_int(DC &gc, int width, int height)
+void Base::paint_debug_info_int(DC &gc, int width, int height)
 {
 	wxCoord x = 8;
 	wxCoord y = 8;
@@ -1155,7 +792,7 @@ void Frame::paint_debug_info_int(DC &gc, int width, int height)
 }
 #endif
 
-void Frame::repaint(wxPaintDC &dc)
+void Base::repaint(wxPaintDC &dc)
 {
 	unique_lock<mutex> lock1(paint_mutex_);
 	unique_lock<recursive_mutex> lock2(params_mutex_);
@@ -1406,8 +1043,6 @@ void Frame::repaint(wxPaintDC &dc)
 
 	/* Меняем проекцию на проекцию экрана */
 	{
-		magic_exec();
-
 		glColor4d(1.0, 1.0, 1.0, 1.0);
 		glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1421,11 +1056,14 @@ void Frame::repaint(wxPaintDC &dc)
 		glLoadIdentity();
 	}
 
+	magic_exec();
+
 	/* Картинка пользователя */
 	if (on_paint_handler_)
+	{
 		on_paint_handler_(z_, screen_size.width, screen_size.height);
-
-	magic_exec();
+		magic_exec();
+	}
 
 	/* Показываем fix-точку при изменении масштаба */
 	if (central_cross_step_ || dz > 0.1)
@@ -1450,32 +1088,6 @@ void Frame::repaint(wxPaintDC &dc)
 			glVertex3d( center_pos.x - 8, center_pos.y + 8, 0.0 );
 			glVertex3d( center_pos.x + 8, center_pos.y - 8, 0.0 );
 		glEnd();
-	}
-
-	{
-		wchar_t buf[400];
-
-		coord mouse_coord = screen_to_coord(
-			mouse_pos_, map.pr, z_, screen_pos, center_pos);
-
-		int lat_sign, lon_sign;
-		int lat_d, lon_d;
-		int lat_m, lon_m;
-		double lat_s, lon_s;
-
-		DDToDMS( mouse_coord,
-			&lat_sign, &lat_d, &lat_m, &lat_s,
-			&lon_sign, &lon_d, &lon_m, &lon_s);
-
-		__swprintf(buf, sizeof(buf)/sizeof(*buf),
-			L"z: %.1f | lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
-			z_,
-			lat_sign < 0 ? L"-" : L"", lat_d, lat_m, lat_s,
-			lon_sign < 0 ? L"-" : L"", lon_d, lon_m, lon_s);
-
-		DrawText(system_font_id_, buf,
-			point(4.0, screen_size.height), cartographer::color(1.0, 1.0, 1.0),
-			cartographer::ratio(0.0, 1.0));
 	}
 
 	glFlush();
@@ -1515,27 +1127,27 @@ void Frame::repaint(wxPaintDC &dc)
 	anim_freq_sw_.start();
 }
 
-size Frame::get_screen_size()
+size Base::get_screen_size()
 {
 	wxCoord w, h;
 	GetClientSize(&w, &h);
 	return size( (double)w, (double)h);
 }
 
-point Frame::get_screen_max_point()
+point Base::get_screen_max_point()
 {
 	wxCoord w, h;
 	GetClientSize(&w, &h);
 	return point( (double)w, (double)h);
 }
 
-void Frame::move_screen_to(const point &pos)
+void Base::move_screen_to(const point &pos)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	center_pos_.set_pos(pos);
 }
 
-void Frame::set_screen_pos(const point &pos)
+void Base::set_screen_pos(const point &pos)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
@@ -1549,7 +1161,23 @@ void Frame::set_screen_pos(const point &pos)
 	center_pos_.set_pos(pos);
 }
 
-void Frame::on_paint(wxPaintEvent &event)
+void Base::set_z(int z)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+
+	if (z < 1)
+		z = 1;
+
+	if (z > 30)
+		z = 30;
+
+	new_z_ = z;
+	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
+
+	update();
+}
+
+void Base::on_paint(wxPaintEvent &event)
 {
 	wxPaintDC dc(this);
 
@@ -1558,17 +1186,17 @@ void Frame::on_paint(wxPaintEvent &event)
 	event.Skip(false);
 }
 
-void Frame::on_erase_background(wxEraseEvent& event)
+void Base::on_erase_background(wxEraseEvent& event)
 {
 	event.Skip(false);
 }
 
-void Frame::on_size(wxSizeEvent& event)
+void Base::on_size(wxSizeEvent& event)
 {
-	Update();
+	update();
 }
 
-void Frame::on_left_down(wxMouseEvent& event)
+void Base::on_left_down(wxMouseEvent& event)
 {
 	SetFocus();
 
@@ -1580,10 +1208,12 @@ void Frame::on_left_down(wxMouseEvent& event)
 	CaptureMouse();
 	#endif
 
-	Update();
+	update();
+
+	event.Skip(true);
 }
 
-void Frame::on_left_up(wxMouseEvent& event)
+void Base::on_left_up(wxMouseEvent& event)
 {
 	if (move_mode_)
 	{
@@ -1594,16 +1224,18 @@ void Frame::on_left_up(wxMouseEvent& event)
 		ReleaseMouse();
 		#endif
 
-		Update();
+		update();
 	}
+
+	event.Skip(true);
 }
 
-void Frame::on_capture_lost(wxMouseCaptureLostEvent& event)
+void Base::on_capture_lost(wxMouseCaptureLostEvent& event)
 {
 	move_mode_ = false;
 }
 
-void Frame::on_mouse_move(wxMouseEvent& event)
+void Base::on_mouse_move(wxMouseEvent& event)
 {
 	mouse_pos_.x = (double)event.GetX();
 	mouse_pos_.y = (double)event.GetY();
@@ -1611,11 +1243,13 @@ void Frame::on_mouse_move(wxMouseEvent& event)
 	if (move_mode_)
 	{
 		move_screen_to(mouse_pos_);
-		Update();
+		update();
 	}
+
+	event.Skip(true);
 }
 
-void Frame::on_mouse_wheel(wxMouseEvent& event)
+void Base::on_mouse_wheel(wxMouseEvent& event)
 {
 	{
 		unique_lock<recursive_mutex> lock(params_mutex_);
@@ -1628,13 +1262,15 @@ void Frame::on_mouse_wheel(wxMouseEvent& event)
 		if (z > 30)
 			z = 30.0;
 
-		SetActiveZ(z);
+		set_z(z);
 	}
 
-	Update();
+	update();
+
+	event.Skip(true);
 }
 
-void Frame::on_image_delete_proc(image &img)
+void Base::on_image_delete_proc(image &img)
 {
 	GLuint texture_id = img.texture_id();
 	if (texture_id)

@@ -130,17 +130,9 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	for (int i = 0; i < count_; ++i)
 		images_[i]= 0;
 
-	Cartographer = new cartographer::Frame(
-		this
-		, L"127.0.0.1" /* server_addr - адрес сервера */
-		//, L"172.16.19.1" /* server_addr - адрес сервера */
-		, L"27543" /* server_port - порт сервера */
-		, 500 /* cache_size - размер кэша (в тайлах) */
-		, false /* only_cache - работать только с кэшем */
-		, L"Google.Спутник" /* init_map - исходная карта (Яндекс.Карта, Яндекс.Спутник, Google.Спутник) */
-		, boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3) /* on_paint_proc - функция рисования */
-		, 50, 5 /* 0 - нет анимации */
-  	);
+	Cartographer = new cartographer::Painter(this, L"172.16.19.1");
+	//Cartographer = new cartographer::Painter(this, L"127.0.0.1");
+
 	delete Panel1;
 	FlexGridSizer1->Add(Cartographer, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
 	SetSizer(FlexGridSizer1);
@@ -243,6 +235,9 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 
 	for (int i = 0; i < count_; ++i)
 		Choice1->Append(names_[i]);
+
+	Cartographer->SetPainter(
+		boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3));
 
 	Cartographer->MoveTo(z_[0], coords_[0]);
 

@@ -1,5 +1,5 @@
-﻿#ifndef CARTOGRAPHER_H
-#define CARTOGRAPHER_H
+﻿#ifndef CARTOGRAPHER_BASE_H
+#define CARTOGRAPHER_BASE_H
 
 #include "config.h" /* Обязательно первым */
 #include "defs.h" /* point, coord, size */
@@ -23,6 +23,18 @@
 #include <wx/glcanvas.h> /* OpenGL */
 
 extern my::log main_log;
+
+#ifndef __swprintf
+#ifdef BOOST_WINDOWS
+	#if defined(_MSC_VER)
+		#define __swprintf swprintf_s
+	#else
+		#define __swprintf snwprintf
+	#endif
+#else
+	#define __swprintf swprintf
+#endif
+#endif
 
 namespace cartographer
 {
@@ -48,123 +60,29 @@ struct map_info
 /*
 	Картографер
 */
-class Frame : public wxGLCanvas, my::employer
+class Base : public wxGLCanvas, protected my::employer
 {
 public:
-	/* Тип обработчика */
+	/* Обработчик прорисовки */
 	typedef boost::function<void (double z, int width, int height)> on_paint_proc_t;
 
 	/* Конструктор */
-	Frame(wxWindow *parent,
-		const std::wstring &server_addr, const std::wstring &server_port,
-		std::size_t cache_size, bool only_cache,
-		const std::wstring &init_map, on_paint_proc_t on_paint_proc,
-		int anim_period = 0, int def_min_anim_steps = 0);
+	Base(wxWindow *parent, const std::wstring &server_addr,
+		const std::wstring &init_map, std::size_t cache_size);
 
-	~Frame();
-
-	void Stop();
-	void Update();
-
-
-	/*
-		Карты
-	*/
-	int GetMapsCount();
-	map_info GetMapInfo(int index);
-	map_info GetActiveMapInfo();
-	bool SetActiveMapByIndex(int index);
-	bool SetActiveMapByName(const std::wstring &map_name);
-
-
-	/*
-		Преобразование координат: географические в экранные и обратно
-	*/
-	point CoordToScreen(const coord &pt);
-	point CoordToScreen(fast_point &pt);
-	coord ScreenToCoord(const point &pt);
-
-
-	/*
-		Масштаб
-	*/
-	double GetActiveZ();
-	void SetActiveZ(int z);
-	void ZoomIn();
-	void ZoomOut();
-
-
-	/*
-		Текущая позиция
-	*/
-	fast_point GetScreenPos();
-	void MoveTo(int z, const coord &pt);
-
-
-	/*
-		Работа с изображениями
-	*/
-	int LoadImageFromFile(const std::wstring &filename);
-	int LoadImageFromMem(const void *data, std::size_t size);
-	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
-
-	template<class C_ImageStruct>
-	int LoadImageFromC(C_ImageStruct &st)
-	{
-		return LoadImageFromRaw( st.pixel_data,
-			st.width, st.height, st.bytes_per_pixel == 4);
-	}
-
-	void DeleteImage(int image_id);
-
-	/* Центр изображения - задаётся относительно размеров изображения от 0.0 до 1.0 */
-	ratio GetImageCenter(int image_id);
-	void SetImageCenter(int image_id, const ratio &pos);
-	inline void SetImageCenter(int image_id, double kx, double ky)
-		{ SetImageCenter(image_id, ratio(kx, ky)); }
-
-	/* Центральная точка изображения - для удобства
-		установки центра изображения на конкретную точку */
-	point GetImageCentralPoint(int image_id);
-	void SetImageCentralPoint(int image_id, const point &pos);
-	inline void SetImageCentralPoint(int image_id, double x, double y)
-		{ SetImageCentralPoint(image_id, point(x, y)); }
-
-	/* Размеры изображения */
-	size GetImageSize(int image_id);
-	ratio GetImageScale(int image_id);
-	void SetImageScale(int image_id, const ratio &scale);
-	inline void SetImageScale(int image_id, double kx, double ky)
-		{ SetImageScale(image_id, ratio(kx, ky)); }
-	inline void SetImageScale(int image_id, double k)
-		{ SetImageScale(image_id, ratio(k, k)); }
-
-	/* Вывод изображения */
-	void DrawImage(int image_id, const point &pos, const ratio &scale = ratio(1.0, 1.0));
-	inline void DrawImage(int image_id, const point &pos, double kx, double ky)
-		{ return DrawImage(image_id, pos, ratio(kx, ky)); }
-	inline void DrawImage(int image_id, const point &pos, double k)
-		{ return DrawImage(image_id, pos, ratio(k, k)); }
-
-	/*
-		Работа с текстом
-	*/
-	int CreateFont(const wxFont &wxfont);
-	void DeleteFont(int font_id);
-	size DrawText(int font_id, const std::wstring &str, const point &pos,
-		const color &text_color,
-		const ratio &center = ratio(0.5, 0.5),
-		const ratio &scale = ratio());
+	virtual ~Base();
 
 	DECLARE_EVENT_TABLE()
 
-
-private:
+protected:
 	typedef std::map<int, map_info> maps_list;
 	typedef boost::unordered_map<std::wstring, int> maps_name_to_id_list;
 	typedef my::mru::list<tile::id, tile::ptr> tiles_cache;
 	typedef boost::unordered_map<int, sprite::ptr> sprites_list;
 	typedef boost::unordered_map<int, font::ptr> fonts_list;
+
+	void stop(); /* Остановка Картографера */
+	void update(); /* Сейчас не действует. Только перерисовка за счёт анимации! */
 
 
 	/*
@@ -214,7 +132,6 @@ private:
 	*/
 
 	std::wstring cache_path_; /* Путь к кэшу */
-	bool only_cache_; /* Использовать только кэш */
 	tiles_cache cache_; /* Кэш */
 	int cache_active_tiles_;
 	int basis_map_id_;
@@ -297,17 +214,13 @@ private:
 	double z_; /* Текущий масштаб */
 	double new_z_;
 	int z_step_;
-	//fast_point central_point_; /* Координаты центра экрана */
 	fast_point screen_pos_; /* Координаты центра экрана */
-	//ratio center_scr_ratio_; /* Позиция центральной точки относительно границ экрана */
 	rel_point center_pos_; /* Позиция центральной точки относительно границ экрана */
 	int central_cross_step_;
 	double central_cross_alpha_;
 	int painter_debug_counter_;
 	bool move_mode_;
-	bool force_repaint_; /* Флаг обязательной перерисовки */
 	point mouse_pos_;
-	int system_font_id_;
 
 	boost::thread::id paint_thread_id_;
 	void repaint(wxPaintDC &dc);
@@ -320,11 +233,13 @@ private:
 	void move_screen_to(const point &pos);
 	void set_screen_pos(const point &pos);
 
+	/* Масштаб */
+	void set_z(int z);
+
 
 	/*
 		Обработчики событий окна
 	*/
-
 	on_paint_proc_t on_paint_handler_;
 
 	void on_paint(wxPaintEvent& event);
@@ -340,23 +255,11 @@ private:
 	/*
 		Работа с изображениями
 	*/
-	int sprites_index_;
-	sprites_list sprites_;
-	shared_mutex sprites_mutex_;
 	image::on_delete_t on_image_delete_;
 
 	void on_image_delete_proc(image &img);
-
-
-	/*
-		Работа с текстом
-	*/
-	int fonts_index_;
-	fonts_list fonts_;
-	shared_mutex fonts_mutex_;
-
 };
 
 } /* namespace cartographer */
 
-#endif /* CARTOGRAPHER_H */
+#endif /* CARTOGRAPHER_BASE_H */
