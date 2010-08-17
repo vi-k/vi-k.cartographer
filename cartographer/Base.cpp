@@ -54,7 +54,8 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 	, anim_freq_(0)
 	, animator_debug_counter_(0)
 	, draw_tile_debug_counter_(0)
-	, active_map_id_(0)
+	, map_id_(0)
+	, map_pr_(Unknown_Projection)
 	, z_(1.0)
 	, new_z_(z_)
 	, z_step_(0)
@@ -74,7 +75,7 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 
 		std::wstring request;
 		std::wstring file;
-			
+
 		bool load_from_server = (server_addr != L"cache");
 
 		/* Загружаем с сервера список доступных карт */
@@ -102,7 +103,7 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 						std::wstring(L"127.0.0.1") : server_addr;
 					port = L"27543";
 				}
-				
+
 				/* Резолвим сервер */
 				asio::ip::tcp::resolver resolver(io_service_);
 				asio::ip::tcp::resolver::query query(
@@ -154,8 +155,11 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 				int id = get_new_map_id(); /* новый идентификатор */
 				maps_[id] = map;
 
-				if (active_map_id_ == 0 || map.name == init_map)
-					active_map_id_ = id;
+				if (map_id_ == 0 || map.name == init_map)
+				{
+					map_id_ = id;
+					map_pr_ = map.pr;
+				}
 
 				/* Сохраняем соответствие названия
 					карты числовому идентификатору */
@@ -792,10 +796,10 @@ void Base::paint_debug_info_int(DC &gc, int width, int height)
 }
 #endif
 
-void Base::repaint(wxPaintDC &dc)
+void Base::repaint()
 {
-	unique_lock<mutex> lock1(paint_mutex_);
-	unique_lock<recursive_mutex> lock2(params_mutex_);
+	unique_lock<mutex> l1(paint_mutex_);
+	unique_lock<recursive_mutex> l2(params_mutex_);
 
 	++painter_debug_counter_;
 
@@ -806,10 +810,6 @@ void Base::repaint(wxPaintDC &dc)
 	const size screen_size = get_screen_size();
 	center_pos_.set_size(screen_size);
 
-	/* Активная карта */
-	const int map_id = active_map_id_;
-	const map_info map = maps_[map_id];
-
 	/* Текущий масштаб. При перемещениях
 		между масштабами - масштаб верхнего слоя */
 	const int z_i = (int)z_;
@@ -818,10 +818,10 @@ void Base::repaint(wxPaintDC &dc)
 	int basis_z = z_i;
 
 	/* Центральный тайл */
-	const point central_tile = screen_pos_.get_tiles_pos(map.pr, z_i);
+	const point central_tile = screen_pos_.get_tiles_pos(map_pr_, z_i);
 
 	/* Позиции экрана и его центра */
-	const point screen_pos = screen_pos_.get_world_pos(map.pr);
+	const point screen_pos = screen_pos_.get_world_pos(map_pr_);
 	const point center_pos = center_pos_.get_pos();
 
 	/**
@@ -839,9 +839,6 @@ void Base::repaint(wxPaintDC &dc)
 		/* Координаты его верхнего левого угла */
 		point tile_corner = center_pos
 			- (central_tile - point(central_tile_x_i, central_tile_y_i)) * 256.0;
-		//point tile_corner(
-		//	center_pos.x - (central_tile.x - central_tile_x_i) * 256.0,
-		//	center_pos.y - (central_tile.y - central_tile_y_i) * 256.0);
 
 		/* Определяем начало основания (верхний левый угол) */
 		int basis_tile_x1 = central_tile_x_i;
@@ -900,7 +897,7 @@ void Base::repaint(wxPaintDC &dc)
 		}
 
 		/* Если основание изменилось - перестраиваем пирамиду */
-		if ( basis_map_id_ != map_id
+		if ( basis_map_id_ != map_id_
 			|| basis_z_ != basis_z
 			|| basis_tile_x1_ != basis_tile_x1
 			|| basis_tile_y1_ != basis_tile_y1
@@ -912,7 +909,7 @@ void Base::repaint(wxPaintDC &dc)
 			int tiles_count = 0; /* Считаем кол-во тайлов в пирамиде */
 
 			/* Сохраняем новое основание */
-			basis_map_id_ = map_id;
+			basis_map_id_ = map_id_;
 			basis_z_ = basis_z;
 			basis_tile_x1_ = basis_tile_x1;
 			basis_tile_y1_ = basis_tile_y1;
@@ -926,7 +923,7 @@ void Base::repaint(wxPaintDC &dc)
 				{
 					for (int tile_y = basis_tile_y1; tile_y < basis_tile_y2; ++tile_y)
 					{
-						tile::id tile_id(active_map_id_, basis_z, tile_x, tile_y);
+						tile::id tile_id(map_id_, basis_z, tile_x, tile_y);
 						tiles_cache::iterator iter = cache_.find(tile_id);
 
 						tile::ptr tile_ptr;
@@ -1027,7 +1024,7 @@ void Base::repaint(wxPaintDC &dc)
 		/* Границы нижнего слоя в данном случае равны основанию пирамиды тайлов */
 		for (int x = basis_tile_x1_; x < basis_tile_x2_; ++x)
 			for (int y = basis_tile_y1_; y < basis_tile_y2_; ++y)
-				paint_tile( tile::id(map_id, basis_z_, x, y) );
+				paint_tile( tile::id(map_id_, basis_z_, x, y) );
 	}
 
 	glMatrixMode(GL_MODELVIEW);
@@ -1039,7 +1036,7 @@ void Base::repaint(wxPaintDC &dc)
 
 	for (int x = z_i_tile_x1; x < z_i_tile_x2; ++x)
 		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
-			paint_tile( tile::id(map_id, z_i, x, y) );
+			paint_tile( tile::id(map_id_, z_i, x, y) );
 
 	/* Меняем проекцию на проекцию экрана */
 	{
@@ -1061,7 +1058,7 @@ void Base::repaint(wxPaintDC &dc)
 	/* Картинка пользователя */
 	if (on_paint_handler_)
 	{
-		on_paint_handler_(z_, screen_size.width, screen_size.height);
+		on_paint_handler_(z_, screen_size);
 		magic_exec();
 	}
 
@@ -1089,6 +1086,8 @@ void Base::repaint(wxPaintDC &dc)
 			glVertex3d( center_pos.x + 8, center_pos.y - 8, 0.0 );
 		glEnd();
 	}
+
+	after_repaint(screen_size);
 
 	glFlush();
 	SwapBuffers();
@@ -1151,12 +1150,10 @@ void Base::set_screen_pos(const point &pos)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	const projection pr = maps_[active_map_id_].pr;
-
 	screen_pos_ = screen_to_coord(
-		pos, pr, z_, screen_pos_.get_world_pos(pr),
+		pos, map_pr_, z_, screen_pos_.get_world_pos(map_pr_),
 		center_pos_.get_pos() );
-	
+
 	/* move_screen_to() */
 	center_pos_.set_pos(pos);
 }
@@ -1168,8 +1165,8 @@ void Base::set_z(int z)
 	if (z < 1)
 		z = 1;
 
-	if (z > 30)
-		z = 30;
+	if (z > 19)
+		z = 19;
 
 	new_z_ = z;
 	z_step_ = def_min_anim_steps_ ? 2 * def_min_anim_steps_ : 1;
@@ -1181,7 +1178,7 @@ void Base::on_paint(wxPaintEvent &event)
 {
 	wxPaintDC dc(this);
 
-	repaint(dc);
+	repaint();
 
 	event.Skip(false);
 }

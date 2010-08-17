@@ -71,7 +71,7 @@ map_info Painter::GetMapInfo(int index)
 map_info Painter::GetActiveMapInfo()
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
-	return maps_[active_map_id_];
+	return maps_[map_id_];
 }
 
 bool Painter::SetActiveMapByIndex(int index)
@@ -85,7 +85,9 @@ bool Painter::SetActiveMapByIndex(int index)
 		return false;
 
 	unique_lock<recursive_mutex> lock(params_mutex_);
-	active_map_id_ = iter->first;
+	map_id_ = iter->first;
+	map_pr_ = iter->second.pr;
+
 	update();
 
 	return true;
@@ -99,7 +101,9 @@ bool Painter::SetActiveMapByName(const std::wstring &map_name)
 		return false;
 
 	unique_lock<recursive_mutex> lock(params_mutex_);
-	active_map_id_ = iter->second;
+	map_id_ = iter->second;
+	map_pr_ = maps_[map_id_].pr;
+
 	update();
 
 	return true;
@@ -109,30 +113,24 @@ point Painter::CoordToScreen(const coord &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	const projection pr = maps_[active_map_id_].pr;
-
-	return coord_to_screen( pt, pr, z_,
-		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
+	return coord_to_screen( pt, map_pr_, z_,
+		screen_pos_.get_world_pos(map_pr_), center_pos_.get_pos() );
 }
 
 point Painter::CoordToScreen(fast_point &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	const projection pr = maps_[active_map_id_].pr;
-
-	return pt.get_screen_pos( pr, z_,
-		screen_pos_.get_world_pos(pr), center_pos_.get_pos() );
+	return pt.get_screen_pos( map_pr_, z_,
+		screen_pos_.get_world_pos(map_pr_), center_pos_.get_pos() );
 }
 
 coord Painter::ScreenToCoord(const point &pos)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
-	const projection pr = maps_[active_map_id_].pr;
-
-	return screen_to_coord(pos, pr, z_,
-		screen_pos_.get_world_pos(pr),
+	return screen_to_coord(pos, map_pr_, z_,
+		screen_pos_.get_world_pos(map_pr_),
 		center_pos_.get_pos() );
 }
 
@@ -396,6 +394,36 @@ size Painter::DrawText(int font_id, const std::wstring &str, const point &pos,
 	check_gl_error();
 
 	return sz;
+}
+
+void Painter::after_repaint(const size &screen_size)
+{
+	/* Статус-строка */
+	wchar_t buf[400];
+
+	/* Позиции экрана и его центра */
+	coord mouse_coord = screen_to_coord(
+		mouse_pos_, map_pr_, z_,
+		screen_pos_.get_world_pos(map_pr_), center_pos_.get_pos());
+
+	int lat_sign, lon_sign;
+	int lat_d, lon_d;
+	int lat_m, lon_m;
+	double lat_s, lon_s;
+
+	DDToDMS( mouse_coord,
+		&lat_sign, &lat_d, &lat_m, &lat_s,
+		&lon_sign, &lon_d, &lon_m, &lon_s);
+
+	__swprintf(buf, sizeof(buf)/sizeof(*buf),
+		L"z: %.1f | lat: %s%d°%02d\'%05.2f\" | lon: %s%d°%02d\'%05.2f\"",
+		z_,
+		lat_sign < 0 ? L"-" : L"", lat_d, lat_m, lat_s,
+		lon_sign < 0 ? L"-" : L"", lon_d, lon_m, lon_s);
+
+	DrawText(system_font_id_, buf,
+		point(4.0, screen_size.height), cartographer::color(1.0, 1.0, 1.0),
+		cartographer::ratio(0.0, 1.0));
 }
 
 } /* namespace cartographer */
