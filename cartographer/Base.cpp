@@ -224,7 +224,7 @@ Base::~Base()
 	magic_deinit();
 
 	/*TODO: assert не срабатывает! */
-	assert( load_texture_debug_counter_ == delete_texture_debug_counter_ );
+	//assert( load_texture_debug_counter_ == delete_texture_debug_counter_ );
 }
 
 void Base::stop()

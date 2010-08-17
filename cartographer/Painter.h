@@ -12,6 +12,9 @@ namespace cartographer
 class Painter : public Base
 {
 public:
+	/* Обработчик статус-строки */
+	typedef boost::function<void (std::wstring &str)> on_status_proc_t;
+
 	/* Конструктор
 		Параметры:
 			parent - родительское окно
@@ -35,6 +38,8 @@ public:
 	void SetPainter(on_paint_proc_t on_paint_proc);
 	void Update();
 	void Stop();
+
+	void SetStatusHandler(on_status_proc_t on_status_proc);
 
 
 	/*
@@ -136,6 +141,8 @@ protected:
 	fonts_list fonts_;
 	shared_mutex fonts_mutex_;
 	int system_font_id_;
+
+	on_status_proc_t on_status_;
 
 	virtual void after_repaint(const size &screen_size);
 };
