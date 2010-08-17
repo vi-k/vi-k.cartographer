@@ -64,7 +64,7 @@ class Base : public wxGLCanvas, protected my::employer
 {
 public:
 	/* Обработчик прорисовки */
-	typedef boost::function<void (double z, int width, int height)> on_paint_proc_t;
+	typedef boost::function<void (double z, const size &screen_size)> on_paint_proc_t;
 
 	/* Конструктор */
 	Base(wxWindow *parent, const std::wstring &server_addr,
@@ -210,7 +210,8 @@ protected:
 	int draw_tile_debug_counter_;
 	mutex paint_mutex_;
 	recursive_mutex params_mutex_;
-	int active_map_id_; /* Активная карта */
+	int map_id_; /* Активная карта */
+	projection map_pr_;
 	double z_; /* Текущий масштаб */
 	double new_z_;
 	int z_step_;
@@ -223,7 +224,8 @@ protected:
 	point mouse_pos_;
 
 	boost::thread::id paint_thread_id_;
-	void repaint(wxPaintDC &dc);
+	void repaint();
+	virtual void after_repaint(const size &screen_size) {};
 
 	/* Размеры экрана */
 	size get_screen_size();

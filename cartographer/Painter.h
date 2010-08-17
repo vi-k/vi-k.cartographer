@@ -80,7 +80,7 @@ public:
 	int LoadImageFromRaw(const unsigned char *data, int width, int height, bool with_alpha);
 
 	template<class C_ImageStruct>
-	int LoadImageFromC(C_ImageStruct &st)
+	int LoadImageFromC(const C_ImageStruct &st)
 	{
 		return LoadImageFromRaw( st.pixel_data,
 			st.width, st.height, st.bytes_per_pixel == 4);
@@ -136,6 +136,8 @@ protected:
 	fonts_list fonts_;
 	shared_mutex fonts_mutex_;
 	int system_font_id_;
+
+	virtual void after_repaint(const size &screen_size);
 };
 
 } /* namespace cartographer */
