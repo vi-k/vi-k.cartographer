@@ -63,12 +63,14 @@
 			<Add directory="/usr/local/lib" />
 			<Add directory="../mylib/gcc_lib" />
 		</Linker>
+		<Unit filename="cartographer/Base.cpp" />
+		<Unit filename="cartographer/Base.h" />
+		<Unit filename="cartographer/Painter.cpp" />
+		<Unit filename="cartographer/Painter.h" />
 		<Unit filename="cartographer/config.h" />
 		<Unit filename="cartographer/defs.h" />
 		<Unit filename="cartographer/font.cpp" />
 		<Unit filename="cartographer/font.h" />
-		<Unit filename="cartographer/frame.cpp" />
-		<Unit filename="cartographer/frame.h" />
 		<Unit filename="cartographer/geodesic.cpp" />
 		<Unit filename="cartographer/geodesic.h" />
 		<Unit filename="cartographer/image.cpp" />

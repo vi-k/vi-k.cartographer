@@ -336,13 +336,13 @@ void Painter::DrawImage(int image_id, const point &pos, const ratio &scale)
 			++load_texture_debug_counter_;
 		}
 
-		const ratio total_scale = scale * sprite_ptr->scale();
-		double w = sprite_ptr->raw().width() * total_scale.kx;
-		double h = sprite_ptr->raw().height() * total_scale.ky;
+		const ratio sc = scale * sprite_ptr->scale();
+		double w = sprite_ptr->raw().width() * sc.kx;
+		double h = sprite_ptr->raw().height() * sc.ky;
 
 		const ratio center = sprite_ptr->center();
-		double x = pos.x - w * center.kx;
-		double y = pos.y - h * center.ky;
+		double x = pos.x - sprite_ptr->width() * sc.kx * center.kx;
+		double y = pos.y - sprite_ptr->height() * sc.ky * center.ky;
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 		glBegin(GL_QUADS);

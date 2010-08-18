@@ -163,7 +163,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Метки - не забыть изменить размер массива (!),
 		когда надо будет добавить ещё */
 	images_[0] = Cartographer->LoadImageFromFile(L"images/blu-blank.png");
-	Cartographer->SetImageCentralPoint(images_[0], 31.5, 64.0);
+	//Cartographer->SetImageCentralPoint(images_[0], 31.5, 64.0);
 
 	images_[1] = Cartographer->LoadImageFromFile(L"images/back.png");
 	Cartographer->SetImageCentralPoint(images_[1], -1.0, 15.5);
@@ -237,7 +237,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 		Choice1->Append(names_[i]);
 
 	Cartographer->SetPainter(
-		boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2, _3));
+		boost::bind(&cartographerFrame::OnMapPaint, this, _1, _2));
 
 	Cartographer->MoveTo(z_[0], coords_[0]);
 
@@ -638,10 +638,10 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 	return ptN;
 }
 
-void cartographerFrame::OnMapPaint(double z, int width, int height)
+void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_size)
 {
-	//for (int i = 0; i < count_; ++i)
-	//	DrawImage(images_[i], coords_[i]);
+	for (int i = 0; i < count_; ++i)
+		DrawImage(images_[i], coords_[i]);
 
 	/* Путь от Хабаровска до Москвы */
 	{
@@ -700,7 +700,7 @@ void cartographerFrame::OnMapPaint(double z, int width, int height)
 			cartographer::ratio(0.5, 0.0));
 
 		DrawImage(green_mark16_id_, pt);
-		
+
 		pt.lon += 0.01;
 		DrawImage(green_mark16_id_, pt);
 		DrawImage(yellow_mark16_id_, pt, 0.33);
