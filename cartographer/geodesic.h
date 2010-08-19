@@ -31,7 +31,8 @@ static const double c_b  = c_a * (1.0 - c_f); /* малая полуось */
 static const double c_e = sqrt(c_a * c_a - c_b * c_b) / c_a; /* эксцентриситет эллипса (eccentricity) */
 static const double c_e2 = c_e * c_e;
 static const double c_e4 = c_e2 * c_e2;
-static const double c_e6 = c_e2 * c_e2 * c_e2;
+static const double c_e6 = c_e4 * c_e2;
+static const double c_e8 = c_e4 * c_e4;
 static const double c_k = 1.0 - c_f; /*
                         = c_b / c_a
                         = sqrt(1.0 - c_e2)
@@ -140,7 +141,7 @@ double FastDistance(const coord &pt1, const coord &pt2);
 			тайлов в данном масштабе по одной из осей - 1). Количество тайлов
 			рассчитывается по формуле: 2 ^ (z - 1) или 1 << (z - 1).
 			Применяется для внутренних процессов Картографера.
-		
+
 		- pixels (единицы измерения - экранные точки (пиксели);
 			пиксельные координаты) - тайловые координаты * 256 (где 256
 			- размер одного тайла по любой из осей). Соответственно,

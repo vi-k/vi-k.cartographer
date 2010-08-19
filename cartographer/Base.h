@@ -22,8 +22,6 @@
 #include <wx/mstream.h>  /* wxMemoryInputStream */
 #include <wx/glcanvas.h> /* OpenGL */
 
-extern my::log main_log;
-
 #ifndef __swprintf
 #ifdef BOOST_WINDOWS
 	#if defined(_MSC_VER)
@@ -57,10 +55,12 @@ struct map_info
 };
 
 
+wxDECLARE_EVENT(MY_EVENT, wxCommandEvent);
+
 /*
 	Картографер
 */
-class Base : public wxGLCanvas, protected my::employer
+class Base : protected my::employer, public wxGLCanvas
 {
 public:
 	/* Обработчик прорисовки */
@@ -243,6 +243,11 @@ protected:
 		Обработчики событий окна
 	*/
 	on_paint_proc_t on_paint_handler_;
+
+	enum {MY_ID_REPAINT = 1};
+
+	void send_my_event(int cmd_id);
+	void on_my_event(wxCommandEvent& event);
 
 	void on_paint(wxPaintEvent& event);
 	void on_erase_background(wxEraseEvent& event);

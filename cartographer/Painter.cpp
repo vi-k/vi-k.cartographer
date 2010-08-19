@@ -1,11 +1,11 @@
 ﻿#include "Painter.h"
 
 #include <wchar.h> /* swprintf */
-//#include <sstream>
-//#include <fstream>
-//#include <vector>
 
 #include <boost/bind.hpp>
+
+extern my::log main_log;
+extern my::log debug_log;
 
 namespace cartographer
 {
@@ -14,7 +14,9 @@ Painter::Painter(wxWindow *parent, const std::wstring &server_addr,
 	const std::wstring &init_map, std::size_t cache_size)
 	: Base(parent, server_addr, init_map, cache_size)
 	, sprites_index_(0)
+	, MY_MUTEX_DEF(sprites_mutex_,true)
 	, fonts_index_(0)
+	, MY_MUTEX_DEF(fonts_mutex_,true)
 	, system_font_id_(0)
 {
 	system_font_id_ = CreateFont(
@@ -178,7 +180,7 @@ void Painter::MoveTo(int z, const coord &pt)
 {
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	screen_pos_ = pt;
-	SetActiveZ(z);
+	set_z(z);
 }
 
 int Painter::LoadImageFromFile(const std::wstring &filename)
