@@ -439,10 +439,10 @@ double FastDistance(const coord &pt1, const coord &pt2)
 	*/
 
 	/* Координаты первой точки */
-	const double sin_B1 = sin(pt1.lat * M_PI / 180);
-	const double cos_B1 = cos(pt1.lat * M_PI / 180);
-	const double sin_L1 = sin(pt1.lon * M_PI / 180);
-	const double cos_L1 = cos(pt1.lon * M_PI / 180);
+	const double sin_B1 = sin(pt1.lat * M_PI / 180.0);
+	const double cos_B1 = cos(pt1.lat * M_PI / 180.0);
+	const double sin_L1 = sin(pt1.lon * M_PI / 180.0);
+	const double cos_L1 = cos(pt1.lon * M_PI / 180.0);
 
 	const double r1 = c_a / sqrt(1.0 - c_e2 * sin_B1 * sin_B1);
 
@@ -451,10 +451,10 @@ double FastDistance(const coord &pt1, const coord &pt2)
 	const double z1 = (1.0 - c_e2) * r1 * sin_B1;
 
 	/* Координаты второй точки */
-	const double sin_B2 = sin(pt2.lat * M_PI / 180);
-	const double cos_B2 = cos(pt2.lat * M_PI / 180);
-	const double sin_L2 = sin(pt2.lon * M_PI / 180);
-	const double cos_L2 = cos(pt2.lon * M_PI / 180);
+	const double sin_B2 = sin(pt2.lat * M_PI / 180.0);
+	const double cos_B2 = cos(pt2.lat * M_PI / 180.0);
+	const double sin_L2 = sin(pt2.lon * M_PI / 180.0);
+	const double cos_L2 = cos(pt2.lon * M_PI / 180.0);
 
 	const double r2 = c_a / sqrt(1.0 - c_e2 * sin_B2 * sin_B2);
 
@@ -524,19 +524,13 @@ coord world_to_coord(const point &pos, projection pr)
 			break;
 
 		case WGS84_Mercator:
-			/* Последовательные приближения */
-			while (1)
-			{
-				double sin_B = sin(B);
-				const double prev_B = B;
-				
-				B = asin(1.0 -
-					((1.0 + sin_B) * pow(1.0 - c_e * sin_B, c_e)) /
-					(exp(4.0 * M_PI * y) * pow(1.0 + c_e * sin_B, c_e)) );
-
-				if ( fabs(B - prev_B) < 0.00000001)
-					break;
-			}
+			/* Взято из исходников mapedit (да простит меня хозяин).
+				Предыдущая (взятая на просторах инета) выдавала
+				NAN при при pos.y==0.53869654418258694 и зависала */
+			B += (c_e2/2 + 5*c_e4/24 + c_e6/12 + 13*c_e8/360) * sin(2*B)
+				+ (7*c_e4/48 + 29*c_e6/240 + 811*c_e8/11520) * sin(4*B)
+				+ (7*c_e6/120 + 81*c_e8/1120) * sin(6*B)
+				+ (4279*c_e8/161280) * sin(8*B);
 			break;
 
 		default:
