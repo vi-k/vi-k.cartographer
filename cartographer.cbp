@@ -29,11 +29,7 @@
 					<Add option="/NODEFAULTLIB:libcmtd.lib" />
 					<Add option="/NODEFAULTLIB:msvcrt.lib" />
 					<Add library="msvcrtd.lib" />
-					<Add library="wxmsw29ud_richtext.lib" />
 					<Add library="wxmsw29ud_gl.lib" />
-					<Add library="wxbase29ud_xml.lib" />
-					<Add library="wxmsw29ud_adv.lib" />
-					<Add library="wxmsw29ud_html.lib" />
 					<Add library="wxmsw29ud_core.lib" />
 					<Add library="wxbase29ud.lib" />
 					<Add library="wxpngd.lib" />
@@ -68,11 +64,7 @@
 				<Linker>
 					<Add option="/NODEFAULTLIB:libcmt.lib" />
 					<Add library="msvcrt.lib" />
-					<Add library="wxmsw29u_richtext.lib" />
 					<Add library="wxmsw29u_gl.lib" />
-					<Add library="wxbase29u_xml.lib" />
-					<Add library="wxmsw29u_adv.lib" />
-					<Add library="wxmsw29u_html.lib" />
 					<Add library="wxmsw29u_core.lib" />
 					<Add library="wxbase29u.lib" />
 					<Add library="wxpng.lib" />
@@ -140,12 +132,14 @@
 		<Unit filename="cartographerApp.h" />
 		<Unit filename="cartographerMain.cpp" />
 		<Unit filename="cartographerMain.h" />
+		<Unit filename="cartographer\Base.cpp" />
+		<Unit filename="cartographer\Base.h" />
+		<Unit filename="cartographer\Painter.cpp" />
+		<Unit filename="cartographer\Painter.h" />
 		<Unit filename="cartographer\config.h" />
 		<Unit filename="cartographer\defs.h" />
 		<Unit filename="cartographer\font.cpp" />
 		<Unit filename="cartographer\font.h" />
-		<Unit filename="cartographer\frame.cpp" />
-		<Unit filename="cartographer\frame.h" />
 		<Unit filename="cartographer\geodesic.cpp" />
 		<Unit filename="cartographer\geodesic.h" />
 		<Unit filename="cartographer\image.cpp" />

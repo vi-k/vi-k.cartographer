@@ -115,12 +115,97 @@ public:
 	inline void SetImageScale(int image_id, double k)
 		{ SetImageScale(image_id, ratio(k, k)); }
 
-	/* Вывод изображения */
-	void DrawImage(int image_id, const point &pos, const ratio &scale = ratio(1.0, 1.0));
-	inline void DrawImage(int image_id, const point &pos, double kx, double ky)
-		{ return DrawImage(image_id, pos, ratio(kx, ky)); }
-	inline void DrawImage(int image_id, const point &pos, double k)
-		{ return DrawImage(image_id, pos, ratio(k, k)); }
+	/*
+		Вывод изображения (экранные координаты)
+	*/
+
+	void DrawImage(
+		int image_id,
+		const point &pos,
+		const ratio &scale = ratio(1.0, 1.0),
+		const color &blend_color = color(1.0, 1.0, 1.0, 1.0),
+		double angle = 0.0);
+	
+	/* ... общий масштаб для обоих координат */
+	inline void DrawImage(
+		int image_id,
+		const point &pos,
+		double k,
+		const color &blend_color = color(1.0, 1.0, 1.0, 1.0),
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pos, ratio(k, k), blend_color, angle);
+	}
+
+	/* ... с прозрачностью */
+	inline void DrawImage(
+		int image_id,
+		const point &pos,
+		const ratio &scale,
+		double alpha,
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pos, scale, color(1.0, 1.0, 1.0, alpha), angle);
+	}
+
+	/* ... с общим масштабом и с прозрачностью */
+	inline void DrawImage(
+		int image_id,
+		const point &pos,
+		double k,
+		double alpha,
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pos, ratio(k, k), color(1.0, 1.0, 1.0, alpha), angle);
+	}
+
+	/*
+		Вывод изображения (географические координаты)
+	*/
+
+	inline void DrawImage(
+		int image_id,
+		const coord &pt,
+		const ratio &scale = ratio(1.0, 1.0),
+		const color &blend_color = color(1.0, 1.0, 1.0, 1.0),
+		double angle = 0.0)
+	{
+		DrawImage(image_id, CoordToScreen(pt), scale, blend_color, angle);
+	}
+
+	/* .. общий масштаб для обоих координат */
+	inline void DrawImage(
+		int image_id,
+		const coord &pt,
+		double k,
+		const color &blend_color = color(1.0, 1.0, 1.0, 1.0),
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pt, ratio(k, k), blend_color, angle);
+	}
+
+	/* ... с прозрачностью */
+	inline void DrawImage(
+		int image_id,
+		const coord &pt,
+		const ratio &scale,
+		double alpha,
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pt, scale, color(1.0, 1.0, 1.0, alpha), angle);
+	}
+
+	/* ... с общим масштабом и с прозрачностью */
+	inline void DrawImage(
+		int image_id,
+		const coord &pt,
+		double k,
+		double alpha,
+		double angle = 0.0)
+	{
+		return DrawImage(image_id, pt, ratio(k, k), color(1.0, 1.0, 1.0, alpha), angle);
+	}
+
 
 	/*
 		Работа с текстом
@@ -131,6 +216,50 @@ public:
 		const color &text_color,
 		const ratio &center = ratio(0.5, 0.5),
 		const ratio &scale = ratio());
+
+
+	/*
+		Графические примитивы
+	*/
+	
+	/*
+		Простой круг (круг без учёта искажения картографической проекции
+			- допустимо использовать только на малых радиусах (до 100 км))
+	*/
+
+	/* Центр в экранных координатах, радиус в пикселях */
+	void DrawSimpleCircle(const cartographer::point &center,
+		double radius, double line_width, const cartographer::color &line_color,
+		const cartographer::color &fill_color);
+	
+	/* Центр в географических координатах, радиус в метрах */
+	void DrawSimpleCircle(const cartographer::coord &center,
+		double radius_in_m, double line_width, const cartographer::color &line_color,
+		const cartographer::color &fill_color);
+
+	/* Центр в географических коррдинатах, радиус в пикселях */
+	inline void DrawSimpleCirclePx(const cartographer::coord &center,
+		double radius_in_px, double line_width, const cartographer::color &line_color,
+		const cartographer::color &fill_color)
+	{
+		DrawSimpleCircle( CoordToScreen(center), radius_in_px,
+			line_width, line_color, fill_color);
+	}
+	
+	/*
+		Точный круг (круг с учётом искажения картографической проекции)
+	*/
+	void DrawCircle(const cartographer::coord &center,
+		double radius_in_m, double line_width, const cartographer::color &line_color,
+		const cartographer::color &fill_color);
+
+	/*
+		Вспомогательные функции
+	*/
+
+	/* Альфа для мигающий объектов */
+	double FlashAlpha()
+		{ return flash_alpha_; }
 
 protected:
 	int sprites_index_;

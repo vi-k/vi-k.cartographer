@@ -1,6 +1,8 @@
 ﻿#ifndef CARTOGRAPHER_DEFS_H
 #define CARTOGRAPHER_DEFS_H
 
+#include <cmath>
+
 namespace cartographer
 {
 
@@ -80,6 +82,19 @@ public:
 	point() : x(0), y(0) {}
 	point(double x, double y) : x(x), y(y) {}
 	point(const size &sz) : x(sz.dx), y(sz.dy) {}
+
+	double distance() const
+		{ return std::sqrt(x * x + y * y); }
+
+	double angle() const
+		{ return std::atan2(y, x); }
+
+	point rotate(double a) const
+	{
+		const double r = distance();
+		const double new_a = angle() + a;
+		return point( r * std::cos(new_a), r * std::sin(new_a) );
+	}
 
 	inline size as_size() const
 		{ return size(x, y); }

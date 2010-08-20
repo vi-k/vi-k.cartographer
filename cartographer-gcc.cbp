@@ -7,8 +7,8 @@
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin/Debug-gcc/cartographer" prefix_auto="1" extension_auto="1" />
-				<Option object_output="obj/Debug-gcc/" />
+				<Option output="bin\Debug-gcc\cartographer" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Debug-gcc\" />
 				<Option type="0" />
 				<Option compiler="gcc" />
 				<Option projectLinkerOptionsRelation="2" />
@@ -16,17 +16,13 @@
 					<Add option="-g" />
 					<Add option="-D_DEBUG" />
 					<Add option="-D__WXDEBUG__" />
-					<Add directory="$(#wx)/lib/gcc_lib/mswu" />
+					<Add directory="$(#wx)\lib\gcc_lib\mswu" />
 				</Compiler>
 				<ResourceCompiler>
-					<Add directory="$(#wx)/lib/gcc_lib/mswu" />
+					<Add directory="$(#wx)\lib\gcc_lib\mswu" />
 				</ResourceCompiler>
 				<Linker>
-					<Add library="libwxmsw29ud_richtext.a" />
 					<Add library="libwxmsw29ud_gl.a" />
-					<Add library="libwxbase29ud_xml.a" />
-					<Add library="libwxmsw29ud_adv.a" />
-					<Add library="libwxmsw29ud_html.a" />
 					<Add library="libwxmsw29ud_core.a" />
 					<Add library="libwxbase29ud.a" />
 					<Add library="libwxpngd.a" />
@@ -38,30 +34,26 @@
 					<Add library="boost_thread-mgw44-mt-d-1_43" />
 					<Add library="boost_filesystem-mgw44-mt-d-1_43" />
 					<Add library="boost_regex-mgw44-mt-d-1_43" />
-					<Add directory="$(#wx)/lib/gcc_lib" />
+					<Add directory="$(#wx)\lib\gcc_lib" />
 				</Linker>
 			</Target>
 			<Target title="Release">
-				<Option output="bin/Release/cartographer" prefix_auto="1" extension_auto="1" />
-				<Option object_output="obj/Release/" />
+				<Option output="bin\Release\cartographer" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Release-gcc\" />
 				<Option type="0" />
 				<Option compiler="gcc" />
 				<Option projectLinkerOptionsRelation="2" />
 				<Compiler>
 					<Add option="-O2" />
 					<Add option="-DNDEBUG" />
-					<Add directory="$(#wx)/lib/gcc_lib/mswu" />
+					<Add directory="$(#wx)\lib\gcc_lib\mswu" />
 				</Compiler>
 				<ResourceCompiler>
-					<Add directory="$(#wx)/lib/gcc_lib/mswu" />
+					<Add directory="$(#wx)\lib\gcc_lib\mswu" />
 				</ResourceCompiler>
 				<Linker>
 					<Add option="-s" />
-					<Add library="libwxmsw29u_richtext.a" />
 					<Add library="libwxmsw29u_gl.a" />
-					<Add library="libwxbase29u_xml.a" />
-					<Add library="libwxmsw29u_adv.a" />
-					<Add library="libwxmsw29u_html.a" />
 					<Add library="libwxmsw29u_core.a" />
 					<Add library="libwxbase29u.a" />
 					<Add library="libwxpng.a" />
@@ -73,7 +65,7 @@
 					<Add library="boost_thread-mgw44-mt-1_43" />
 					<Add library="boost_filesystem-mgw44-mt-1_43" />
 					<Add library="boost_regex-mgw44-mt-1_43" />
-					<Add directory="$(#wx)/lib/gcc_lib" />
+					<Add directory="$(#wx)\lib\gcc_lib" />
 				</Linker>
 			</Target>
 		</Build>
@@ -87,13 +79,13 @@
 			<Add option="-D__WXMSW__" />
 			<Add option="-DwxUSE_UNICODE" />
 			<Add option="-DWX_PRECOMP" />
-			<Add directory="$(#wx)/include" />
-			<Add directory="$(#wx)/contrib/include" />
+			<Add directory="$(#wx)\include" />
+			<Add directory="$(#wx)\contrib\include" />
 			<Add directory="$(boost)" />
-			<Add directory="../mylib" />
+			<Add directory="..\mylib" />
 		</Compiler>
 		<ResourceCompiler>
-			<Add directory="$(#wx)/include" />
+			<Add directory="$(#wx)\include" />
 		</ResourceCompiler>
 		<Linker>
 			<Add option="-mthreads" />
@@ -111,24 +103,27 @@
 			<Add library="libws2_32.a" />
 			<Add library="libodbc32.a" />
 			<Add library="libopengl32.a" />
-			<Add directory="$(boost)/stage/lib" />
-			<Add directory="../mylib/gcc_lib" />
+			<Add directory="$(boost)\stage\lib" />
+			<Add directory="..\mylib\gcc_lib" />
 		</Linker>
-		<Unit filename="cartographer/config.h" />
-		<Unit filename="cartographer/defs.h" />
-		<Unit filename="cartographer/font.cpp" />
-		<Unit filename="cartographer/font.h" />
-		<Unit filename="cartographer/frame.cpp" />
-		<Unit filename="cartographer/frame.h" />
-		<Unit filename="cartographer/geodesic.cpp" />
-		<Unit filename="cartographer/geodesic.h" />
-		<Unit filename="cartographer/image.cpp" />
-		<Unit filename="cartographer/image.h" />
-		<Unit filename="cartographer/raw_image.h" />
 		<Unit filename="cartographerApp.cpp" />
 		<Unit filename="cartographerApp.h" />
 		<Unit filename="cartographerMain.cpp" />
 		<Unit filename="cartographerMain.h" />
+		<Unit filename="cartographer\Base.cpp" />
+		<Unit filename="cartographer\Base.h" />
+		<Unit filename="cartographer\Painter.cpp" />
+		<Unit filename="cartographer\Painter.h" />
+		<Unit filename="cartographer\config.h" />
+		<Unit filename="cartographer\defs.h" />
+		<Unit filename="cartographer\font.cpp" />
+		<Unit filename="cartographer\font.h" />
+		<Unit filename="cartographer\frame.h" />
+		<Unit filename="cartographer\geodesic.cpp" />
+		<Unit filename="cartographer\geodesic.h" />
+		<Unit filename="cartographer\image.cpp" />
+		<Unit filename="cartographer\image.h" />
+		<Unit filename="cartographer\raw_image.h" />
 		<Unit filename="handle_exception.cpp" />
 		<Unit filename="handle_exception.h" />
 		<Unit filename="resource.rc">
@@ -139,7 +134,7 @@
 			<Option weight="0" />
 			<Option compiler="gcc" use="1" buildCommand="$compiler -x c++ $options $includes -c $file -o $object" />
 		</Unit>
-		<Unit filename="wxsmith/cartographerframe.wxs" />
+		<Unit filename="wxsmith\cartographerframe.wxs" />
 		<Extensions>
 			<code_completion />
 			<envvars />

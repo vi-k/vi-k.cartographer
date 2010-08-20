@@ -55,12 +55,6 @@ class cartographerFrame: public wxFrame
 
 		void OnMapPaint(double z, const cartographer::size &screen_size);
 
-		void DrawImage(int id, const cartographer::coord &pt, double alpha = 1.0);
-
-		void DrawCircle(const cartographer::coord &pt,
-			double r, double line_width, const cartographer::color &line_color,
-			const cartographer::color &fill_color);
-
 		double DrawPath(const cartographer::coord &pt1,
 			const cartographer::coord &pt2,
 			double line_width, const cartographer::color &line_color,
