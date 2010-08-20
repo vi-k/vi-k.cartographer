@@ -75,6 +75,8 @@ public:
 	fast_point GetScreenPos();
 	void MoveTo(const coord &pt);
 	void MoveTo(int z, const coord &pt);
+	void MoveTo(const coord &pt, const ratio &center);
+	void MoveTo(int z, const coord &pt, const ratio &center);
 
 
 	/*
@@ -125,7 +127,7 @@ public:
 		const ratio &scale = ratio(1.0, 1.0),
 		const color &blend_color = color(1.0, 1.0, 1.0, 1.0),
 		double angle = 0.0);
-	
+
 	/* ... общий масштаб для обоих координат */
 	inline void DrawImage(
 		int image_id,
@@ -221,7 +223,7 @@ public:
 	/*
 		Графические примитивы
 	*/
-	
+
 	/*
 		Простой круг (круг без учёта искажения картографической проекции
 			- допустимо использовать только на малых радиусах (до 100 км))
@@ -231,7 +233,7 @@ public:
 	void DrawSimpleCircle(const cartographer::point &center,
 		double radius, double line_width, const cartographer::color &line_color,
 		const cartographer::color &fill_color);
-	
+
 	/* Центр в географических координатах, радиус в метрах */
 	void DrawSimpleCircle(const cartographer::coord &center,
 		double radius_in_m, double line_width, const cartographer::color &line_color,
@@ -245,7 +247,7 @@ public:
 		DrawSimpleCircle( CoordToScreen(center), radius_in_px,
 			line_width, line_color, fill_color);
 	}
-	
+
 	/*
 		Точный круг (круг с учётом искажения картографической проекции)
 	*/
