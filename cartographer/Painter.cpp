@@ -319,7 +319,8 @@ void Painter::SetImageScale(int image_id, const ratio &scale)
 		iter->second->set_scale(scale);
 }
 
-void Painter::DrawImage(int image_id, const point &pos, const ratio &scale)
+void Painter::DrawImage(int image_id, const point &pos, const ratio &scale,
+	const color &blend_color, double angle)
 {
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
@@ -338,20 +339,35 @@ void Painter::DrawImage(int image_id, const point &pos, const ratio &scale)
 			++load_texture_debug_counter_;
 		}
 
-		const ratio sc = scale * sprite_ptr->scale();
-		double w = sprite_ptr->raw().width() * sc.kx;
-		double h = sprite_ptr->raw().height() * sc.ky;
+		const ratio total_scale = scale * sprite_ptr->scale();
+		const raw_image &raw = sprite_ptr->raw();
 
-		const ratio center = sprite_ptr->center();
-		double x = pos.x - sprite_ptr->width() * sc.kx * center.kx;
-		double y = pos.y - sprite_ptr->height() * sc.ky * center.ky;
+		const size offset = sprite_ptr->get_size() * sprite_ptr->center();
+
+		/* Координаты левого верхнего и правого нижнего угла выводимой текстуры */
+		point lt = -point(offset) * total_scale;
+		point rb = point(raw.width() - offset.width, raw.height() - offset.height)
+			* total_scale;
+		point rt(rb.x, lt.y);
+		point lb(lt.x, rb.y);
+
+		const double a = angle * M_PI / 180.0;
+
+		const size screen_offset = pos.as_size();
+
+		lt = lt.rotate(a) + screen_offset;
+		rt = rt.rotate(a) + screen_offset;
+		rb = rb.rotate(a) + screen_offset;
+		lb = lb.rotate(a) + screen_offset;
+
+		glColor4dv(&blend_color.r);
 
 		glBindTexture(GL_TEXTURE_2D, texture_id);
 		glBegin(GL_QUADS);
-			glTexCoord2d(0.0, 0.0); glVertex3d(x,     y,     0);
-			glTexCoord2d(1.0, 0.0); glVertex3d(x + w, y,     0);
-			glTexCoord2d(1.0, 1.0); glVertex3d(x + w, y + h, 0);
-			glTexCoord2d(0.0, 1.0); glVertex3d(x,     y + h, 0);
+			glTexCoord2d(0.0, 0.0); glVertex3d(lt.x, lt.y, 0);
+			glTexCoord2d(1.0, 0.0); glVertex3d(rt.x, rt.y, 0);
+			glTexCoord2d(1.0, 1.0); glVertex3d(rb.x, rb.y, 0);
+			glTexCoord2d(0.0, 1.0); glVertex3d(lb.x, lb.y, 0);
 		glEnd();
 
 		magic_exec();
@@ -401,6 +417,88 @@ size Painter::DrawText(int font_id, const std::wstring &str, const point &pos,
 	check_gl_error();
 
 	return sz;
+}
+
+void Painter::DrawSimpleCircle(const cartographer::point &center,
+	double radius, double line_width, const cartographer::color &line_color,
+	const cartographer::color &fill_color)
+{
+	const double step = M_PI / 180.0;
+
+	/* Сначала круг, затем окружность */
+	for (int n = 0; n < 2; ++n)
+	{
+		if (n == 0)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glBegin(GL_POLYGON);
+			glColor4dv(&fill_color.r);
+		}
+		else
+		{
+			glLineWidth(line_width);
+			glBegin(GL_LINE_LOOP);
+			glColor4dv(&line_color.r);
+		}
+
+		for (double a = 2.0 * M_PI; a > 0.0; a -= step)
+		{
+			cartographer::point pos( center.x + radius * cos(a),
+				center.y + radius * sin(a) );
+			glVertex3d(pos.x, pos.y, 0);
+		}
+		glEnd();
+	}
+}
+
+void Painter::DrawSimpleCircle(const cartographer::coord &center,
+	double radius_in_m, double line_width, const cartographer::color &line_color,
+	const cartographer::color &fill_color)
+{
+	cartographer::point center_pos = CoordToScreen(center);
+	cartographer::coord east_pt = cartographer::Direct(center, 90.0, radius_in_m);
+	cartographer::point east_pos = CoordToScreen(east_pt);
+
+	double radius = east_pos.x - center_pos.x;
+	
+	/* Проверяем случай пересечения линию перемены дат */
+	if (radius < 0.0)
+		radius += world_px_size(z_);
+
+	DrawSimpleCircle( center_pos, radius,
+		line_width, line_color, fill_color );
+}
+
+void Painter::DrawCircle(const cartographer::coord &center,
+	double radius_in_m, double line_width, const cartographer::color &line_color,
+	const cartographer::color &fill_color)
+{
+	const double step = 1.0;
+
+	/* Сначала круг, затем окружность */
+	for (int n = 0; n < 2; ++n)
+	{
+		if (n == 0)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glBegin(GL_POLYGON);
+			glColor4dv(&fill_color.r);
+		}
+		else
+		{
+			glLineWidth(line_width);
+			glBegin(GL_LINE_LOOP);
+			glColor4dv(&line_color.r);
+		}
+
+		for (double a = 0.0; a < 360.0; a += step)
+		{
+			cartographer::coord ptN = cartographer::Direct(center, a, radius_in_m);
+			cartographer::point ptN_pos = CoordToScreen(ptN);
+			glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+		}
+		glEnd();
+	}
 }
 
 void Painter::after_repaint(const size &screen_size)

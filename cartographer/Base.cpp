@@ -75,6 +75,10 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 	, central_cross_alpha_(0.0)
 	, painter_debug_counter_(0)
 	, move_mode_(false)
+	, flash_alpha_(0.0)
+	, flash_new_alpha_(0.0)
+	, flash_pause_(true)
+	, flash_step_(1)
 	, paint_thread_id_( boost::this_thread::get_id() )
 	, on_image_delete_( boost::bind(&Base::on_image_delete_proc, this, _1) )
 {
@@ -674,7 +678,6 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 			}
 		}
 
-#if 0
 		/* Мигание для "мигающих" объектов */
 		flash_alpha_ += (flash_new_alpha_ - flash_alpha_) / flash_step_;
 		if (--flash_step_ == 0)
@@ -684,7 +687,6 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 			if ((flash_pause_ = !flash_pause_) == false)
 				flash_new_alpha_ = (flash_new_alpha_ == 0 ? 1 : 0);
 		}
-#endif
 
 		//Refresh(false);
 		//Update();

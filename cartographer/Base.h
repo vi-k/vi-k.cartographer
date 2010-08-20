@@ -222,6 +222,10 @@ protected:
 	int painter_debug_counter_;
 	bool move_mode_;
 	point mouse_pos_;
+	double flash_alpha_;
+	double flash_new_alpha_;
+	bool flash_pause_;
+	int flash_step_;
 
 	boost::thread::id paint_thread_id_;
 	void repaint();

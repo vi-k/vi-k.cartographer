@@ -130,8 +130,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	for (int i = 0; i < count_; ++i)
 		images_[i]= 0;
 
-	Cartographer = new cartographer::Painter(this, L"172.16.19.1");
-	//Cartographer = new cartographer::Painter(this, L"127.0.0.1");
+	//Cartographer = new cartographer::Painter(this, L"172.16.19.1");
+	Cartographer = new cartographer::Painter(this, L"127.0.0.1");
 
 	delete Panel1;
 	FlexGridSizer1->Add(Cartographer, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -163,7 +163,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	/* Метки - не забыть изменить размер массива (!),
 		когда надо будет добавить ещё */
 	images_[0] = Cartographer->LoadImageFromFile(L"images/blu-blank.png");
-	//Cartographer->SetImageCentralPoint(images_[0], 31.5, 64.0);
+	Cartographer->SetImageCentralPoint(images_[0], 31.5, 64.0);
 
 	images_[1] = Cartographer->LoadImageFromFile(L"images/back.png");
 	Cartographer->SetImageCentralPoint(images_[1], -1.0, 15.5);
@@ -499,53 +499,6 @@ void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 	Cartographer->SetActiveMapByName(str);
 }
 
-void cartographerFrame::DrawImage(int id, const cartographer::coord &pt, double alpha)
-{
-	if (id == 0)
-		return;
-
-	cartographer::point pos = Cartographer->CoordToScreen(pt);
-	const double z = Cartographer->GetActiveZ();
-
-	glColor4d(1.0, 1.0, 1.0, alpha);
-	Cartographer->DrawImage(id, pos, z < 6.0 ? z / 6.0 : 1.0);
-}
-
-void cartographerFrame::DrawCircle(const cartographer::coord &pt,
-	double r, double line_width, const cartographer::color &line_color,
-	const cartographer::color &fill_color)
-{
-	const double z = Cartographer->GetActiveZ();
-
-	cartographer::point pt_pos = Cartographer->CoordToScreen(pt);
-
-	/* Сначала заполняем, потом рисуем окружность */
-	for (int n = 0; n < 2; ++n)
-	{
-		if (n == 0)
-		{
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			glBegin(GL_POLYGON);
-			glColor4dv(&fill_color.r);
-		}
-		else
-		{
-			glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
-			glBegin(GL_LINE_LOOP);
-			glColor4dv(&line_color.r);
-		}
-
-		const double step = 3.0;
-		for (double a = step / 2.0; a < 360.0; a += step)
-		{
-			cartographer::coord ptN = cartographer::Direct(pt, a, r);
-			cartographer::point ptN_pos = Cartographer->CoordToScreen(ptN);
-			glVertex3d(ptN_pos.x, ptN_pos.y, 0);
-		}
-		glEnd();
-	}
-}
-
 double cartographerFrame::DrawPath(const cartographer::coord &pt1,
 	const cartographer::coord &pt2,
 	double line_width, const cartographer::color &line_color,
@@ -640,9 +593,15 @@ cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
 
 void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_size)
 {
-	for (int i = 0; i < count_; ++i)
-		DrawImage(images_[i], coords_[i]);
+	static double angle = 0.0;
 
+	angle += 5.0;
+	if (angle > 360.0)
+		angle -= 360.0;
+
+	for (int i = 0; i < count_; ++i)
+		Cartographer->DrawImage(images_[i], coords_[i], 1.0, 1.0, angle);
+	
 	/* Путь от Хабаровска до Москвы */
 	{
 		cartographer::coord pt1 = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
@@ -652,9 +611,30 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 
 		/* Круг, примерно в центре пути */
 		cartographer::coord pt = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
-		DrawCircle(pt, 1000000.0, 4.0,
+		
+		/* ... с учётом картографических искажений */
+		Cartographer->DrawCircle(pt, 1000000.0, 4.0,
 			cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.3));
-		DrawImage(images_[9], pt);
+
+		/* ... и для сравнения - без учёта картографических искажений */
+		Cartographer->DrawSimpleCircle(pt, 1000000.0, 4.0,
+			cartographer::color(0.0, 0.0, 1.0, 1.0), cartographer::color(0.0, 0.0, 0.0, 0.5));
+		Cartographer->DrawImage(images_[9], pt);
+	}
+	
+	/* Круг на Сахалине радиусом 100 км */
+	{
+		cartographer::coord pt = coords_[4];
+		
+		/* ... с учётом картографических искажений */
+		Cartographer->DrawCircle(pt, 100000.0, 4.0,
+			cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.3));
+
+		/* ... и для сравнения - без учёта картографических искажений */
+		Cartographer->DrawSimpleCircle(pt, 100000.0, 4.0,
+			cartographer::color(0.0, 0.0, 1.0, 1.0), cartographer::color(0.0, 0.0, 0.0, 0.5));
+		
+		Cartographer->DrawImage(images_[9], pt);
 	}
 
 	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
@@ -663,65 +643,85 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 		90.0, 40000000.0, 4.0, cartographer::color(0.0, 0.5, 1.0));
 
-	DrawImage(images_[9], cartographer::DMSToDD( -54,39,51.45, -65,13,31.03 ));
+	Cartographer->DrawImage(images_[9], cartographer::DMSToDD( -54,39,51.45, -65,13,31.03 ));
 
-	DrawImage(images_[9], cartographer::DMSToDD( 48,28,43.0, 135,4,5.0 ));
+	Cartographer->DrawImage(images_[9], cartographer::DMSToDD( 48,28,43.0, 135,4,5.0 ));
 
+	/* Простые круги с радиусом в метрах */
+	Cartographer->DrawSimpleCircle( cartographer::DMSToDD( 48,28,36.0, 135,3,53.0 ),
+		10.0, 2.0, cartographer::color(1.0, 0.0, 0.0),
+		cartographer::color(1.0, 0.0, 0.0, 0.5));
+	Cartographer->DrawSimpleCircle( cartographer::DMSToDD( 48,28,38.0, 135,3,58.0 ),
+		13.3, 2.0, cartographer::color(1.0, 0.67, 0.0),
+		cartographer::color(1.0, 0.67, 0.0, 0.5));
+	Cartographer->DrawSimpleCircle( cartographer::DMSToDD( 48,28,40.0, 135,4,2.0 ),
+		16.7, 2.0, cartographer::color(0.67, 1.0, 0.0),
+		cartographer::color(0.67, 1.0, 0.0, 0.5));
+	Cartographer->DrawSimpleCircle( cartographer::DMSToDD( 48,28,41.5, 135,4,5.5 ),
+		20.0, 2.0, cartographer::color(0.0, 1.0, 0.0),
+		cartographer::color(0.0, 1.0, 0.0, 0.5));
+	Cartographer->DrawSimpleCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ),
+		16.7, 2.0, cartographer::color(0.67, 1.0, 0.0),
+		cartographer::color(0.67, 1.0, 0.0, 0.5));
 
-	DrawCircle( cartographer::DMSToDD( 48,28,36.0, 135,3,53.0 ), 10.0, 2.0,
-		cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.5));
-
-	DrawCircle( cartographer::DMSToDD( 48,28,38.0, 135,3,58.0 ), 13.3, 2.0,
-		cartographer::color(1.0, 0.67, 0.0), cartographer::color(1.0, 0.67, 0.0, 0.5));
-
-	DrawCircle( cartographer::DMSToDD( 48,28,40.0, 135,4,2.0 ), 16.7, 2.0,
-		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
-
-	DrawCircle( cartographer::DMSToDD( 48,28,41.5, 135,4,5.5 ), 20.0, 2.0,
-		cartographer::color(0.0, 1.0, 0.0), cartographer::color(0.0, 1.0, 0.0, 0.5));
-
-	DrawCircle( cartographer::DMSToDD( 48,28,43.5, 135,4,9.0 ), 16.7, 2.0,
-		cartographer::color(0.67, 1.0, 0.0), cartographer::color(0.67, 1.0, 0.0, 0.5));
+	/* Простые круги с радиусом в пикселях */
+	Cartographer->DrawSimpleCircle( cartographer::point(25, 25),
+		23, 3.0, cartographer::color(0.0, 0.5, 1.0),
+		cartographer::color(0.0, 0.0, 0.0, 0.0));
+	Cartographer->DrawSimpleCircle( cartographer::point(50, 50),
+		23, 3.0, cartographer::color(1.0, 0.5, 0.0),
+		cartographer::color(0.0, 0.0, 0.0, 0.0));
+	Cartographer->DrawSimpleCircle( cartographer::point(75, 25),
+		23, 3.0, cartographer::color(0.0, 0.0, 0.0),
+		cartographer::color(0.0, 0.0, 0.0, 0.0));
+	Cartographer->DrawSimpleCircle( cartographer::point(100, 50),
+		23, 3.0, cartographer::color(0.0, 1.0, 0.0),
+		cartographer::color(0.0, 0.0, 0.0, 0.0));
+	Cartographer->DrawSimpleCircle( cartographer::point(125, 25),
+		23, 3.0, cartographer::color(1.0, 0.0, 0.0),
+		cartographer::color(0.0, 0.0, 0.0, 0.0));
 
 	{
 		cartographer::coord pt = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
 		cartographer::point pt_pos = Cartographer->CoordToScreen(pt);
 
+		double a = Cartographer->FlashAlpha();
+
 		cartographer::size sz
 			= Cartographer->DrawText(big_font_,
 				L"Хабаровск",
-				pt_pos, cartographer::color(1.0, 1.0, 1.0),
+				pt_pos, cartographer::color(1.0, 1.0, 1.0, a),
 				cartographer::ratio(0.5, 0.0));
 
 		pt_pos.y += sz.height;
 		Cartographer->DrawText(small_font_,
 			L"(столица Дальнего Востока)",
-			pt_pos, cartographer::color(1.0, 1.0, 1.0),
+			pt_pos, cartographer::color(1.0, 1.0, 1.0, a),
 			cartographer::ratio(0.5, 0.0));
 
-		DrawImage(green_mark16_id_, pt);
+		Cartographer->DrawImage(green_mark16_id_, pt);
 
 		pt.lon += 0.01;
-		DrawImage(green_mark16_id_, pt);
-		DrawImage(yellow_mark16_id_, pt, 0.33);
+		Cartographer->DrawImage(green_mark16_id_, pt);
+		Cartographer->DrawImage(yellow_mark16_id_, pt, 1.0, 0.33);
 
 		pt.lon += 0.01;
-		DrawImage(green_mark16_id_, pt);
-		DrawImage(yellow_mark16_id_, pt, 0.67);
+		Cartographer->DrawImage(green_mark16_id_, pt);
+		Cartographer->DrawImage(yellow_mark16_id_, pt, 1.0, 0.67);
 
 		pt.lon += 0.01;
-		DrawImage(yellow_mark16_id_, pt);
+		Cartographer->DrawImage(yellow_mark16_id_, pt);
 
 		pt.lon += 0.01;
-		DrawImage(yellow_mark16_id_, pt);
-		DrawImage(red_mark16_id_, pt, 0.33);
+		Cartographer->DrawImage(yellow_mark16_id_, pt);
+		Cartographer->DrawImage(red_mark16_id_, pt, 1.0, 0.33);
 
 		pt.lon += 0.01;
-		DrawImage(yellow_mark16_id_, pt);
-		DrawImage(red_mark16_id_, pt, 0.67);
+		Cartographer->DrawImage(yellow_mark16_id_, pt);
+		Cartographer->DrawImage(red_mark16_id_, pt, 1.0, 0.67);
 
 		pt.lon += 0.01;
-		DrawImage(red_mark16_id_, pt);
+		Cartographer->DrawImage(red_mark16_id_, pt);
 	}
 
 	{
@@ -738,7 +738,7 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 			pt_pos, cartographer::color(1.0, 1.0, 0.0),
 			cartographer::ratio(0.5, 0.0), cartographer::ratio(0.8, 0.8));
 
-		DrawImage(red_mark16_id_, pt);
+		Cartographer->DrawImage(red_mark16_id_, pt);
 	}
 }
 
