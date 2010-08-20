@@ -183,6 +183,23 @@ void Painter::MoveTo(int z, const coord &pt)
 	set_z(z);
 }
 
+void Painter::MoveTo(const coord &pt, const ratio &center)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+	screen_pos_ = pt;
+	if (!move_mode_)
+		center_pos_.set_rel_pos(center);
+}
+
+void Painter::MoveTo(int z, const coord &pt, const ratio &center)
+{
+	unique_lock<recursive_mutex> lock(params_mutex_);
+	screen_pos_ = pt;
+	if (!move_mode_)
+		center_pos_.set_rel_pos(center);
+	set_z(z);
+}
+
 int Painter::LoadImageFromFile(const std::wstring &filename)
 {
 	unique_lock<shared_mutex> lock(sprites_mutex_);
@@ -460,7 +477,7 @@ void Painter::DrawSimpleCircle(const cartographer::coord &center,
 	cartographer::point east_pos = CoordToScreen(east_pt);
 
 	double radius = east_pos.x - center_pos.x;
-	
+
 	/* Проверяем случай пересечения линию перемены дат */
 	if (radius < 0.0)
 		radius += world_px_size(z_);
