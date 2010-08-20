@@ -509,10 +509,10 @@ void Painter::after_repaint(const size &screen_size)
 	{
 		wchar_t buf[200];
 
-		/* Позиции экрана и его центра */
 		coord mouse_coord = screen_to_coord(
 			mouse_pos_, map_pr_, z_,
-			screen_pos_.get_world_pos(map_pr_), center_pos_.get_pos());
+			screen_pos_.get_world_pos(map_pr_),
+			center_pos_.get_pos());
 
 		int lat_sign, lon_sign;
 		int lat_d, lon_d;

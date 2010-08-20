@@ -1110,8 +1110,6 @@ void Base::repaint()
 	SwapBuffers();
 	check_gl_error();
 
-	//paint_debug_info(dc, width_i, height_i);
-
 	/* Удаляем текстуры, вышедшие из употребления */
 	delete_textures();
 
