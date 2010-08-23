@@ -113,8 +113,7 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	Connect(ID_ANCHOR,wxEVT_COMMAND_TOOL_CLICKED,(wxObjectEventFunction)&cartographerFrame::OnAnchorButtonClick);
 	//*)
 
-	setlocale(LC_NUMERIC, "C");
-
+	setlocale(LC_ALL, "Russian_Russia.1251");	setlocale(LC_NUMERIC, "C");
 	{
 		wxIcon FrameIcon;
 		FrameIcon.CopyFromBitmap(wxBitmap(wxImage(_T("images/cartographer.png"))));
@@ -601,7 +600,7 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 
 	for (int i = 0; i < count_; ++i)
 		Cartographer->DrawImage(images_[i], coords_[i], 1.0, 1.0, angle);
-	
+
 	/* Путь от Хабаровска до Москвы */
 	{
 		cartographer::coord pt1 = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
@@ -611,7 +610,7 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 
 		/* Круг, примерно в центре пути */
 		cartographer::coord pt = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
-		
+
 		/* ... с учётом картографических искажений */
 		Cartographer->DrawCircle(pt, 1000000.0, 4.0,
 			cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.3));
@@ -621,11 +620,11 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 			cartographer::color(0.0, 0.0, 1.0, 1.0), cartographer::color(0.0, 0.0, 0.0, 0.5));
 		Cartographer->DrawImage(images_[9], pt);
 	}
-	
+
 	/* Круг на Сахалине радиусом 100 км */
 	{
 		cartographer::coord pt = coords_[4];
-		
+
 		/* ... с учётом картографических искажений */
 		Cartographer->DrawCircle(pt, 100000.0, 4.0,
 			cartographer::color(1.0, 0.0, 0.0), cartographer::color(1.0, 0.0, 0.0, 0.3));
@@ -633,7 +632,7 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 		/* ... и для сравнения - без учёта картографических искажений */
 		Cartographer->DrawSimpleCircle(pt, 100000.0, 4.0,
 			cartographer::color(0.0, 0.0, 1.0, 1.0), cartographer::color(0.0, 0.0, 0.0, 0.5));
-		
+
 		Cartographer->DrawImage(images_[9], pt);
 	}
 
@@ -687,9 +686,12 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 
 		double a = Cartographer->FlashAlpha();
 
+		std::string cstr = "Хабаровск";
+		std::wstring wstr = my::str::to_wstring(cstr);		//std::wstring wstr = my::utf8::decode(cstr);
+
 		cartographer::size sz
 			= Cartographer->DrawText(big_font_,
-				L"Хабаровск",
+				wstr, //L"Хабаровск",
 				pt_pos, cartographer::color(1.0, 1.0, 1.0, a),
 				cartographer::ratio(0.5, 0.0));
 
