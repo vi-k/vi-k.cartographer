@@ -41,11 +41,6 @@ void Painter::SetPainter(on_paint_proc_t on_paint_proc)
 	on_paint_handler_ = on_paint_proc;
 }
 
-void Painter::Update()
-{
-	update();
-}
-
 void Painter::Stop()
 {
 	stop();

@@ -36,7 +36,6 @@ public:
 	~Painter();
 
 	void SetPainter(on_paint_proc_t on_paint_proc);
-	void Update();
 	void Stop();
 
 	void SetStatusHandler(on_status_proc_t on_status_proc);
@@ -217,7 +216,7 @@ public:
 	size DrawText(int font_id, const std::wstring &str, const point &pos,
 		const color &text_color,
 		const ratio &center = ratio(0.5, 0.5),
-		const ratio &scale = ratio());
+		const ratio &scale = ratio(1.0, 1.0));
 
 
 	/*
