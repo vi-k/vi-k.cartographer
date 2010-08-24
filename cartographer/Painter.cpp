@@ -46,6 +46,12 @@ void Painter::Stop()
 	stop();
 }
 
+void Painter::Repaint()
+{
+	if (boost::this_thread::get_id() == paint_thread_id_)
+		repaint();
+}
+
 void Painter::SetStatusHandler(on_status_proc_t on_status_proc)
 {
 	on_status_ = on_status_proc;
