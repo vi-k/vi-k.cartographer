@@ -37,6 +37,7 @@ public:
 
 	void SetPainter(on_paint_proc_t on_paint_proc);
 	void Stop();
+	void Repaint();
 
 	void SetStatusHandler(on_status_proc_t on_status_proc);
 
