@@ -690,8 +690,21 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 
 		//Refresh(false);
 		//Update();
-		send_my_event(MY_ID_REPAINT);
-		sleep(this_worker);
+
+		{
+			/* Без этой блокировки случалось так, что отрисовка выполнялась
+				быстрее, чем поток успел дойти до sleep(): repaint() будил
+				ещё не заснувший поток, после чего animator спокойно засыпал,
+				но уже навечно */
+			unique_lock<mutex> lock(this_worker->get_mutex());
+
+			debug_log << L"send_my_event(MY_ID_REPAINT)" << debug_log;
+			send_my_event(MY_ID_REPAINT);
+
+			debug_log << L"sleep(this_worker)" << debug_log;
+			sleep(this_worker, lock);
+			debug_log << L"wake_up(this_worker)" << debug_log;
+		}
 
 		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
 		boost::posix_time::ptime now = my::time::utc_now();
@@ -700,8 +713,18 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 			от времени предыдущей, но на практике могут возникнуть торможения,
 			и, тогда, программа будет пытаться запустить прорисовку в прошлом.
 			В этом случае следующий запуск делаем относительно текущего времени */
-		timer.expires_at( now > time ? now : time );
-		timer.wait();
+		if (now > time)
+		{
+			debug_log << L"without timer" << debug_log;
+			timer.expires_at(now);
+		}
+		else
+		{
+			debug_log << L"timer.expires_at("
+				<< my::time::to_wstring(time) << L')' << debug_log;
+			timer.expires_at(time);
+			timer.wait();
+		}
 	}
 }
 
@@ -1215,7 +1238,7 @@ void Base::on_paint(wxPaintEvent &event)
 {
 	wxPaintDC dc(this);
 
-	//repaint();
+	repaint();
 
 	event.Skip(false);
 }
