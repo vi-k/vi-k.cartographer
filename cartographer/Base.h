@@ -55,8 +55,6 @@ struct map_info
 };
 
 
-wxDECLARE_EVENT(MY_EVENT, wxCommandEvent);
-
 /*
 	Картографер
 */
