@@ -4,11 +4,10 @@
 
 #include <boost/bind.hpp>
 
-extern my::log main_log;
-extern my::log debug_log;
-
 namespace cartographer
 {
+
+extern my::log log;
 
 Painter::Painter(wxWindow *parent, const std::wstring &server_addr,
 	const std::wstring &init_map, std::size_t cache_size)
@@ -173,6 +172,8 @@ fast_point Painter::GetScreenPos()
 
 void Painter::MoveTo(const coord &pt)
 {
+	log << L"MoveTo()" << log;
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	screen_pos_ = pt;
 }
@@ -521,11 +522,25 @@ void Painter::DrawCircle(const cartographer::coord &center,
 
 void Painter::after_repaint(const size &screen_size)
 {
+	log << L"cartographer::after_repaint()" << log;
+
 	/* Статус-строка */
 	std::wstring status_str;
 
 	{
 		wchar_t buf[200];
+
+		/*
+		point sc_pt = screen_pos_.get_world_pos(map_pr_);
+		point ce_pt = center_pos_.get_pos();
+
+		log
+			<< L"mouse_pos: " << mouse_pos_.x << L',' << mouse_pos_.y
+			<< L" z_: " << z_
+			<< L" screen_pos: " << sc_pt.x << L',' << sc_pt.y
+			<< L" center_pos: " << ce_pt.x << L',' << ce_pt.y
+			<< log;
+		-*/
 
 		coord mouse_coord = screen_to_coord(
 			mouse_pos_, map_pr_, z_,
@@ -557,6 +572,8 @@ void Painter::after_repaint(const size &screen_size)
 		point(4.0, screen_size.height),
 		cartographer::color(1.0, 1.0, 1.0),
 		cartographer::ratio(0.0, 1.0));
+
+	log << L"~ cartographer::after_repaint()" << log;
 }
 
 } /* namespace cartographer */
