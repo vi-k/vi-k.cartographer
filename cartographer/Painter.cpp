@@ -442,7 +442,18 @@ void Painter::DrawSimpleCircle(const cartographer::point &center,
 	double radius, double line_width, const cartographer::color &line_color,
 	const cartographer::color &fill_color)
 {
-	const double step = M_PI / 180.0;
+	/* При малых радиусах - нет необходимости в мелком шаге */
+	double step = 180.0 / (M_PI * radius);
+
+	if (step < 1.0)
+		step = 1.0;
+
+	/* Применяем такое хитрое сравнение на случай,
+		если step получился NAN или INF */
+	if ( !(step < 60.0) )
+		step = 60.0;
+
+	step *= M_PI / 180.0;
 
 	/* Сначала круг, затем окружность */
 	for (int n = 0; n < 2; ++n)
@@ -466,6 +477,7 @@ void Painter::DrawSimpleCircle(const cartographer::point &center,
 				center.y + radius * sin(a) );
 			glVertex3d(pos.x, pos.y, 0);
 		}
+
 		glEnd();
 	}
 }
@@ -492,7 +504,9 @@ void Painter::DrawCircle(const cartographer::coord &center,
 	double radius_in_m, double line_width, const cartographer::color &line_color,
 	const cartographer::color &fill_color)
 {
-	const double step = 1.0;
+	double step = 1.0;
+
+	cartographer::point center_pos = CoordToScreen(center);
 
 	/* Сначала круг, затем окружность */
 	for (int n = 0; n < 2; ++n)
@@ -514,6 +528,23 @@ void Painter::DrawCircle(const cartographer::coord &center,
 		{
 			cartographer::coord ptN = cartographer::Direct(center, a, radius_in_m);
 			cartographer::point ptN_pos = CoordToScreen(ptN);
+
+			if (a == 0.0)
+			{
+				/* При малых радиусах - нет необходимости в мелком шаге */
+				double radius = ptN_pos.x - center_pos.x;
+
+				step = 180.0 / (M_PI * radius);
+
+				if (step < 1.0)
+					step = 1.0;
+
+				/* Применяем такое хитрое сравнение на случай,
+					если step получился NAN или INF */
+				if ( !(step < 60.0) )
+					step = 60.0;
+			}
+
 			glVertex3d(ptN_pos.x, ptN_pos.y, 0);
 		}
 		glEnd();
