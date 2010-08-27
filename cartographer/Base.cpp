@@ -30,14 +30,14 @@ END_EVENT_TABLE()
 
 Base::Base(wxWindow *parent, const std::wstring &server_addr,
 	const std::wstring &init_map, std::size_t cache_size)
-	: my::employer(L"Cartographer_employer")
+	: my::employer(L"Cartographer_employer", false)
 	, wxGLCanvas(parent, wxID_ANY, NULL /* attribs */,
 		wxDefaultPosition, wxDefaultSize,
 		wxFULL_REPAINT_ON_RESIZE)
 	, gl_context_(this)
 	, magic_id_(0)
 	, load_texture_debug_counter_(0)
-	, MY_MUTEX_DEF(delete_texture_mutex_,true)
+	, MY_MUTEX_DEF(delete_texture_mutex_,false)
 	, delete_texture_debug_counter_(0)
 	, cache_path_( fs::system_complete(L"cache").string() )
 	, cache_(cache_size)
@@ -191,14 +191,14 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 		} /* Загружаем с сервера список доступных карт */
 
 		/* Запускаем файловый загрузчик тайлов */
-		file_loader_ = new_worker(L"file_loader"); /* Название - только для отладки */
+		file_loader_ = new_worker(L"file_loader", false);
 		boost::thread( boost::bind(
 			&Base::file_loader_proc, this, file_loader_) );
 
 		/* Запускаем серверный загрузчик тайлов */
 		if (load_from_server)
 		{
-			server_loader_ = new_worker(L"server_loader"); /* Название - только для отладки */
+			server_loader_ = new_worker(L"server_loader", false);
 			boost::thread( boost::bind(
 				&Base::server_loader_proc, this, server_loader_) );
 		}
