@@ -55,16 +55,6 @@ class cartographerFrame: public wxFrame
 
 		void OnMapPaint(double z, const cartographer::size &screen_size);
 
-		double DrawPath(const cartographer::coord &pt1,
-			const cartographer::coord &pt2,
-			double line_width, const cartographer::color &line_color,
-			double *p_azimuth = NULL, double *p_rev_azimuth = NULL);
-
-		cartographer::coord DrawPath(const cartographer::coord &pt,
-			double azimuth, double distance,
-			double line_width, const cartographer::color &line_color,
-			double *p_rev_azimuth = NULL);
-
 		//(*Handlers(cartographerFrame)
 		void OnQuit(wxCommandEvent& event);
 		void OnAbout(wxCommandEvent& event);

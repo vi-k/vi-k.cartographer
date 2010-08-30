@@ -438,9 +438,8 @@ size Painter::DrawText(int font_id, const std::wstring &str, const point &pos,
 	return sz;
 }
 
-void Painter::DrawSimpleCircle(const cartographer::point &center,
-	double radius, double line_width, const cartographer::color &line_color,
-	const cartographer::color &fill_color)
+void Painter::DrawSimpleCircle(const point &center, double radius,
+	double line_width, const color &line_color, const color &fill_color)
 {
 	/* При малых радиусах - нет необходимости в мелком шаге */
 	double step = 180.0 / (M_PI * radius);
@@ -473,7 +472,7 @@ void Painter::DrawSimpleCircle(const cartographer::point &center,
 
 		for (double a = 2.0 * M_PI; a > 0.0; a -= step)
 		{
-			cartographer::point pos( center.x + radius * cos(a),
+			point pos( center.x + radius * cos(a),
 				center.y + radius * sin(a) );
 			glVertex3d(pos.x, pos.y, 0);
 		}
@@ -482,13 +481,12 @@ void Painter::DrawSimpleCircle(const cartographer::point &center,
 	}
 }
 
-void Painter::DrawSimpleCircle(const cartographer::coord &center,
-	double radius_in_m, double line_width, const cartographer::color &line_color,
-	const cartographer::color &fill_color)
+void Painter::DrawSimpleCircle(const coord &center, double radius_in_m,
+	double line_width, const color &line_color, const color &fill_color)
 {
-	cartographer::point center_pos = CoordToScreen(center);
-	cartographer::coord east_pt = cartographer::Direct(center, 90.0, radius_in_m);
-	cartographer::point east_pos = CoordToScreen(east_pt);
+	point center_pos = CoordToScreen(center);
+	coord east_pt = Direct(center, 90.0, radius_in_m);
+	point east_pos = CoordToScreen(east_pt);
 
 	double radius = east_pos.x - center_pos.x;
 
@@ -500,13 +498,12 @@ void Painter::DrawSimpleCircle(const cartographer::coord &center,
 		line_width, line_color, fill_color );
 }
 
-void Painter::DrawCircle(const cartographer::coord &center,
-	double radius_in_m, double line_width, const cartographer::color &line_color,
-	const cartographer::color &fill_color)
+void Painter::DrawCircle(const coord &center, double radius_in_m,
+	double line_width, const color &line_color, const color &fill_color)
 {
 	double step = 1.0;
 
-	cartographer::point center_pos = CoordToScreen(center);
+	point center_pos = CoordToScreen(center);
 
 	/* Сначала круг, затем окружность */
 	for (int n = 0; n < 2; ++n)
@@ -526,13 +523,13 @@ void Painter::DrawCircle(const cartographer::coord &center,
 
 		for (double a = 0.0; a < 360.0; a += step)
 		{
-			cartographer::coord ptN = cartographer::Direct(center, a, radius_in_m);
-			cartographer::point ptN_pos = CoordToScreen(ptN);
+			coord ptN = Direct(center, a, radius_in_m);
+			point ptN_pos = CoordToScreen(ptN);
 
 			if (a == 0.0)
 			{
 				/* При малых радиусах - нет необходимости в мелком шаге */
-				double radius = ptN_pos.x - center_pos.x;
+				double radius = center_pos.y - ptN_pos.y;
 
 				step = 180.0 / (M_PI * radius);
 
@@ -549,6 +546,94 @@ void Painter::DrawCircle(const cartographer::coord &center,
 		}
 		glEnd();
 	}
+}
+
+coord Painter::DrawPath(const coord &pt, double azimuth, double distance,
+	double line_width, const color &line_color, double *p_rev_azimuth)
+{
+	glLineWidth(line_width);
+	glBegin(GL_LINE_STRIP);
+	glColor4dv(&line_color.r);
+
+	coord ptN = pt;
+	point ptN_pos = CoordToScreen(ptN);
+
+	glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+
+	/* Делим путь на равные промежутки и вычисляем координаты узлов */
+	double step = distance / 10.0;
+	double d = 0.0;
+
+	while (d < distance)
+	{
+		/* Сохраняем старое значение */
+		coord ptP = ptN;
+		point ptP_pos = ptN_pos;
+
+		/* Получаем новое значение */
+		while (1)
+		{
+			double new_d = d + step;
+
+			if (new_d > distance)
+				new_d = distance;
+
+			ptN = Direct(pt, azimuth, new_d, p_rev_azimuth);
+			ptN_pos = CoordToScreen(ptN);
+
+			double dist_px = ptP_pos.distance(ptN_pos);
+			if (dist_px < 10.0 || step < 50000.0)
+			{
+				d = new_d;
+				break;
+			}
+
+			step /= 2.0;
+		}
+
+		/* Проверяем переход с одной стороны карты на другую */
+		if (ptP.lon * ptN.lon < 0.0 && abs(ptN.lon) > 170.0)
+		{
+			/* Ищем среднюю точку, на которой произошёл переход */
+			const double k = (180.0 - abs(ptP.lon)) / (360.0 - abs(ptN.lon - ptP.lon));
+			const double mid_lat = ptP.lat + (ptN.lat - ptP.lat) * k;
+			coord ptM_N(mid_lat, ptN.lon < 0.0 ? -180.0 : 180.0);
+			coord ptM_P(mid_lat, ptP.lon < 0.0 ? -180.0 : 180.0);
+
+			point ptM_N_pos = CoordToScreen(ptM_N);
+			point ptM_P_pos = CoordToScreen(ptM_P);
+
+			/* Дочерчиваем линию на предыдущей стороне */
+			glVertex3d(ptM_P_pos.x, ptM_P_pos.y, 0);
+			glEnd();
+
+			/* ... и переходим на новую сторону */
+			glBegin(GL_LINE_STRIP);
+			glColor4dv(&line_color.r);
+			glVertex3d(ptM_N_pos.x, ptM_N_pos.y, 0);
+		}
+
+		glVertex3d(ptN_pos.x, ptN_pos.y, 0);
+	}
+	glEnd();
+
+	return ptN;
+}
+
+double Painter::DrawPath(const coord &pt1, const coord &pt2,
+	double line_width, const color &line_color,
+	double *p_azimuth, double *p_rev_azimuth)
+{
+	/* Находим расстояние и начальный азимут */
+	double azimuth;
+	double distance = Inverse(pt1, pt2, &azimuth, NULL);
+
+	if (p_azimuth)
+		*p_azimuth = azimuth;
+
+	DrawPath(pt1, azimuth, distance, line_width, line_color, p_rev_azimuth);
+
+	return distance;
 }
 
 void Painter::after_repaint(const size &screen_size)
@@ -601,8 +686,7 @@ void Painter::after_repaint(const size &screen_size)
 
 	DrawText(system_font_id_, status_str,
 		point(4.0, screen_size.height),
-		cartographer::color(1.0, 1.0, 1.0),
-		cartographer::ratio(0.0, 1.0));
+		color(1.0, 1.0, 1.0), ratio(0.0, 1.0));
 
 	log << L"~ cartographer::after_repaint()" << log;
 }

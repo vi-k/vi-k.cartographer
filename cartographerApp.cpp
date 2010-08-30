@@ -20,18 +20,9 @@
 #include <mylib.h>
 
 #include <string>
-#include <fstream>
 #include <exception>
 
-std::wofstream main_log_stream;
-void on_main_log(const std::wstring &text)
-{
-	main_log_stream << my::time::to_wstring(
-		my::time::utc_now(), L"[%Y-%m-%d %H:%M:%S]\n")
-		<< text << L"\n\n";
-	main_log_stream.flush();
-}
-my::log main_log(on_main_log);
+my::log main_log(L"main.log", my::log::clean);
 
 IMPLEMENT_APP(cartographerApp);
 
@@ -41,26 +32,7 @@ bool cartographerApp::OnInit()
 	wxHandleFatalExceptions(true);
 	#endif
 
-	/* Открываем лог */
-	bool log_exists = fs::exists("main.log");
-
-	main_log_stream.open("main.log", std::ios::app);
-
-	if (log_exists)
-		main_log_stream << std::endl;
-	else
-	{
-		std::ofstream fs("main.log");
-		fs << "\xEF\xBB\xBF";
-		fs.close();
-		main_log_stream.open("main.log", std::ios::app);
-	}
-
-	main_log_stream.imbue( std::locale( main_log_stream.getloc(),
-		new boost::archive::detail::utf8_codecvt_facet) );
-
-	main_log << L"Start" << main_log;
-
+	main_log << L"OnInit()" << main_log;
 
 	//(*AppInitialize
 	bool wxsOK = true;
@@ -78,7 +50,7 @@ bool cartographerApp::OnInit()
 
 int cartographerApp::OnExit()
 {
-	main_log << L"Finish" << main_log;
+	main_log << L"OnExit()" << main_log;
 	return 0;
 }
 

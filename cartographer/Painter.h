@@ -230,19 +230,16 @@ public:
 	*/
 
 	/* Центр в экранных координатах, радиус в пикселях */
-	void DrawSimpleCircle(const cartographer::point &center,
-		double radius, double line_width, const cartographer::color &line_color,
-		const cartographer::color &fill_color);
+	void DrawSimpleCircle(const point &center, double radius,
+		double line_width, const color &line_color, const color &fill_color);
 
 	/* Центр в географических координатах, радиус в метрах */
-	void DrawSimpleCircle(const cartographer::coord &center,
-		double radius_in_m, double line_width, const cartographer::color &line_color,
-		const cartographer::color &fill_color);
+	void DrawSimpleCircle(const coord &center, double radius_in_m,
+		double line_width, const color &line_color, const color &fill_color);
 
 	/* Центр в географических коррдинатах, радиус в пикселях */
-	inline void DrawSimpleCirclePx(const cartographer::coord &center,
-		double radius_in_px, double line_width, const cartographer::color &line_color,
-		const cartographer::color &fill_color)
+	inline void DrawSimpleCirclePx(const coord &center, double radius_in_px,
+		double line_width, const color &line_color, const color &fill_color)
 	{
 		DrawSimpleCircle( CoordToScreen(center), radius_in_px,
 			line_width, line_color, fill_color);
@@ -251,9 +248,24 @@ public:
 	/*
 		Точный круг (круг с учётом искажения картографической проекции)
 	*/
-	void DrawCircle(const cartographer::coord &center,
-		double radius_in_m, double line_width, const cartographer::color &line_color,
-		const cartographer::color &fill_color);
+	void DrawCircle(const coord &center, double radius_in_m,
+		double line_width, const color &line_color, const color &fill_color);
+
+	/*
+		Путь (прямая и обратная геодезические задачи)
+	*/
+
+	/* Путь из точки по азимуту (прямая геодезическая задача).
+		Функция возвращает координаты конечной точки и обратный азимут */
+	coord DrawPath(const coord &pt, double azimuth, double distance,
+		double line_width, const color &line_color,
+		double *p_rev_azimuth = NULL);
+
+	/* Путь из точки в точку (обратная геодезическая задача).
+		Функция возвращает расстояние в метрах, прямой и обратный азимуты */
+	double DrawPath(const coord &pt1, const coord &pt2,
+		double line_width, const color &line_color,
+		double *p_azimuth = NULL, double *p_rev_azimuth = NULL);
 
 	/*
 		Вспомогательные функции
