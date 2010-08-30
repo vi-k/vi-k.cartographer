@@ -129,8 +129,8 @@ cartographerFrame::cartographerFrame(wxWindow* parent,wxWindowID id)
 	for (int i = 0; i < count_; ++i)
 		images_[i]= 0;
 
-	//Cartographer = new cartographer::Painter(this, L"172.16.19.1");
-	Cartographer = new cartographer::Painter(this, L"127.0.0.1");
+	Cartographer = new cartographer::Painter(this, L"172.16.19.1");
+	//Cartographer = new cartographer::Painter(this, L"127.0.0.1");
 
 	delete Panel1;
 	FlexGridSizer1->Add(Cartographer, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
@@ -498,98 +498,6 @@ void cartographerFrame::OnComboBox1Select(wxCommandEvent& event)
 	Cartographer->SetActiveMapByName(str);
 }
 
-double cartographerFrame::DrawPath(const cartographer::coord &pt1,
-	const cartographer::coord &pt2,
-	double line_width, const cartographer::color &line_color,
-	double *p_azimuth, double *p_rev_azimuth)
-{
-	/* Находим расстояние и начальный азимут */
-	double azimuth;
-	double distance = cartographer::Inverse(pt1, pt2, &azimuth, NULL, 1000.0);
-
-	if (p_azimuth)
-		*p_azimuth = azimuth;
-
-	DrawPath(pt1, azimuth, distance, line_width, line_color, p_rev_azimuth);
-
-	return distance;
-}
-
-cartographer::coord cartographerFrame::DrawPath(const cartographer::coord &pt,
-	double azimuth, double distance,
-	double line_width, const cartographer::color &line_color,
-	double *p_rev_azimuth)
-{
-	const double z = Cartographer->GetActiveZ();
-
-	glLineWidth( z >= 6.0 ? line_width : line_width * (z / 6.0) );
-	glBegin(GL_LINE_STRIP);
-	glColor4dv(&line_color.r);
-
-	cartographer::coord ptN;
-	cartographer::point ptN_pos;
-
-	/* Делим путь на равные промежутки и вычисляем координаты узлов */
-	for (int i = 0; i <= 100; ++i)
-	{
-		double d = distance / 100.0 * i;
-
-		/* Сохраняем старое значение */
-		cartographer::coord ptP = ptN;
-		cartographer::point ptP_pos = ptN_pos;
-
-		/* Получаем новое */
-		ptN = cartographer::Direct(pt, azimuth, d, p_rev_azimuth);
-		ptN_pos = Cartographer->CoordToScreen(ptN);
-
-		/* Проверяем переход с одной стороны карты на другую */
-		if (ptP.lon * ptN.lon < 0.0 && abs(ptN.lon) > 170.0)
-		{
-			/* Ищем среднюю точку, на которой произошёл переход */
-			const double k = (180.0 - abs(ptP.lon)) / (360.0 - abs(ptN.lon - ptP.lon));
-			const double mid_lat = ptP.lat + (ptN.lat - ptP.lat) * k;
-			cartographer::coord ptM_N(mid_lat, ptN.lon < 0.0 ? -180.0 : 180.0);
-			cartographer::coord ptM_P(mid_lat, ptP.lon < 0.0 ? -180.0 : 180.0);
-
-			cartographer::point ptM_N_pos = Cartographer->CoordToScreen(ptM_N);
-			cartographer::point ptM_P_pos = Cartographer->CoordToScreen(ptM_P);
-
-			/* Дочерчиваем линию на предыдущей стороне */
-			glVertex3d(ptM_P_pos.x, ptM_P_pos.y, 0);
-			glEnd();
-
-			/* ... и переходим на новую сторону */
-			glBegin(GL_LINE_STRIP);
-			glColor4dv(&line_color.r);
-			glVertex3d(ptM_N_pos.x, ptM_N_pos.y, 0);
-
-			#if 0
-			/* Позиция новой точки на обратной стороне карты */
-			cartographer::point ptN_pos_ = Cartographer->CoordToScreen( cartographer::coord(
-				ptN.lat, ptN.lon < 0.0 ? ptN.lon + 360.0 : ptN.lon - 360.0) );
-
-			/* Позиция старой точки на обратной стороне карты */
-			cartographer::point ptP_pos_ = Cartographer->CoordToScreen( cartographer::coord(
-				ptP.lat, ptP.lon < 0.0 ? ptP.lon + 360.0 : ptP.lon - 360.0) );
-
-			/* Дочерчиваем линию на предыдущей стороне */
-			glVertex3d(ptN_pos_.x, ptN_pos_.y, 0);
-			glEnd();
-
-			/* ... и переходим на новую сторону */
-			glBegin(GL_LINE_STRIP);
-			glColor4dv(&line_color.r);
-			glVertex3d(ptP_pos_.x, ptP_pos_.y, 0);
-			#endif
-		}
-
-		glVertex3d(ptN_pos.x, ptN_pos.y, 0);
-	}
-	glEnd();
-
-	return ptN;
-}
-
 void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_size)
 {
 	static double angle = 0.0;
@@ -606,7 +514,7 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 		cartographer::coord pt1 = cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 );
 		cartographer::coord pt2 = cartographer::DMSToDD( 55,45,15.01, 37,37,12.14 );
 
-		DrawPath(pt1, pt2, 4.0, cartographer::color(1.0, 0.5, 0.0));
+		Cartographer->DrawPath(pt1, pt2, 4.0, cartographer::color(1.0, 0.5, 0.0));
 
 		/* Круг, примерно в центре пути */
 		cartographer::coord pt = cartographer::DMSToDD( 62,57,0.84, 91,18,8.73 );
@@ -636,10 +544,10 @@ void cartographerFrame::OnMapPaint(double z, const cartographer::size &screen_si
 		Cartographer->DrawImage(images_[9], pt);
 	}
 
-	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
+	Cartographer->DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 		-30.0, 40000000.0, 4.0, cartographer::color(0.0, 1.0, 0.0));
 
-	DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
+	Cartographer->DrawPath( cartographer::DMSToDD( 48,28,48.77, 135,4,19.04 ),
 		90.0, 40000000.0, 4.0, cartographer::color(0.0, 0.5, 1.0));
 
 	Cartographer->DrawImage(images_[9], cartographer::DMSToDD( -54,39,51.45, -65,13,31.03 ));

@@ -86,14 +86,31 @@ public:
 	double distance() const
 		{ return std::sqrt(x * x + y * y); }
 
+	double distance(const point &other) const
+	{
+		double dx = x - other.x;
+		double dy = y - other.y;
+		return std::sqrt(dx * dx + dy * dy);
+	}
+
 	double angle() const
 		{ return std::atan2(y, x); }
+
+	double angle(const point &other) const
+		{ return std::atan2(y - other.y, x - other.x); }
 
 	point rotate(double a) const
 	{
 		const double r = distance();
 		const double new_a = angle() + a;
 		return point( r * std::cos(new_a), r * std::sin(new_a) );
+	}
+
+	point rotate(double a, const point &other) const
+	{
+		const double r = distance(other);
+		const double new_a = angle(other) + a;
+		return point( r * std::cos(new_a) + other.x, r * std::sin(new_a) + other.y );
 	}
 
 	inline size as_size() const
