@@ -1,13 +1,18 @@
 ﻿#include "Painter.h"
 
+#ifndef NDEBUG
+extern my::log main_log;
+#else
+extern my::null_log cartographer_log;
+#define main_log cartographer_log;
+#endif
+
 #include <wchar.h> /* swprintf */
 
 #include <boost/bind.hpp>
 
 namespace cartographer
 {
-
-extern my::log log;
 
 Painter::Painter(wxWindow *parent, const std::wstring &server_addr,
 	const std::wstring &init_map, std::size_t cache_size)
@@ -172,7 +177,7 @@ fast_point Painter::GetScreenPos()
 
 void Painter::MoveTo(const coord &pt)
 {
-	log << L"MoveTo()" << log;
+	my::scope sc(L"MoveTo()", L"[cartographer]");
 
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	screen_pos_ = pt;
@@ -638,7 +643,7 @@ double Painter::DrawPath(const coord &pt1, const coord &pt2,
 
 void Painter::after_repaint(const size &screen_size)
 {
-	log << L"cartographer::after_repaint()" << log;
+	my::scope sc(L"after_repaint()", L"[cartographer]");
 
 	/* Статус-строка */
 	std::wstring status_str;
@@ -650,12 +655,13 @@ void Painter::after_repaint(const size &screen_size)
 		point sc_pt = screen_pos_.get_world_pos(map_pr_);
 		point ce_pt = center_pos_.get_pos();
 
-		log
+		main_log
+			<< L"[cartographer] "
 			<< L"mouse_pos: " << mouse_pos_.x << L',' << mouse_pos_.y
 			<< L" z_: " << z_
 			<< L" screen_pos: " << sc_pt.x << L',' << sc_pt.y
 			<< L" center_pos: " << ce_pt.x << L',' << ce_pt.y
-			<< log;
+			<< main_log;
 		-*/
 
 		coord mouse_coord = screen_to_coord(
@@ -687,8 +693,6 @@ void Painter::after_repaint(const size &screen_size)
 	DrawText(system_font_id_, status_str,
 		point(4.0, screen_size.height),
 		color(1.0, 1.0, 1.0), ratio(0.0, 1.0));
-
-	log << L"~ cartographer::after_repaint()" << log;
 }
 
 } /* namespace cartographer */
