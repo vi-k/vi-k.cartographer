@@ -1,5 +1,12 @@
 ﻿#include "Base.h"
 
+#ifndef NDEBUG
+extern my::log main_log;
+#else
+my::null_log cartographer_log;
+#define main_log cartographer_log;
+#endif
+
 #include <wchar.h> /* swprintf, wcschr */
 #include <sstream>
 #include <fstream>
@@ -10,8 +17,6 @@
 
 namespace cartographer
 {
-
-my::log log(L"cartographer.log", my::log::clean);
 
 wxDEFINE_EVENT(MY_EVENT, wxCommandEvent);
 
@@ -37,7 +42,7 @@ Base::Base(wxWindow *parent, const std::wstring &server_addr,
 	, gl_context_(this)
 	, magic_id_(0)
 	, load_texture_debug_counter_(0)
-	, MY_MUTEX_DEF(delete_texture_mutex_,false)
+	, MY_MUTEX_DEF(delete_texture_mutex_,true)
 	, delete_texture_debug_counter_(0)
 	, cache_path_( fs::system_complete(L"cache").string() )
 	, cache_(cache_size)
@@ -547,7 +552,8 @@ void Base::file_loader_proc(my::worker::ptr this_worker)
 			if (!tile_ptr->load_from_file(filename))
 			{
 				tile_ptr->set_state(tile::ready);
-				log << L"Ошибка загрузки wxImage: " << filename << log;
+				main_log << L"[cartographer] Ошибка загрузки wxImage: "
+					<< filename << main_log;
 			}
 		}
 
@@ -644,7 +650,8 @@ void Base::server_loader_proc(my::worker::ptr this_worker)
 				else
 				{
 					tile_ptr->set_state(tile::ready);
-					log << L"Ошибка загрузки wxImage: " << request.str() << log;
+					main_log << L"[cartographer] Ошибка загрузки wxImage: "
+						<< request.str() << main_log;
 				}
 			}
 		}
@@ -667,7 +674,7 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 	{
 		++animator_debug_counter_;
 
-		log << L"cartographer::anim_thread_proc()" << log;
+		my::scope sc(L"animator()", L"[cartographer]");
 
 		{
 			unique_lock<recursive_mutex> lock(params_mutex_);
@@ -699,12 +706,13 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 				но уже навечно */
 			unique_lock<mutex> lock(this_worker->get_mutex());
 
-			log << L"send_my_event(MY_ID_REPAINT)" << log;
+			main_log << L"[cartographer] send_my_event(MY_ID_REPAINT)" << main_log;
 			send_my_event(MY_ID_REPAINT);
 
-			log << L"sleep(this_worker)" << log;
-			sleep(this_worker, lock);
-			log << L"wake_up(this_worker)" << log;
+			{
+				my::scope sc(L"sleep(animator)", L"[cartographer]");
+				sleep(this_worker, lock);
+			}
 		}
 
 		boost::posix_time::ptime time = timer.expires_at() + anim_period_;
@@ -716,13 +724,14 @@ void Base::anim_thread_proc(my::worker::ptr this_worker)
 			В этом случае следующий запуск делаем относительно текущего времени */
 		if (now > time)
 		{
-			log << L"without timer" << log;
+			main_log << L"[cartographer] Следующий шаг анимации - без ожидания"
+				<< main_log;
 			timer.expires_at(now);
 		}
 		else
 		{
-			log << L"timer.expires_at("
-				<< my::time::to_wstring(time) << L')' << log;
+			main_log << L"[cartographer] Следующий шаг анимации - "
+				<< my::time::to_wstring(time) << main_log;
 			timer.expires_at(time);
 			timer.wait();
 		}
@@ -838,7 +847,7 @@ void Base::paint_debug_info_int(DC &gc, int width, int height)
 
 void Base::repaint()
 {
-	log << L"repaint()" << log;
+	my::scope sc(L"repaint()", L"[cartographer]");
 
 	unique_lock<mutex> l1(paint_mutex_);
 	unique_lock<recursive_mutex> l2(params_mutex_);
@@ -1079,7 +1088,7 @@ void Base::repaint()
 		for (int y = z_i_tile_y1; y < z_i_tile_y2; ++y)
 			paint_tile( tile::id(map_id_, z_i, x, y) );
 
-	log << L"repaint() after paint map" << log;
+	main_log << L"[cartographer] repaint(): after paint map" << main_log;
 
 	/* Меняем проекцию на проекцию экрана */
 	{
@@ -1098,16 +1107,13 @@ void Base::repaint()
 
 	magic_exec();
 
-	log << L"repaint() before on_paint" << log;
-
 	/* Картинка пользователя */
 	if (on_paint_handler_)
 	{
+		my::scope sc(L"on_paint()", L"[cartographer] repaint():");
 		on_paint_handler_(z_, screen_size);
 		magic_exec();
 	}
-
-	log << L"repaint() after on_paint" << log;
 
 	/* Показываем fix-точку при изменении масштаба */
 	if (central_cross_step_ || dz > 0.1)
@@ -1136,17 +1142,17 @@ void Base::repaint()
 		check_gl_error();
 	}
 
-	log << L"repaint() before after_paint()" << log;
+	{
+		my::scope sc(L"after_paint()", L"[cartographer] repaint():");
+		after_repaint(screen_size);
+	}
 
-	after_repaint(screen_size);
-
-	log << L"repaint() after after_paint()" << log;
-
-	glFlush();
-	SwapBuffers();
-	check_gl_error();
-
-	log << L"repaint() after SwapBuffers()" << log;
+	{
+		my::scope sc(L"glGlush()", L"[cartographer] repaint():");
+		glFlush();
+		SwapBuffers();
+		check_gl_error();
+	}
 
 	/* Удаляем текстуры, вышедшие из употребления */
 	delete_textures();
@@ -1178,10 +1184,10 @@ void Base::repaint()
 
 	anim_freq_sw_.start();
 
-	log << L"wake_up(animator)" << log;
-	wake_up(animator_);
-
-	log << L"~ repaint()" << log;
+	{
+		my::scope sc(L"wake_up(animator)", L"[cartographer] repaint():");
+		wake_up(animator_);
+	}
 }
 
 size Base::get_screen_size()
