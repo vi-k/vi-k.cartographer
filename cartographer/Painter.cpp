@@ -23,6 +23,8 @@ Painter::Painter(wxWindow *parent, const std::wstring &server_addr,
 	, MY_MUTEX_DEF(fonts_mutex_,true)
 	, system_font_id_(0)
 {
+	my::scope sc(L"Painter::ctor()", L"[cartographer]");
+
 	system_font_id_ = CreateFont(
 		wxFont(8, wxFONTFAMILY_MODERN, /* fixed size */
 			wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD) );
@@ -32,6 +34,8 @@ Painter::Painter(wxWindow *parent, const std::wstring &server_addr,
 
 Painter::~Painter()
 {
+	my::scope sc(L"Painter()::dtor", L"[cartographer]");
+
 	if (!finish())
 		stop();
 
@@ -41,33 +45,45 @@ Painter::~Painter()
 
 void Painter::SetPainter(on_paint_proc_t on_paint_proc)
 {
+	my::scope sc(L"SetPainter()", L"[cartographer]");
+
 	unique_lock<mutex> l(paint_mutex_);
 	on_paint_handler_ = on_paint_proc;
 }
 
 void Painter::Stop()
 {
+	my::scope sc(L"Stop()", L"[cartographer]");
+
 	stop();
 }
 
 void Painter::Repaint()
 {
+	my::scope sc(L"Repaint()", L"[cartographer]");
+
 	if (boost::this_thread::get_id() == paint_thread_id_)
 		repaint();
 }
 
 void Painter::SetStatusHandler(on_status_proc_t on_status_proc)
 {
+	my::scope sc(L"SetStatusHandler()", L"[cartographer]");
+
 	on_status_ = on_status_proc;
 }
 
 int Painter::GetMapsCount()
 {
+	my::scope sc(L"GetMapsCount()", L"[cartographer]");
+
 	return (int)maps_.size();
 }
 
 map_info Painter::GetMapInfo(int index)
 {
+	my::scope sc(L"GetMapInfo()", L"[cartographer]");
+
 	map_info map;
 	maps_list::iterator iter = maps_.begin();
 
@@ -82,12 +98,16 @@ map_info Painter::GetMapInfo(int index)
 
 map_info Painter::GetActiveMapInfo()
 {
+	my::scope sc(L"GetActiveMapInfo()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return maps_[map_id_];
 }
 
 bool Painter::SetActiveMapByIndex(int index)
 {
+	my::scope sc(L"SetActiveMapByIndex()", L"[cartographer]");
+
 	maps_list::iterator iter = maps_.begin();
 
 	while (index-- && iter != maps_.end())
@@ -107,6 +127,8 @@ bool Painter::SetActiveMapByIndex(int index)
 
 bool Painter::SetActiveMapByName(const std::wstring &map_name)
 {
+	my::scope sc(L"SetActiveMapByName()", L"[cartographer]");
+
 	maps_name_to_id_list::iterator iter = maps_name_to_id_.find(map_name);
 
 	if (iter == maps_name_to_id_.end())
@@ -123,6 +145,8 @@ bool Painter::SetActiveMapByName(const std::wstring &map_name)
 
 point Painter::CoordToScreen(const coord &pt)
 {
+	my::scope sc(L"CoordToScreen()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	return coord_to_screen( pt, map_pr_, z_,
@@ -131,6 +155,8 @@ point Painter::CoordToScreen(const coord &pt)
 
 point Painter::CoordToScreen(fast_point &pt)
 {
+	my::scope sc(L"CoordToScreen(fast_point)", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	return pt.get_screen_pos( map_pr_, z_,
@@ -139,6 +165,8 @@ point Painter::CoordToScreen(fast_point &pt)
 
 coord Painter::ScreenToCoord(const point &pos)
 {
+	my::scope sc(L"ScreenToCoord()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 
 	return screen_to_coord(pos, map_pr_, z_,
@@ -148,50 +176,47 @@ coord Painter::ScreenToCoord(const point &pos)
 
 double Painter::GetActiveZ(void)
 {
+	my::scope sc(L"GetActiveZ()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return z_;
 }
 
 void Painter::SetActiveZ(int z)
 {
+	my::scope sc(L"SetActiveZ()", L"[cartographer]");
+
 	set_z(z);
 }
 
 void Painter::ZoomIn()
 {
+	my::scope sc(L"ZoomIn()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ + 1.0 );
 }
 
 void Painter::ZoomOut()
 {
+	my::scope sc(L"ZoomOut()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	SetActiveZ( new_z_ - 1.0 );
 }
 
 fast_point Painter::GetScreenPos()
 {
+	my::scope sc(L"GetScreenPos()", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	return screen_pos_;
 }
 
-void Painter::MoveTo(const coord &pt)
+void Painter::MoveTo(const coord &pt, const ratio &center)
 {
 	my::scope sc(L"MoveTo()", L"[cartographer]");
 
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	screen_pos_ = pt;
-}
-
-void Painter::MoveTo(int z, const coord &pt)
-{
-	unique_lock<recursive_mutex> lock(params_mutex_);
-	screen_pos_ = pt;
-	set_z(z);
-}
-
-void Painter::MoveTo(const coord &pt, const ratio &center)
-{
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	screen_pos_ = pt;
 	if (!move_mode_)
@@ -200,15 +225,20 @@ void Painter::MoveTo(const coord &pt, const ratio &center)
 
 void Painter::MoveTo(int z, const coord &pt, const ratio &center)
 {
+	my::scope sc(L"MoveTo(z)", L"[cartographer]");
+
 	unique_lock<recursive_mutex> lock(params_mutex_);
 	screen_pos_ = pt;
 	if (!move_mode_)
 		center_pos_.set_rel_pos(center);
+
 	set_z(z);
 }
 
 int Painter::LoadImageFromFile(const std::wstring &filename)
 {
+	my::scope sc(L"LoadImageFromFile()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
@@ -233,6 +263,8 @@ int Painter::LoadImageFromFile(const std::wstring &filename)
 
 int Painter::LoadImageFromMem(const void *data, std::size_t size)
 {
+	my::scope sc(L"LoadImageFromMem()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
@@ -257,6 +289,8 @@ int Painter::LoadImageFromMem(const void *data, std::size_t size)
 int Painter::LoadImageFromRaw(const unsigned char *data,
 	int width, int height, bool with_alpha)
 {
+	my::scope sc(L"LoadImageFromRaw()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprite::ptr sprite_ptr( new sprite(on_image_delete_) );
@@ -277,12 +311,16 @@ int Painter::LoadImageFromRaw(const unsigned char *data,
 
 void Painter::DeleteImage(int image_id)
 {
+	my::scope sc(L"DeleteImage()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(sprites_mutex_);
 	sprites_.erase(image_id);
 }
 
 ratio Painter::GetImageCenter(int image_id)
 {
+	my::scope sc(L"GetImageCenter()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -291,6 +329,8 @@ ratio Painter::GetImageCenter(int image_id)
 
 void Painter::SetImageCenter(int image_id, const ratio &pos)
 {
+	my::scope sc(L"SetImageCenter()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -301,6 +341,8 @@ void Painter::SetImageCenter(int image_id, const ratio &pos)
 
 point Painter::GetImageCentralPoint(int image_id)
 {
+	my::scope sc(L"GetImageCentralPoint()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -309,6 +351,8 @@ point Painter::GetImageCentralPoint(int image_id)
 
 void Painter::SetImageCentralPoint(int image_id, const point &pos)
 {
+	my::scope sc(L"SetImageCentralPoint()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -319,6 +363,8 @@ void Painter::SetImageCentralPoint(int image_id, const point &pos)
 
 size Painter::GetImageSize(int image_id)
 {
+	my::scope sc(L"GetImageSize()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -327,6 +373,8 @@ size Painter::GetImageSize(int image_id)
 
 ratio Painter::GetImageScale(int image_id)
 {
+	my::scope sc(L"GetImageScale()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -335,6 +383,8 @@ ratio Painter::GetImageScale(int image_id)
 
 void Painter::SetImageScale(int image_id, const ratio &scale)
 {
+	my::scope sc(L"SetImageScale()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -346,6 +396,8 @@ void Painter::SetImageScale(int image_id, const ratio &scale)
 void Painter::DrawImage(int image_id, const point &pos, const ratio &scale,
 	const color &blend_color, double angle)
 {
+	my::scope sc(L"DrawImage()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(sprites_mutex_);
 
 	sprites_list::iterator iter = sprites_.find(image_id);
@@ -402,6 +454,8 @@ void Painter::DrawImage(int image_id, const point &pos, const ratio &scale,
 
 int Painter::CreateFont(const wxFont &wxfont)
 {
+	my::scope sc(L"CreateFont()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(fonts_mutex_);
 
 	font::ptr font_ptr( new font(wxfont, on_image_delete_) );
@@ -416,6 +470,8 @@ int Painter::CreateFont(const wxFont &wxfont)
 
 void Painter::DeleteFont(int font_id)
 {
+	my::scope sc(L"DeleteFont()", L"[cartographer]");
+
 	unique_lock<shared_mutex> lock(fonts_mutex_);
 	fonts_.erase(font_id);
 }
@@ -423,6 +479,8 @@ void Painter::DeleteFont(int font_id)
 size Painter::DrawText(int font_id, const std::wstring &str, const point &pos,
 	const color &text_color, const ratio &center, const ratio &scale)
 {
+	my::scope sc(L"DrawText()", L"[cartographer]");
+
 	shared_lock<shared_mutex> lock(fonts_mutex_);
 
 	fonts_list::iterator iter = fonts_.find(font_id);
@@ -446,6 +504,8 @@ size Painter::DrawText(int font_id, const std::wstring &str, const point &pos,
 void Painter::DrawSimpleCircle(const point &center, double radius,
 	double line_width, const color &line_color, const color &fill_color)
 {
+	my::scope sc(L"DrawSimpleCircle(point)", L"[cartographer]");
+
 	/* При малых радиусах - нет необходимости в мелком шаге */
 	double step = 180.0 / (M_PI * radius);
 
@@ -489,6 +549,8 @@ void Painter::DrawSimpleCircle(const point &center, double radius,
 void Painter::DrawSimpleCircle(const coord &center, double radius_in_m,
 	double line_width, const color &line_color, const color &fill_color)
 {
+	my::scope sc(L"DrawSimpleCircle(coord)", L"[cartographer]");
+
 	point center_pos = CoordToScreen(center);
 	coord east_pt = Direct(center, 90.0, radius_in_m);
 	point east_pos = CoordToScreen(east_pt);
@@ -506,6 +568,8 @@ void Painter::DrawSimpleCircle(const coord &center, double radius_in_m,
 void Painter::DrawCircle(const coord &center, double radius_in_m,
 	double line_width, const color &line_color, const color &fill_color)
 {
+	my::scope sc(L"DrawCircle()", L"[cartographer]");
+
 	double step = 1.0;
 
 	point center_pos = CoordToScreen(center);
@@ -556,6 +620,8 @@ void Painter::DrawCircle(const coord &center, double radius_in_m,
 coord Painter::DrawPath(const coord &pt, double azimuth, double distance,
 	double line_width, const color &line_color, double *p_rev_azimuth)
 {
+	my::scope sc(L"DrawPath(direct)", L"[cartographer]");
+
 	glLineWidth(line_width);
 	glBegin(GL_LINE_STRIP);
 	glColor4dv(&line_color.r);
@@ -629,6 +695,8 @@ double Painter::DrawPath(const coord &pt1, const coord &pt2,
 	double line_width, const color &line_color,
 	double *p_azimuth, double *p_rev_azimuth)
 {
+	my::scope sc(L"DrawPath(inverse)", L"[cartographer]");
+
 	/* Находим расстояние и начальный азимут */
 	double azimuth;
 	double distance = Inverse(pt1, pt2, &azimuth, NULL);

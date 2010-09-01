@@ -73,10 +73,8 @@ public:
 		Текущая позиция
 	*/
 	fast_point GetScreenPos();
-	void MoveTo(const coord &pt);
-	void MoveTo(int z, const coord &pt);
-	void MoveTo(const coord &pt, const ratio &center);
-	void MoveTo(int z, const coord &pt, const ratio &center);
+	void MoveTo(const coord &pt, const ratio &center = ratio(0.5, 0.5));
+	void MoveTo(int z, const coord &pt, const ratio &center = ratio(0.5, 0.5));
 
 
 	/*
