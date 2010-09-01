@@ -1335,13 +1335,9 @@ void Base::on_mouse_wheel(wxMouseEvent& event)
 	{
 		unique_lock<recursive_mutex> lock(params_mutex_);
 
+		set_screen_pos( point(event.GetX(), event.GetY()) );
+
 		int z = (int)new_z_ + event.GetWheelRotation() / event.GetWheelDelta();
-
-		if (z < 1)
-			z = 1;
-
-		if (z > 30)
-			z = 30.0;
 
 		set_z(z);
 	}
